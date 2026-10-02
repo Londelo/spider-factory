@@ -1,0 +1,194 @@
+# Binary Obelisk V1 — Design Model (editable source of truth)
+#
+# THREE NAMES, NEVER INTERCHANGEABLE — collapsing any two is how a tower silently
+# dispatches nothing:
+#   category = display hint, shown in `bd list`, names a plan-task template
+#   stamp    = the ONE label a ticket carries (`bd create -l <stamp>`); what the
+#              dispatcher matches on. Keys of `tasks:` below, bar none.
+#   agent    = a real file in agents/; what gets spawned
+#
+# Every node is a real beads issue. Relationships live in the arrays:
+#   task.stamp     -> written with `bd create -l <stamp>`
+#   task.parent    -> `--deps type:parent-child:<parent>`
+#   task.depends-on-> `bd dep add <task> <dep> --type blocks`
+#   task.agents    -> who does the work
+#
+# Nothing here is read at runtime — the loop's only input is the beads database.
+# The tower is built top-down by the plan agents (plan-epic -> plan-feature ->
+# plan-task) and EXECUTED bottom-up (`bd ready --claim`, close children, parent
+# auto-unblocks). See claim-beads-loop.md for the dispatcher.
+#
+# respawn-agent: true = a fresh session of the same agent re-checks the work before
+# the ticket may close. It is a STEP inside the one ticket, never a second ticket.
+
+# ============================== DATABASES ==============================
+databases:
+  task-db:
+    glyph: "▲"
+    description: "Authoritative task store. Every issue, its status, and its dependency edges live here."
+
+# ================================ SKILLS ===============================
+skills:
+  errors:
+    description: "Error factories, error taxonomies, and failure-mode handling standards."
+  coding:
+    description: "Core coding standards and idioms (style, structure, quality bar)."
+  files:
+    description: "File-organization and module-boundary conventions."
+  naming:
+    description: "Naming conventions across the codebase."
+
+# ================================ AGENTS ===============================
+# `spawn` = the modes this agent is normally run in: s = subagent, b = background,
+# w = windowed session. The dispatcher always uses b.
+agents:
+  engineer:
+    description: "Business logic: domain functions, validators, transformers, API/service layer, hooks, types, error factories. Never tests, JSX or CSS."
+    spawn: [s, b, w]
+    certify: true
+    skills: [files, naming]
+  frontend:
+    description: "UI: components, layouts, styling, shared component system, design tokens. Never logic, endpoints or tests."
+    spawn: [s, b, w]
+    certify: true
+    skills: [coding, files, naming]
+  jester:
+    description: "Jest unit tests for pure logic, formatters, validators and helpers. Never integration or E2E tests."
+    spawn: [s, b, w]
+    certify: true
+    skills: [coding, files, naming, errors]
+  playwrite:
+    description: "Playwright browser tests of user-facing flows — one feature's journeys, or the whole epic's end-to-end journeys depending on the stamp."
+    spawn: [s, b, w]
+    certify: true
+    skills: [coding, files, naming, errors]
+  lead-review:
+    description: "Comprehensive review — traces the change, instruments, runs the tests, certifies."
+    spawn: [s, b, w]
+    certify: true
+    skills: [errors, coding, files, naming]
+  merge:
+    description: "Collects the finished work and merges the PR once the frontier is clear."
+    spawn: [s, b, w]
+    certify: true
+    skills: [files, naming]
+
+# The three plan agents build the tower top-down and do no work in it, so they have
+# no task node here — they are described at the bottom of this file.
+
+# ================================ TASKS ================================
+# Node keys ARE the stamps — one label, written at create time by plan-task, and
+# verified with a `bd show --json` round trip. A ticket with zero or two stamps is
+# never dispatched: the loop does not guess specialists.
+#
+# `gate` nodes are checkpoints, not work: the loop never sees one, and everything
+# behind an open gate stays off the ready frontier. The human reads the merged PR
+# and closes the gate. There is no human agent.
+tasks:
+
+  # ---------- Epic: the "what", one per product intent ----------
+  epic:
+    type: gate
+    parent: null
+    depends-on: [epic-merge-pr]      # the human closes it once the epic PR is merged
+    respawn-agent: false
+    description: "The highest-level understanding of what we are building. Created by plan-epic."
+
+  # ---------- Epic tasks: run once the features are in ----------
+  epic-e2e-tests:
+    type: task
+    category: playwright-test
+    parent: epic
+    depends-on: [feature]
+    agents: [playwrite]
+    respawn-agent: true
+    description: "End-to-end Playwright journeys across the whole epic, in a real browser."
+  epic-lead-review:
+    type: task
+    category: review
+    parent: epic
+    depends-on: [epic-e2e-tests]
+    agents: [lead-review]
+    respawn-agent: false
+    description: "Review the epic as a whole — trace the change, run the tests, certify."
+  epic-merge-pr:
+    type: task
+    category: merge
+    parent: epic
+    depends-on: [epic-lead-review]
+    agents: [merge]
+    respawn-agent: false
+    description: "Merge the epic PR once its review and e2e tests are green. Never dispatched by the loop."
+
+  # ---------- Feature: a piece of the epic, one complete user-facing flow ----------
+  feature:
+    type: gate
+    parent: epic
+    depends-on: [feature-merge-pr]   # the human closes it once the feature PR is merged
+    respawn-agent: false
+    description: "A piece of the epic, described in terms of what the user gets, never how to build it. Created by plan-feature."
+
+  # ---------- Feature tasks: run once the base tasks are in ----------
+  feature-playwright-tests:
+    type: task
+    category: playwright-test
+    parent: feature
+    depends-on: [backend-logic, frontend-ui]
+    agents: [playwrite]
+    respawn-agent: true
+    description: "Playwright journeys for this feature's user-facing flow, against the finished UI and logic."
+  feature-lead-review:
+    type: task
+    category: review
+    parent: feature
+    depends-on: [feature-playwright-tests, unit-tests]
+    agents: [lead-review]
+    respawn-agent: false
+    description: "Review the feature — trace the call chain, instrument, run the tests, certify."
+  feature-merge-pr:
+    type: task
+    category: merge
+    parent: feature
+    depends-on: [feature-lead-review]
+    agents: [merge]
+    respawn-agent: false
+    description: "Merge the feature PR once its review and tests are green. Never dispatched by the loop."
+
+  # ---------- Base tasks: created from every feature; the ready frontier ----------
+  backend-logic:
+    type: task
+    category: backend-logic
+    parent: feature
+    depends-on: []                   # no dependencies — claimed first
+    agents: [engineer]
+    respawn-agent: true
+    description: "The feature's logic and back-end work."
+  frontend-ui:
+    type: task
+    category: frontend-ux
+    parent: feature
+    depends-on: []                   # no dependencies — claimed first
+    agents: [frontend]
+    respawn-agent: true
+    description: "The feature's UI work."
+  unit-tests:
+    type: task
+    category: unit-test
+    parent: feature
+    depends-on: [backend-logic, frontend-ui]
+    agents: [jester]
+    respawn-agent: true
+    description: "Jest unit tests for the feature's pure logic, formatters, validators and helpers."
+
+# ============================ PLAN AGENTS ==============================
+# Build the tower top-down; the claim loop runs it bottom-up.
+#   plan-epic    vague idea -> one epic            (`bd create -t gate`)
+#   plan-feature epic -> features, parent-child    (phases: foundations -> core -> dependent -> polish)
+#   plan-task    feature -> the tasks above, each stamped at create time
+
+# ============================ EXECUTION ORDER ==========================
+# The order the ready frontier releases them:
+#   1. backend-logic, frontend-ui        (the frontier, no deps)
+#   2. unit-tests, feature-playwright-tests
+#   3. feature-lead-review -> feature-merge-pr -> human closes the feature gate
+#   4. epic-e2e-tests -> epic-lead-review -> epic-merge-pr -> human closes the epic gate

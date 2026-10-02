@@ -103,7 +103,7 @@ This is where the actual review happens. There are two distinct lenses, and you 
 
 **Use everything you've gathered this session.** This step is not a fresh look at the diff — it's a synthesis of all the context you've already collected. Before flagging or clearing any finding, pull from:
 
-- **The core standard** — [`core.md`](/Users/Brodie.Balser/CastleLondelo/.claudeRootDir/standards/core.md) — includes links to naming conventions and error handling standards
+- **The core standard** — [`core.md`](~/CastleLondelo/.claudeRootDir/standards/core.md) — includes links to naming conventions and error handling standards
 - **The full flow output** (Step 1) — the call chain, transformations, entry/exit points, and notable observations you wrote out. Every finding should reference where in the flow the issue lives.
 - **The trace logs from the test run** (Steps 2 & 3) — the actual data that flowed through the system. Use these to verify hypotheses about behavior, catch silent fallbacks, and spot fields that are read but never written, etc.
 - **The test output itself** (Step 3) — what passed, what failed, what wasn't exercised at all.
@@ -118,13 +118,13 @@ If you make a claim during the review and you can't tie it back to one of these 
 
 #### Part A — Standards Check
 
-**Load the core standard.** Read [`core.md`](/Users/Brodie.Balser/CastleLondelo/.claudeRootDir/standards/core.md) — this is the sole review standard. It links to the naming conventions and error handling standards. Run the changed code against the relevant principle(s) based on what type of work it is.
+**Load the core standard.** Read [`core.md`](~/CastleLondelo/.claudeRootDir/standards/core.md) — this is the sole review standard. It links to the naming conventions and error handling standards. Run the changed code against the relevant principle(s) based on what type of work it is.
 
 **What to check:**
 - **Applicable principles** — Which principles apply to this code? (e.g. purity for business logic, presentation boundary for components, testing philosophy for tests)
 - **Success criteria** — Does the work satisfy all the relevant success criteria for its domain?
 
-Only flag issues you can ground in something **found in session**. The session includes: [`core.md`](/Users/Brodie.Balser/CastleLondelo/.claudeRootDir/standards/core.md), the full flow output (Step 1), the trace logs and test output (Steps 2 & 3). If a finding can't be tied back to one of these sources, don't flag it — you're guessing. If it can, flag it.
+Only flag issues you can ground in something **found in session**. The session includes: [`core.md`](~/CastleLondelo/.claudeRootDir/standards/core.md), the full flow output (Step 1), the trace logs and test output (Steps 2 & 3). If a finding can't be tied back to one of these sources, don't flag it — you're guessing. If it can, flag it.
 
 #### Part B — Logic & Simplicity Review (First Principles)
 

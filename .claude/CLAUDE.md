@@ -17,7 +17,7 @@ plugins/binary-obelisk/
 ├── .claude-plugin/plugin.json            # manifest
 ├── .claude/binary-obelisk-v1-design.yaml # EDITABLE design model
 ├── agents/                               # engineer, frontend, unit-tester, feature-tester, e2e-tester, lead-review, merge + 3 plan agents
-├── skills/                               # initialize-beads, review-code, standards-*, framework-jest, framework-playwright, …
+├── skills/                               # initialize-beads, review-code, standards-*, read-bead, create-bead, framework-jest, framework-playwright, …
 ├── standards/                            # coding/review standards
 ├── scripts/beads-loop.sh                 # the claim-beads dispatcher
 ├── shared/                               # plan-task and review templates/formats
@@ -44,9 +44,9 @@ mis-stamped one tier up or down gets the wrong depth of coverage, and no worker 
 |---|---|---|---|---|
 | `engineer` | business logic, endpoints, hooks, types, error factories | s b w | ✓ | files, naming |
 | `frontend` | components, layout, styling, component system | s b w | ✓ | coding, files, naming |
-| `unit-tester` | **micro tier** — one function alone; every branch, boundary, empty/null, error | s b w | ✓ | coding, files, naming, errors, **framework-jest** |
-| `feature-tester` | **composition tier** — one feature's pieces proved wired; its errors/successes surface | s b w | ✓ | coding, files, naming, errors, **framework-playwright** |
-| `e2e-tester` | **broad tier** — journeys across features on the real stack; cross-feature state, one success+failure per feature | s b w | ✓ | coding, files, naming, errors, **framework-playwright** |
+| `unit-tester` | **micro tier** — one function alone; every branch, boundary, empty/null, error | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-jest** |
+| `feature-tester` | **composition tier** — one feature's pieces proved wired; its errors/successes surface | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-playwright** |
+| `e2e-tester` | **broad tier** — journeys across features on the real stack; cross-feature state, one success+failure per feature | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-playwright** |
 | `lead-review` | traces the change, instruments, runs tests, certifies | s b w | ✓ | errors, coding, files, naming |
 | `merge` | merges the PR once the frontier is clear | s b w | ✓ | files, naming |
 

@@ -4,7 +4,7 @@ color: blue
 description: "Builds UI components, layouts, and styling. Manages the shared component system and design tokens. Never writes business logic, API endpoints, or tests. Triggers: \"frontend\", \"hey frontend\", \"build the UI\", \"create a component\", \"style this\", \"write the JSX\", \"design the layout\", \"add the CSS\"."
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills:
-  - beads-db-help
+  - read-bead
   - standards-file-organization
   - standards-naming
 ---

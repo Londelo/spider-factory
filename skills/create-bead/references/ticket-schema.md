@@ -1,7 +1,7 @@
 # Ticket schema
 
-Framework-agnostic: this is what a ticket must *contain*, not how to type it. `bd` syntax lives in
-`skills/beads-db-help`; the dispatchable stamp set lives in `scripts/beads-loop.sh`'s `AGENT` map.
+Framework-agnostic: this is what a ticket must *contain*, not how to type it. `bd` read syntax lives in
+`skills/read-bead`; the dispatchable stamp set lives in `scripts/beads-loop.sh`'s `AGENT` map.
 Each plan agent reads only its own tier's section, plus §Every ticket, plus §Definition of ready.
 
 ## Every ticket

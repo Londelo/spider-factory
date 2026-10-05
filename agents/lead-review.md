@@ -4,7 +4,7 @@ color: purple
 description: "Comprehensive code review agent. Traces the full call chain of the change, instruments the code with verbose console logs, runs the tests, and produces a synthesized review. Triggers: \"review\", \"hey review\", \"do a code review\", \"run the review\", \"review this branch\", \"review this PR\"."
 tools: Read, Write, Edit, Grep, Glob, Bash
 skills:
-  - beads-db-help
+  - read-bead
   - review-code
 ---
 

@@ -6,8 +6,8 @@ description: >
   parent-child vs blocks edges, and the read-back that proves the ticket exists as you meant it.
   Use it whenever you are CREATING tickets: plan-epic, plan-feature, plan-task, any "make me a
   ticket/epic/feature" request, or a tower that came out with no stamps, two stamps, or no merge
-  ticket. Use this skill instead of `beads-db-help` when nothing has been claimed yet — `beads-db-help`
-  is for a worker already holding a claimed ticket; this is for the author who has nothing.
+  ticket. Use it when nothing has been claimed yet: this is for the author who has nothing, while a
+  worker already holding a claimed ticket reads `read-bead`.
 version: 0.1.0
 ---
 
@@ -35,7 +35,7 @@ Ground yourself before you write anything: `bd where` says which database you ar
 it resolves by walking **up** from `$PWD` and ignores `BEADS_DIR`, so one stray `cd` has you authoring
 into somebody else's tower — and `bd status` gives the open/blocked/ready totals. What is written here
 was verified against `bd` 1.3.0 by running it; when a flag is unfamiliar, check
-`skills/beads-db-help` rather than remembering one.
+`bd <command> --help` rather than remembering one, and the read side lives in `skills/read-bead`.
 
 A bead is not a note about work; it is the unit the dispatcher consumes. `scripts/beads-loop.sh` reads
 exactly three things off every ticket — the description, the single stamp label, and the dependency
@@ -44,9 +44,9 @@ message. So the ticket *is* the deliverable, and a ticket that is unstamped, dou
 with the wrong edge kind is work that never happens, discovered only as a silent, calm, empty frontier.
 
 **Schema here, framework there.** This skill and its [references/ticket-schema.md](./references/ticket-schema.md)
-own *what a ticket must contain* — the field list, per tier, independent of any tracker. The `bd` command
-surface, leases, closing, and debugging live in `skills/beads-db-help`; read that for syntax when a flag
-here is unfamiliar. Where the two disagree about what a stamp is, the loop's `AGENT` map wins: it is the
+own *what a ticket must contain* — the field list, per tier, independent of any tracker. The `bd` read
+surface lives in `skills/read-bead`; holding a claimed ticket open and closing it are commands that
+arrive with the ticket itself, and an unfamiliar write flag is settled by `bd <command> --help`. Where the two disagree about what a stamp is, the loop's `AGENT` map wins: it is the
 only source of specialists in existence, and a label it does not name dispatches nothing.
 
 ## The four things that make a ticket real

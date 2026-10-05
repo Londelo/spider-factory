@@ -4,7 +4,7 @@ color: green
 description: "Writes clean, maintainable business logic, backend endpoints, React hooks, type guards, error factories, and pipelines. Follows the FP+imperative paradigm and project coding standards. Never writes tests, JSX, or CSS. Triggers: \"engineer\", \"hey engineer\", \"write the business logic\", \"implement a feature\", \"fix a bug\", \"write the hooks\", \"create a validator\", \"build the backend\"."
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills:
-  - beads-db-help
+  - read-bead
   - standards-coding
   - standards-errors
   - standards-file-organization

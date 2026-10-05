@@ -36,15 +36,15 @@ databases:
 
 # ================================ SKILLS ===============================
 # Two kinds of skill, and the difference matters to the test tiers:
-#   standards-* / beads-db-help = how the house works
+#   standards-* / read-bead / create-bead = how the house works
 #   framework-*                 = how ONE TOOL works (syntax, config, run commands)
 # A test-tier AGENT owns the tier — what to cover and how deep. A framework SKILL owns the tool.
 # That split is why no test agent has a framework opinion of its own.
 # Note: the `standards` keys below are written short; the directories are standards-coding,
 # standards-errors, standards-file-organization, standards-naming. framework-* keys are literal.
 skills:
-  beads-db-help:
-    description: "How to operate the beads DB with `bd` — read a ticket, heartbeat its lease, close it, stamp it and prove the stamp survived, wire parent-child vs blocks edges, see hidden gate issues, debug a tower that is not moving. Agents NEVER claim: `ready --claim`/`unclaim`/`reclaim` are the loop's and the operator's alone. Every agent that touches a ticket loads it."
+  read-bead:
+    description: "The READ side of beads: declares that you are working inside a beads system and says what it is, then gives every command for reading — a ticket's details (`bd show --json --long`), its parent (`.parent`, `bd dep list`), its direct children (`bd show --children`), and the two reads that decide a tier's coverage: an epic reads ALL its features (gates are hidden from default queries, so an empty list is not an empty epic) and a feature reads ALL its tasks. Agents carry NO beads knowledge of their own: the agent text says only \"read the ticket you were given, and its children where children apply\", and this skill supplies the how. Reads are read-only; the claim belongs to the loop, the commands that hold a ticket open and close it arrive with the ticket itself, and authoring tickets is create-bead."
   errors:
     description: "Error factories, error taxonomies, and failure-mode handling standards."
   coding:
@@ -80,19 +80,19 @@ agents:
     description: "Micro tier: ONE function at a time, in isolation, and exhaustive within it — every branch, boundary, empty/null, error. The only tier allowed to enumerate an input matrix. Never wiring, renders, browser or journeys."
     spawn: [s, b, w]
     certify: true
-    skills: [coding, files, naming, errors, framework-jest]
+    skills: [read-bead, coding, files, naming, errors, framework-jest]
   feature-tester:
     tier: feature
     description: "Feature tier: proves one feature's unit-tested pieces are actually WIRED together and every error and success the feature encapsulates surfaces. Deliberately not exhaustive — one representative case per path, asserted at the seam; never re-runs the unit tier's matrix, never leaves the feature."
     spawn: [s, b, w]
     certify: true
-    skills: [coding, files, naming, errors, framework-playwright]
+    skills: [read-bead, coding, files, naming, errors, framework-playwright]
   e2e-tester:
     tier: epic
     description: "Epic tier: journeys ACROSS features in a real browser on the real stack — cross-feature state handoffs, session/persistence continuity, one success and one failure per feature seen from outside. The thinnest tier; mocks third parties only; duplicates nothing below it."
     spawn: [s, b, w]
     certify: true
-    skills: [coding, files, naming, errors, framework-playwright]
+    skills: [read-bead, coding, files, naming, errors, framework-playwright]
   lead-review:
     description: "Comprehensive review — traces the change, instruments, runs the tests, certifies."
     spawn: [s, b, w]

@@ -13,6 +13,30 @@ version: 0.1.0
 
 # Creating a bead
 
+## You are working in a beads system
+
+**Beads** is the issue tracker this whole toolkit runs on: a local database per repository, driven by
+the `bd` command-line tool, where every unit of work is a real issue row — an id (`bd-42`), a title, a
+description, acceptance criteria, a priority, a type, labels, a status (`open` → `in_progress` →
+`closed`, with `blocked`/`deferred` off the frontier) and an owner. It is not a scratchpad and not a
+markdown file: the database *is* the plan, and it is the only thing anything reads at runtime. No plan
+document, no stdout, no chat summary survives the handoff — **a closed ticket is the only proof of work
+anyone will ever see.**
+
+Three shapes hold it together, and every command in this skill is about one of them:
+
+| Shape | What it is | How you set it |
+|---|---|---|
+| **the tower** | epic → feature → worker task, the hierarchy | `parent-child` edges (`--parent`) |
+| **the ordering** | what may not start yet | `blocks` edges (`bd dep add`) |
+| **the frontier** | every ticket whose blockers are all closed | what `bd ready` lists; the loop claims from it |
+
+Ground yourself before you write anything: `bd where` says which database you are actually talking to —
+it resolves by walking **up** from `$PWD` and ignores `BEADS_DIR`, so one stray `cd` has you authoring
+into somebody else's tower — and `bd status` gives the open/blocked/ready totals. What is written here
+was verified against `bd` 1.3.0 by running it; when a flag is unfamiliar, check
+`skills/beads-db-help` rather than remembering one.
+
 A bead is not a note about work; it is the unit the dispatcher consumes. `scripts/beads-loop.sh` reads
 exactly three things off every ticket — the description, the single stamp label, and the dependency
 edges — and spawns a worker from them alone. Nobody reads a plan agent's prose, a summary, or a chat

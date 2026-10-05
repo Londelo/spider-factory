@@ -16,8 +16,8 @@ beads database.
 plugins/binary-obelisk/
 ├── .claude-plugin/plugin.json            # manifest
 ├── .claude/binary-obelisk-v1-design.yaml # EDITABLE design model
-├── agents/                               # engineer, frontend, jester, playwrite, lead-review, merge + 3 plan agents
-├── skills/                               # initialize-beads, review-code, …
+├── agents/                               # engineer, frontend, unit-tester, feature-tester, e2e-tester, lead-review, merge + 3 plan agents
+├── skills/                               # initialize-beads, review-code, standards-*, framework-jest, framework-playwright, …
 ├── standards/                            # coding/review standards
 ├── scripts/beads-loop.sh                 # the claim-beads dispatcher
 ├── shared/                               # plan-task and review templates/formats
@@ -27,23 +27,35 @@ plugins/binary-obelisk/
 ### The three names — never interchangeable
 | Name | What it is | Examples |
 |---|---|---|
-| **category** | display hint in `bd list`; names a plan-task template | `backend-logic`, `frontend-ux`, `unit-test`, `playwright-test`, `review`, `merge` |
-| **stamp** | the ONE label a ticket carries (`bd create -l <stamp>`); what the dispatcher matches | `backend-logic`, `frontend-ui`, `unit-tests`, `feature-playwright-tests`, `epic-e2e-tests`, `feature-lead-review`, `epic-lead-review` |
-| **agent** | a real file in `agents/` | `engineer`, `frontend`, `jester`, `playwrite`, `lead-review`, `merge` |
+| **category** | display hint in `bd list`; names a plan-task template | `backend-logic`, `frontend-ux`, `unit-tests`, `feature-test`, `epic-e2e-test`, `review`, `merge` |
+| **stamp** | the ONE label a ticket carries (`bd create -l <stamp>`); what the dispatcher matches | `backend-logic`, `frontend-ui`, `unit-tests`, `feature-test`, `epic-e2e-test`, `feature-lead-review`, `epic-lead-review` |
+| **agent** | a real file in `agents/` | `engineer`, `frontend`, `unit-tester`, `feature-tester`, `e2e-tester`, `lead-review`, `merge` |
 
-A task may list two categories; a ticket carries exactly one stamp. `feature-playwright-tests`
-and `epic-e2e-tests` both dispatch `playwrite`, which is exactly why the stamp — not `--agent` —
-has to carry the tier.
+A task may list two categories; a ticket carries exactly one stamp. The three test stamps are three
+**tiers**, each with its own agent, and there the three names deliberately collapse to **one string**:
+the node key IS the stamp IS the category, and the agent is that string plus `-er` —
+`unit-tests` → `unit-tester` (micro), `feature-test` → `feature-tester` (composition),
+`epic-e2e-test` → `e2e-tester` (broad). A tier is named for the **test**, never the tester and never
+the framework. That is exactly why the stamp — not `--agent` — has to carry the tier: a ticket
+mis-stamped one tier up or down gets the wrong depth of coverage, and no worker can tell you it did.
 
 ### Agents (the spokes)
 | Agent | Does | Spawn | Certify | Skills |
 |---|---|---|---|---|
 | `engineer` | business logic, endpoints, hooks, types, error factories | s b w | ✓ | files, naming |
 | `frontend` | components, layout, styling, component system | s b w | ✓ | coding, files, naming |
-| `jester` | Jest unit tests for pure logic | s b w | ✓ | coding, files, naming, errors |
-| `playwrite` | Playwright browser tests (feature or epic scope) | s b w | ✓ | coding, files, naming, errors |
+| `unit-tester` | **micro tier** — one function alone; every branch, boundary, empty/null, error | s b w | ✓ | coding, files, naming, errors, **framework-jest** |
+| `feature-tester` | **composition tier** — one feature's pieces proved wired; its errors/successes surface | s b w | ✓ | coding, files, naming, errors, **framework-playwright** |
+| `e2e-tester` | **broad tier** — journeys across features on the real stack; cross-feature state, one success+failure per feature | s b w | ✓ | coding, files, naming, errors, **framework-playwright** |
 | `lead-review` | traces the change, instruments, runs tests, certifies | s b w | ✓ | errors, coding, files, naming |
 | `merge` | merges the PR once the frontier is clear | s b w | ✓ | files, naming |
+
+**Tiers vs. tools.** A test agent owns a **tier** — what to cover and how deep — and is deliberately
+agnostic about the framework. A `framework-*` skill owns the **tool**: syntax, config, run and debug
+commands (`framework-jest`, `framework-playwright`). That is why no ticket description carries
+framework syntax, and why the feature and epic tiers load the *same* skill: they differ in scope, not
+in spelling. The three tiers must never overlap — one test per behavior, at the tier that owns that
+depth; each test template's `Owned Elsewhere` field is how the boundary survives contact with a plan.
 
 **There is no `human` agent.** The person enters through **gates** and closes them; nothing is
 spawned for them. `plan-epic`/`plan-feature`/`plan-task` build the tower and do no work in it;
@@ -54,10 +66,10 @@ Every node is a real beads issue; types are `gate` and `task` (bd rejects unregi
 
 ```
 Epic  (gate — the "what"; the human closes it once epic-merge-pr is done)
- ├── epic-e2e-tests        (playwrite,      respawn)  → epic-lead-review (lead-review) → epic-merge-pr (merge)
+ ├── epic-e2e-test         (e2e-tester,     respawn)  → epic-lead-review (lead-review) → epic-merge-pr (merge)
  └── Feature  (gate — one complete user-facing flow; human closes it once feature-merge-pr is done)
-      ├── feature-playwright-tests (playwrite, respawn) → feature-lead-review (lead-review) → feature-merge-pr (merge)
-      └── backend-logic (engineer, respawn) · frontend-ui (frontend, respawn) → unit-tests (jester, respawn)
+      ├── feature-test      (feature-tester, respawn) → feature-lead-review (lead-review) → feature-merge-pr (merge)
+      └── backend-logic (engineer, respawn) · frontend-ui (frontend, respawn) → unit-tests (unit-tester, respawn)
 ```
 
 **Gates are checkpoints, not work.** `bd ready` structurally never shows them and tasks behind
@@ -68,8 +80,8 @@ same agent re-checks the work before the ticket may close. It is a **step inside
 ticket**, never a second ticket: one ticket, one worker.
 
 ### Dependencies
-- `epic-e2e-tests` waits on the features; then `epic-e2e-tests → epic-lead-review → epic-merge-pr`.
-- `feature-playwright-tests` and `unit-tests` both wait on `backend-logic` **and** `frontend-ui`;
+- `epic-e2e-test` waits on the features; then `epic-e2e-test → epic-lead-review → epic-merge-pr`.
+- `feature-test` and `unit-tests` both wait on `backend-logic` **and** `frontend-ui`;
   `feature-lead-review` waits on both test suites; then `feature-merge-pr`.
 - `backend-logic` and `frontend-ui` have no deps — they are the frontier, claimed first.
 - Extra `blocks` edges order features against features and tasks against tasks.

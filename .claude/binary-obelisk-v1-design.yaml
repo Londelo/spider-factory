@@ -7,6 +7,13 @@
 #              dispatcher matches on. Keys of `tasks:` below, bar none.
 #   agent    = a real file in agents/; what gets spawned
 #
+# The three TEST nodes collapse all three names to ONE string on purpose: the node key
+# IS the stamp IS the category, and the agent is that string plus "-er"
+#   unit-tests  -> unit-tester      feature-test -> feature-tester      epic-e2e-test -> e2e-tester
+# A tier is named for the TEST, never the tester, and never for a framework — the
+# framework lives only in the framework-* skill the agent loads. Where stamp, category
+# and agent drift apart, the wrong depth of coverage is dispatched and nothing reports it.
+#
 # Every node is a real beads issue. Relationships live in the arrays:
 #   task.stamp     -> written with `bd create -l <stamp>`
 #   task.parent    -> `--deps type:parent-child:<parent>`
@@ -28,6 +35,13 @@ databases:
     description: "Authoritative task store. Every issue, its status, and its dependency edges live here."
 
 # ================================ SKILLS ===============================
+# Two kinds of skill, and the difference matters to the test tiers:
+#   standards-* / beads-db-help = how the house works
+#   framework-*                 = how ONE TOOL works (syntax, config, run commands)
+# A test-tier AGENT owns the tier — what to cover and how deep. A framework SKILL owns the tool.
+# That split is why no test agent has a framework opinion of its own.
+# Note: the `standards` keys below are written short; the directories are standards-coding,
+# standards-errors, standards-file-organization, standards-naming. framework-* keys are literal.
 skills:
   beads-db-help:
     description: "How to operate the beads DB with `bd` — read a ticket, heartbeat its lease, close it, stamp it and prove the stamp survived, wire parent-child vs blocks edges, see hidden gate issues, debug a tower that is not moving. Agents NEVER claim: `ready --claim`/`unclaim`/`reclaim` are the loop's and the operator's alone. Every agent that touches a ticket loads it."
@@ -39,6 +53,10 @@ skills:
     description: "File-organization and module-boundary conventions."
   naming:
     description: "Naming conventions across the codebase."
+  framework-jest:
+    description: "The Jest/Vitest tool: runner reality check, spec naming and placement, describe/it/expect, it.each tables, jest.fn/vi.mock, rejects.toThrow, call order, fake timers, factories, run commands. Loaded by the micro tier; it never decides what deserves a test."
+  framework-playwright:
+    description: "The Playwright tool: runner reality check, `.playwright.spec.ts` naming and placement, id-first locators and the getByRole fallback, web-first assertions and the anti-flake rules, page.route mocking at the boundary, test.extend/storageState, the page-object rule, playwright.config.ts, run/debug and trace triage. Loaded by BOTH browser tiers; it never decides what deserves a test."
 
 # ================================ AGENTS ===============================
 # `spawn` = the modes this agent is normally run in: s = subagent, b = background,
@@ -54,16 +72,27 @@ agents:
     spawn: [s, b, w]
     certify: true
     skills: [coding, files, naming]
-  jester:
-    description: "Jest unit tests for pure logic, formatters, validators and helpers. Never integration or E2E tests."
+  # The three test tiers are ONE agent each, and each owns exactly one depth of coverage.
+  # Tier = what to cover and how deep; the framework skill = the tool. No agent has a framework
+  # opinion of its own. A tier never oversteps the next: three tiers, one test per behavior.
+  unit-tester:
+    tier: micro
+    description: "Micro tier: ONE function at a time, in isolation, and exhaustive within it — every branch, boundary, empty/null, error. The only tier allowed to enumerate an input matrix. Never wiring, renders, browser or journeys."
     spawn: [s, b, w]
     certify: true
-    skills: [coding, files, naming, errors]
-  playwrite:
-    description: "Playwright browser tests of user-facing flows — one feature's journeys, or the whole epic's end-to-end journeys depending on the stamp."
+    skills: [coding, files, naming, errors, framework-jest]
+  feature-tester:
+    tier: feature
+    description: "Feature tier: proves one feature's unit-tested pieces are actually WIRED together and every error and success the feature encapsulates surfaces. Deliberately not exhaustive — one representative case per path, asserted at the seam; never re-runs the unit tier's matrix, never leaves the feature."
     spawn: [s, b, w]
     certify: true
-    skills: [coding, files, naming, errors]
+    skills: [coding, files, naming, errors, framework-playwright]
+  e2e-tester:
+    tier: epic
+    description: "Epic tier: journeys ACROSS features in a real browser on the real stack — cross-feature state handoffs, session/persistence continuity, one success and one failure per feature seen from outside. The thinnest tier; mocks third parties only; duplicates nothing below it."
+    spawn: [s, b, w]
+    certify: true
+    skills: [coding, files, naming, errors, framework-playwright]
   lead-review:
     description: "Comprehensive review — traces the change, instruments, runs the tests, certifies."
     spawn: [s, b, w]
@@ -97,19 +126,19 @@ tasks:
     description: "The highest-level understanding of what we are building. Created by plan-epic."
 
   # ---------- Epic tasks: run once the features are in ----------
-  epic-e2e-tests:
+  epic-e2e-test:
     type: task
-    category: playwright-test
+    category: epic-e2e-test                # broad tier: journeys ACROSS features
     parent: epic
     depends-on: [feature]
-    agents: [playwrite]
+    agents: [e2e-tester]
     respawn-agent: true
-    description: "End-to-end Playwright journeys across the whole epic, in a real browser."
+    description: "End-to-end journeys across the whole epic in a real browser on the real stack — cross-feature state handoffs, continuity, one success and one failure per feature seen from outside. Thinnest tier; third parties mocked only."
   epic-lead-review:
     type: task
     category: review
     parent: epic
-    depends-on: [epic-e2e-tests]
+    depends-on: [epic-e2e-test]
     agents: [lead-review]
     respawn-agent: false
     description: "Review the epic as a whole — trace the change, run the tests, certify."
@@ -131,19 +160,19 @@ tasks:
     description: "A piece of the epic, described in terms of what the user gets, never how to build it. Created by plan-feature."
 
   # ---------- Feature tasks: run once the base tasks are in ----------
-  feature-playwright-tests:
+  feature-test:
     type: task
-    category: playwright-test
+    category: feature-test                 # middle tier: one feature's pieces wired together
     parent: feature
     depends-on: [backend-logic, frontend-ui]
-    agents: [playwrite]
+    agents: [feature-tester]
     respawn-agent: true
-    description: "Playwright journeys for this feature's user-facing flow, against the finished UI and logic."
+    description: "Proves this feature's unit-tested pieces are actually wired together against the finished UI and logic, and that every error and success it encapsulates surfaces. One case per path, asserted at the seam — not a re-run of the unit tier's matrix."
   feature-lead-review:
     type: task
     category: review
     parent: feature
-    depends-on: [feature-playwright-tests, unit-tests]
+    depends-on: [feature-test, unit-tests]
     agents: [lead-review]
     respawn-agent: false
     description: "Review the feature — trace the call chain, instrument, run the tests, certify."
@@ -175,12 +204,12 @@ tasks:
     description: "The feature's UI work."
   unit-tests:
     type: task
-    category: unit-test
+    category: unit-tests                   # micro tier: one function, alone, exhaustively
     parent: feature
     depends-on: [backend-logic, frontend-ui]
-    agents: [jester]
+    agents: [unit-tester]
     respawn-agent: true
-    description: "Jest unit tests for the feature's pure logic, formatters, validators and helpers."
+    description: "Micro-tier tests for the feature's functions — one at a time, in isolation, exhaustive within each: every branch, boundary, empty/null input and error. The input matrix is enumerated HERE, so no tier above repeats it."
 
 # ============================ PLAN AGENTS ==============================
 # Build the tower top-down; the claim loop runs it bottom-up.
@@ -191,6 +220,6 @@ tasks:
 # ============================ EXECUTION ORDER ==========================
 # The order the ready frontier releases them:
 #   1. backend-logic, frontend-ui        (the frontier, no deps)
-#   2. unit-tests, feature-playwright-tests
+#   2. unit-tests, feature-test
 #   3. feature-lead-review -> feature-merge-pr -> human closes the feature gate
-#   4. epic-e2e-tests -> epic-lead-review -> epic-merge-pr -> human closes the epic gate
+#   4. epic-e2e-test -> epic-lead-review -> epic-merge-pr -> human closes the epic gate

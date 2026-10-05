@@ -11,6 +11,11 @@
 #      BO_MAX_TICKS (0)                 stop after N ticks — test seam only, 0 = endless
 #      BO_LOG_ROOT (~/.binary-obelisk/logs)  one timestamped dir per run
 #      BO_ALLOWED_STAMPS                comma list narrowing the stamp set, or *
+#                     valid stamps (the AGENT keys below, verbatim): backend-logic, frontend-ui,
+#                     unit-tests, feature-test, epic-e2e-test, feature-lead-review, epic-lead-review.
+#                     A name the map doesn't hold is not a stamp — it matches nothing and only
+#                     starves the frontier. The three test tiers are unit-tests / feature-test /
+#                     epic-e2e-test: micro, composition, broad. See .claude/binary-obelisk-v1-design.yaml.
 set -uo pipefail
 
 MAX_PARALLEL="${BO_MAX_PARALLEL:-4}"
@@ -21,12 +26,16 @@ LOG_ROOT="${BO_LOG_ROOT:-$HOME/.binary-obelisk/logs}"
 # stamp -> agent. The keys ARE the closed stamp set: a ticket may carry any number of
 # labels, and whichever ones land in this map are what name its agent.
 # The merge stamps are absent on purpose — they are excluded at the claim too.
+# The three test tiers are three different agents: micro / feature / end-to-end. Each tier owns a
+# depth of coverage and must not overstep into the next one's — see the agent files. The test
+# stamps are the tier's single name — the same string the design YAML calls its category, and the
+# agent key is that string plus "-er". Named for the test, never the tester, never the framework.
 declare -A AGENT=(
     [backend-logic]=engineer
     [frontend-ui]=frontend
-    [unit-tests]=jester
-    [feature-playwright-tests]=playwrite
-    [epic-e2e-tests]=playwrite
+    [unit-tests]=unit-tester
+    [feature-test]=feature-tester
+    [epic-e2e-test]=e2e-tester
     [feature-lead-review]=lead-review
     [epic-lead-review]=lead-review
 )
@@ -175,7 +184,7 @@ tick() {
     if (( ${#matched[@]} != 1 )); then
         log errors ERROR "ticket=$ticket reason=stamp-ambiguous matched=\"${matched[*]-}\" labels=\"${labels[*]-}\""
         return
-    fiOkay
+    fi
     agent="${AGENT["${matched[0]}"]}"
 
     # Claude makes the worktree itself (-w names it after the ticket, so it is never shared);

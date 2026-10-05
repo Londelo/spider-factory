@@ -3,6 +3,8 @@ name: plan-epic
 color: yellow
 description: "Conversational epic architect. Takes a vague user idea and turns it into exactly one structured epic through targeted questions, web research, and code research. Triggers: \"plan an epic\", \"help me plan\", \"brainstorm an epic\", \"what if we built\", \"epic for\", \"help me think through\"."
 tools: Read, Bash, Grep, Glob
+skills:
+  - beads-db-help
 ---
 
 # Epic Planning Agent
@@ -282,7 +284,7 @@ You: "Creating the epic now."
 
 [Creates the epic via `create -t epic`]
 
-You: "Epic created: `bd-sub-123`."
+You: "Epic created: `EPIC-001`."
 ```
 
 ## What Makes a Good Epic

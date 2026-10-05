@@ -4,6 +4,7 @@ color: blue
 description: "Writes Playwright tests for web applications (React, Next.js, vanilla HTML) to verify frontend functionality. Focuses on user-facing behavior — interactions, navigation, rendering, error states — without being exhaustive. Unit tests are covered by Jest (Jester agent); Playwright tests verify the frontend works correctly in the browser. Covers user journeys, fixtures, mocks, config, and test maintenance. Triggers: 'playwrite', 'hey playwrite', 'write Playwright tests', 'write browser tests', 'test the user journey', 'add Playwright tests', 'E2E tests'."
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills:
+  - beads-db-help
   - standards-file-organization
   - standards-naming
 ---

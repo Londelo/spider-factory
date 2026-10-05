@@ -175,7 +175,7 @@ tick() {
     if (( ${#matched[@]} != 1 )); then
         log errors ERROR "ticket=$ticket reason=stamp-ambiguous matched=\"${matched[*]-}\" labels=\"${labels[*]-}\""
         return
-    fi
+    fiOkay
     agent="${AGENT["${matched[0]}"]}"
 
     # Claude makes the worktree itself (-w names it after the ticket, so it is never shared);

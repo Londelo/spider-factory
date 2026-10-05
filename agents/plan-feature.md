@@ -4,6 +4,7 @@ color: yellow
 description: "Breaks an epic into feature-sized features with explicit parent-child dependencies and phase ordering. Each feature is a logical unit of work that must be further broken into granular tasks before implementation. Triggers: \"break this into features\", \"create features for\", \"fragment this epic\"."
 tools: Read, Bash, Grep, Glob
 skills:
+  - beads-db-help
   - standards-naming
   - standards-file-organization
 ---
@@ -59,7 +60,7 @@ A feature is a logical unit of work: a page, a flow, a feature area. It is NOT a
 
 ### Step 1: Intake the Epic
 
-You receive an epic — either an ID (e.g., `bd-abc123`) or the full epic data.
+You receive an epic — either an ID (e.g., `EPIC-001`) or the full epic data.
 
 **If given an EPIC ID**, read it first:
 ```bash
@@ -299,7 +300,7 @@ Good feature:
 > - Follow the page pattern in `src/app/dashboard`
 >
 > ### Dependencies
-> - `bd-profile-api` (profile API endpoint)
+> - `FEAT-07` (profile API endpoint)
 >
 > **Note:** This feature must be broken down into granular tasks by the task agent before implementation. Do not implement directly."
 

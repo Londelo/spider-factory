@@ -29,6 +29,8 @@ databases:
 
 # ================================ SKILLS ===============================
 skills:
+  beads-db-help:
+    description: "How to operate the beads DB with `bd` — read a ticket, heartbeat its lease, close it, stamp it and prove the stamp survived, wire parent-child vs blocks edges, see hidden gate issues, debug a tower that is not moving. Agents NEVER claim: `ready --claim`/`unclaim`/`reclaim` are the loop's and the operator's alone. Every agent that touches a ticket loads it."
   errors:
     description: "Error factories, error taxonomies, and failure-mode handling standards."
   coding:

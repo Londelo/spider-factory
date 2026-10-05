@@ -4,6 +4,7 @@ color: yellow
 description: "Creates granular tasks from a parent feature or epic, with explicit parent-child dependencies and phase ordering. Triggers: \"break this into tasks\", \"create tasks for\", \"fragment this feature\"."
 tools: Read, Bash, Grep, Glob
 skills:
+  - beads-db-help
   - standards-naming
   - standards-file-organization
 ---
@@ -265,27 +266,23 @@ This is the core work. Fragment every piece of work into individual tasks. Each 
 
 **Stamp every task, and prove the stamp survived the write:**
 
-**A stamp is not a `tag`.** `tag:` is personal, Obsidian-style tagging (it used to live in `~/.claude/tags/`; `tag:`/`backlink:removed` still appears in `ready --clean`'s stale-info detector), it has **no `--tags` flag on `bd create`**, and nothing in the tower dispatches on it. Do not tag a task instead of stamping it, do not do both as a hedge, and do not trust either one until `bd show --json` has read it back.
-
-The dispatcher picks a ticket's agent **from its labels alone** (`claim-beads-loop.md` §3/§4). `category` is a display hint for a human; a ticket with zero or two matching labels is never dispatched, and it is not "work for anyone" — the loop's rule is *never guess a specialist*. So an unstamped task is not slightly degraded, it is unworkable, and a task stamped `backend-logic` *and* `frontend-ux` is not a hint about a hard task, it is two tasks accidentally welded into one.
+The dispatcher picks a task's agent **from its single stamp label alone**. `category` is a display hint for a human; a task whose labels name zero or two specialists is never dispatched, and it is not "work for anyone" — the rule is *never guess a specialist*. So an unstamped task is not slightly degraded, it is unworkable, and a task stamped `backend-logic` *and* `frontend-ui` is not a hint about a hard task, it is two tasks accidentally welded into one.
 
 ```bash
-# One positional only — the TITLE. The description is -d/--description (a second
-# positional errors with "accepts at most 1 arg(s)"). The stamp is -l/--labels.
-bd create "Task title" \
+create "Task title" \
   -d "<full description, following the template in agents/<file>" \
   -t task -p <priority> -l backend-logic \
   --deps type:parent-child:<parent-id> --json
 
 # VERIFY IMMEDIATELY, PER TICKET — do not batch this check to the end:
-bd show --json <the-new-id>       # expect EXACTLY ONE label, drawn from the closed set
+show --json <the-new-id>          # expect EXACTLY ONE label, drawn from the closed set
 ```
 
-- The closed set is the seven dispatchable stamps: `backend-logic`, `frontend-ui`, `unit-tests`, `feature-playwright-tests`, `epic-e2e-tests`, `feature-lead-review`, `epic-lead-review`. **`unit-test`, `playwright-test`, `review` and `merge` are display CATEGORIES — they name a template file under `agents/`, not something the dispatcher can match.** They are *not* in the loop's `AGENT` map (`claim-beads-loop.md` §3), so a ticket stamped `unit-tests` is work and a ticket stamped `unit-test` is a dead end wearing a label.
+- The closed set is the seven dispatchable stamps: `backend-logic`, `frontend-ui`, `unit-tests`, `feature-playwright-tests`, `epic-e2e-tests`, `feature-lead-review`, `epic-lead-review`. **`unit-test`, `playwright-test`, `review` and `merge` are display CATEGORIES — they name a template file under `agents/`, not something the dispatcher can match.** A task stamped `unit-tests` is work; a task stamped `unit-test` is a dead end wearing a label.
 - Exactly one, never two. If a task genuinely needs both a backend and a frontend worker, that is a **sign the task is too big**: split it into two tasks and stamp each one.
-- Verify against the live DB (`bd list --json` / `bd show --json <id>`). `--search` searches **titles, not labels**, so an FTS5 row can read `status: no such table: bugs_fts` while the label is intact — a read-through is cheap and cheaply wrong in both directions.
-- A child **inherits its parent's labels** (inheritance is `bd`'s default; `--no-inherit-labels` exists because it is). This is why **gates carry no stamp label at all**: a stamp on a gate silently stamps every descendant and hands the loop a fake frontier. If the parent gate somehow *does* carry one, every child you create must clear it (`--no-inherit-labels`, or delete the inherited label) or the tower's frontier is a lie.
-- **Never create a task for a gate node** (`type: gate`), and never create one whose description merely describes work "for a human". Gates are closed by the human; they are not work.
+- Read every stamp back before you create the next task — a stamp you have not verified is a stamp you did not write.
+- **Gates carry no stamp at all**: a stamp on a gate lands on every task below it and fakes the frontier. If a parent gate somehow *does* carry one, every child you create must clear it, or the frontier is a lie.
+- **Never create a task for a gate node**, and never create one whose description merely describes work "for a human". Gates are closed by the human; they are not work.
 
 **How to create tasks:**
 
@@ -299,9 +296,8 @@ Then create tasks using the parent's priority as the base:
 
 ```bash
 # Create an implementation task linked to parent via parent-child dependency.
-# Title is the only positional; the description is -d/--description.
 # Read the appropriate template from agents/ for the full description structure.
-bd create "Task title" \
+create "Task title" \
   -d "<full description, following the template in agents/frontend.md or agents/engineer.md>" \
   -t task -p <priority> -l frontend-ui \
   --deps type:parent-child:<parent-id> --json
@@ -310,14 +306,14 @@ bd create "Task title" \
 # Read agents/jester.md for Jest tests or agents/playwrite.md for Playwright E2E.
 # The STAMP is what the dispatcher reads — `unit-tests`/`feature-playwright-tests`
 # are stamps; `jest-test`/`playwright` are the display categories, not stamps.
-bd create "Test for functionName" \
+create "Test for functionName" \
   -d "<full test description, following the template in agents/jester.md or agents/playwrite.md>" \
   -t task -p <priority> -l unit-tests \
   --deps type:parent-child:<parent-id> --json
 
 # Then prove the stamp round-tripped, per ticket, before creating the next one:
-bd show --json <the-new-id>     # exactly one label from the closed set, or you have
-                                # written a ticket the loop can never dispatch (§3/§4)
+show --json <the-new-id>          # exactly one label from the closed set, or you have
+                                  # written a ticket nothing can ever dispatch
 ```
 
 Replace `<priority>` with the parent's priority (0–4), adjusted per the rules below.

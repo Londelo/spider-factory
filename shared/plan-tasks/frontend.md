@@ -78,8 +78,8 @@ Use this template for `frontend-ux` category tasks. It covers Next.js/TSX compon
 > **Rule:** Abstract early, compose later. If writing a small UI element (button, input, heading, badge) and it's used in more than one place, extract it into a shared component immediately. Scan for existing shared components first — if one exists, use it. If not, create it. Prefer shadcn/ui over building from scratch for standard patterns (buttons, dialogs, forms, tables, dropdowns, tooltips, etc.).
 
 ### Dependencies
-- **Cross-category:** `[other tasks this depends on — e.g., "depends on backend-logic task bd-abc123: `formatUserProfile` function", "uses shared component from task bd-def456: `<Badge>`"]`
-- **Beads deps:** `[link to parent-child and any blocks deps for execution ordering]`
+- **Cross-category:** `[other tasks this depends on — e.g., "depends on backend-logic task TSK-101: `formatUserProfile` function", "uses shared component from task TSK-102: `<Badge>`"]`
+- **Dependency links:** `[link to parent-child and any blocks deps for execution ordering]`
 
 ### Pattern
 - **Structure:** `[reference for layout/structure — e.g., "follow `src/components/add-user-modal.tsx` for overlay + panel pattern, use shadcn/ui `<Dialog>`"]`

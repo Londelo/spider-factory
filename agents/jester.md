@@ -4,6 +4,7 @@ color: orange
 description: "Writes Jest unit tests only — function-level tests for business logic, validators, formatters, transformers, and data pipelines. Never writes integration tests, E2E tests, snapshot tests, or production code. Triggers: \"jester\", \"hey jester\", \"write the tests\", \"run the tests\", \"check test coverage\", \"fix failing tests\", \"add Jest tests\"."
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills:
+  - beads-db-help
   - standards-file-organization
   - standards-naming
 ---

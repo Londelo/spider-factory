@@ -47,7 +47,7 @@ contract. Every write flag and its read key: [references/json-and-jq.md](./refer
 Exactly **one** stamp per ticket, written with `-l` at create time; the dispatcher reads its agent off
 that one label. The seven valid stamps:
 
-`backend-logic` · `frontend-ui` · `unit-tests` · `feature-playwright-tests` · `epic-e2e-tests` · `feature-lead-review` · `epic-lead-review`
+`backend-logic` · `frontend-ui` · `unit-tests` · `feature-test` · `epic-e2e-test` · `feature-lead-review` · `epic-lead-review`
 
 Zero or two matches is never guessed at: the ticket stays claimed and the loop logs `ERROR
 reason=stamp-ambiguous`. An unstamped ticket is not slightly degraded, it is unworkable. **Never trust
@@ -59,9 +59,12 @@ Three traps, all real, all silent:
 - **A child inherits its parent's labels.** Verified: a child under a gate labelled `gate-stamp` comes
   back `["gate-stamp","unit-tests"]` → two stamps → `stamp-ambiguous` → a dead ticket. Hence **gates
   carry no label at all**; if a parent somehow does, pass `--no-inherit-labels`.
-- **A stamp is not a category, and not a `tag:`.** `frontend-ux`, `unit-test`, `playwright-test`,
-  `review`, `merge` are *categories* — display hints and template names. `unit-tests` is a stamp and
-  `unit-test` is a dead end wearing a label; tags dispatch nothing at all.
+- **A stamp is not a category, and not a `tag:`.** `frontend-ux`, `unit-test`, `e2e-test`, `review`,
+  `merge` are *categories* — display hints and template names. `unit-tests` is a stamp and `unit-test`
+  is a dead end wearing a label; tags dispatch nothing at all. The three test tiers are the exception
+  worth knowing: there the stamp and the category are deliberately the **same** string
+  (`unit-tests` / `feature-test` / `epic-e2e-test`), so spelling can't save you — draw the label from
+  the loop's `AGENT` map and you cannot be wrong.
 - **The JSON keys are `issue_type`, `owner`, `acceptance_criteria`.** `.type`, `.assignee` and
   `.acceptance` return `null` **without erroring**, so a script keeps reading a field that was never
   there. `labels` can be JSON `null`, not `[]`: always `.labels // []`.

@@ -1,143 +1,155 @@
 ---
 name: create-bead
 description: >
-  How to form a bead (beads `bd` ticket) and write it so the dispatcher can actually work it — the
-  ticket anatomy per tier (epic, feature, worker task), the one-stamp rule, gates vs tasks, the
-  parent-child vs blocks edges, and the read-back that proves the ticket exists as you meant it.
-  Use it whenever you are CREATING tickets: plan-epic, plan-feature, plan-task, any "make me a
-  ticket/epic/feature" request, or a tower that came out with no stamps, two stamps, or no merge
-  ticket. Use it when nothing has been claimed yet: this is for the author who has nothing, while a
-  worker already holding a claimed ticket reads `read-bead`.
-version: 0.1.0
+  The beads issue tracker and its create command: what a bead is, the `bd create` CLI, and every
+  parameter it takes — what each flag sets, the key it lands in, which flags the binary silently
+  ignores, and the traps that never error. Use it whenever a bead is being CREATED: plan-epic,
+  plan-feature, plan-task, any "make me a ticket/epic/feature" request, or a tower that came out with
+  no stamps, two stamps, the wrong type, or no merge ticket.
+version: 0.2.0
 ---
 
 # Creating a bead
 
 ## You are working in a beads system
 
-**Beads** is the issue tracker this whole toolkit runs on: a local database per repository, driven by
-the `bd` command-line tool, where every unit of work is a real issue row — an id (`bd-42`), a title, a
-description, acceptance criteria, a priority, a type, labels, a status (`open` → `in_progress` →
-`closed`, with `blocked`/`deferred` off the frontier) and an owner. It is not a scratchpad and not a
-markdown file: the database *is* the plan, and it is the only thing anything reads at runtime. No plan
-document, no stdout, no chat summary survives the handoff — **a closed ticket is the only proof of work
-anyone will ever see.**
+**Beads** is the issue tracker this toolkit plans and ships on: one local database per repository,
+driven by the `bd` command-line tool. Every unit of work — epic, feature, task — is a real row in that
+database: an id (`bd-42`), a title, a description, acceptance criteria, a priority, a type, labels, a
+status (`open` → `in_progress` → `closed`, with `blocked`/`deferred` off the frontier) and an owner.
 
-Three shapes hold it together, and every command in this skill is about one of them:
+It is not a markdown file and not a scratchpad. The database **is** the plan, and it is the only thing
+anything reads at runtime: a worker is spawned from its own ticket and nothing else — nobody reads a plan
+document, a stdout, or a chat summary. So whatever you knew and did not write into the row, the worker
+does not know, and **a closed ticket is the only proof of work anyone will ever see.**
 
-| Shape | What it is | How you set it |
+Three shapes hold the database together, and every parameter below sets one of them:
+
+| Shape | What it is | Set by |
 |---|---|---|
-| **the tower** | epic → feature → worker task, the hierarchy | `parent-child` edges (`--parent`) |
-| **the ordering** | what may not start yet | `blocks` edges (`bd dep add`) |
-| **the frontier** | every ticket whose blockers are all closed | what `bd ready` lists; the loop claims from it |
+| **the tower** | epic → feature → task, who belongs to whom | `--parent`, or `--deps "parent-child:<id>"` |
+| **the ordering** | what may not start yet | `--deps "blocks:<id>"`, or a `blocks` edge |
+| **the dispatch** | which specialist this ticket is for | `-l` — exactly one stamp |
 
-Ground yourself before you write anything: `bd where` says which database you are actually talking to —
-it resolves by walking **up** from `$PWD` and ignores `BEADS_DIR`, so one stray `cd` has you authoring
-into somebody else's tower — and `bd status` gives the open/blocked/ready totals. What is written here
-was verified against `bd` 1.3.0 by running it; when a flag is unfamiliar, check
-`bd <command> --help` rather than remembering one, and the read side lives in `skills/read-bead`.
+## The command
 
-A bead is not a note about work; it is the unit the dispatcher consumes. `scripts/beads-loop.sh` reads
-exactly three things off every ticket — the description, the single stamp label, and the dependency
-edges — and spawns a worker from them alone. Nobody reads a plan agent's prose, a summary, or a chat
-message. So the ticket *is* the deliverable, and a ticket that is unstamped, double-stamped, or wired
-with the wrong edge kind is work that never happens, discovered only as a silent, calm, empty frontier.
+```bash
+bd create "Create formatCurrency function" \
+  -d "<the complete brief — everything the worker needs, inside the row itself>" \
+  --acceptance "<the observable evidence that it is done>" \
+  -t task -p 2 -l backend-logic \
+  --parent bd-42 \
+  --silent
+```
 
-**Schema here, framework there.** This skill and its [references/ticket-schema.md](./references/ticket-schema.md)
-own *what a ticket must contain* — the field list, per tier, independent of any tracker. The `bd` read
-surface lives in `skills/read-bead`; holding a claimed ticket open and closing it are commands that
-arrive with the ticket itself, and an unfamiliar write flag is settled by `bd <command> --help`. Where the two disagree about what a stamp is, the loop's `AGENT` map wins: it is the
-only source of specialists in existence, and a label it does not name dispatches nothing.
+`--silent` prints only the new id. Capture it — you need it as the `--parent`/edge argument for the next
+ticket, and human-readable output is not a contract.
 
-## The four things that make a ticket real
+## Parameters
 
-1. **A description an agent can execute with no other context.** The worker is spawned into a worktree
-   knowing only its id. Anything you knew and did not write down, it does not know.
-2. **Exactly one stamp**, from the closed set, written at create time and read back. A stamp is what
-   names the agent; a ticket with zero or two is left claimed and logged `ERROR reason=stamp-ambiguous`.
-   Stamps: `backend-logic` · `frontend-ui` · `unit-tests` · `feature-test` ·
-   `epic-e2e-test` · `feature-lead-review` · `epic-lead-review`, plus `feature-merge-pr` and
-   `epic-merge-pr` for the two tickets the loop deliberately never dispatches.
-3. **A parent**, so the tower has a shape: `--parent <id>` or `--deps "parent-child:<id>"`. Note the
-   grammar is `type:id` — `--deps type:parent-child:<id>` is rejected outright.
-4. **`blocks` edges for anything that must wait.** A `parent-child` edge is bookkeeping and holds
-   nothing back — verified, a child of an open gate sits on the ready frontier immediately. Ordering is
-   real only where someone wrote `bd dep add <blocked> <blocker> --type blocks`.
+### The body — what the worker actually reads
+
+| Flag | Sets | Lands in | Note |
+|---|---|---|---|
+| `"title"` (positional) | the title | `title` | **one positional only** — a second errors `accepts at most 1 arg(s), received 2` |
+| `--title` | the title | `title` | the flag form, for a title that could read as a flag |
+| `-d`, `--description` | the brief | `description` | the complete brief. Self-contained: executable with nothing else open |
+| `--body-file <f>`, `--stdin` | the brief from a file/stdin | `description` | use for a long brief — shell quoting mangles a multi-line `-d` |
+| `--acceptance` | done criteria | `acceptance_criteria` | observable evidence, written for a human to verify |
+| `--design` | design notes | `design` | your reasoning; never the worker's instructions |
+| `--notes` | notes | `notes` | worth keeping, not part of the brief |
+| `--context` | extra context | **appended to `description`** as a `## Context` section | verified: it is not its own field, so it reads back inside the brief |
+
+### The kind — what the row is
+
+| Flag | Sets | Lands in | Note |
+|---|---|---|---|
+| `-t`, `--type` | issue type (default `task`) | `issue_type` | `task` for anything worked, `gate` for an epic/feature — see §Gates |
+| `-p`, `--priority` | `0`–`4` (`P0`–`P4`, 0 highest), default **2** | `priority` | inherit the parent's; P4 when nothing is set |
+| `-l`, `--labels` | labels, comma-separated | `labels` | **exactly one stamp** — see §The stamp |
+| `--no-inherit-labels` | stop the parent's labels copying down | — | needed only when a parent is wrongly labelled; the real rule is gates carry no label |
+| `-s`, `--status` | initial status | `status` | leave it alone — `open` is what a ticket waiting to be claimed looks like |
+
+### The place — where it sits
+
+| Flag | Sets | Lands in | Note |
+|---|---|---|---|
+| `--parent <id>` | its parent in the tower | `parent` | also gives a dotted id: a child of `bd-cub` comes back `bd-cub.1` |
+| `--deps <type:id>` | a dependency edge at create time | `dependencies` | bare `id`, `depends-on:` and `blocked-by:` make **this** issue wait on it; `blocks:` reverses it (that issue waits on this one); `parent-child:` is the tower edge |
+
+`--deps` types the binary accepts, verbatim from its own error: `approved-by`, `assigned-to`, `attests`,
+`authored-by`, `blocked-by`, `blocks`, `caused-by`, `conditional-blocks`, `delegated-from`, `depends-on`,
+`discovered-from`, `duplicates`, `parent-child`, `related`, `relates-to`, `replies-to`, `supersedes`,
+`tracks`, `until`, `waits-for`, `validates`.
+
+### Bulk and scripting
+
+| Flag | What it does | Note |
+|---|---|---|
+| `-f`, `--file <file.md>` | creates many issues from one markdown file | one `## Heading` + body per issue; prints every id |
+| `--dry-run` | shows what would be created, writes nothing | the cheap way to check your flags before you commit a row |
+| `--json` | machine-readable output | pair with `jq` |
+| `--id <id>` | explicit id instead of an assigned one | must match the database prefix or it errors; `--force` overrides |
+| `--validate` | refuses when the description lacks the sections its type requires | `-t task` demands `## Acceptance Criteria` **in the description** |
+| `--force` | create despite a prefix mismatch | almost never what you meant |
+
+## The stamp
+
+`-l` is not decoration — it is the entire dispatch decision. The dispatcher reads one label off the row
+and that alone names the specialist, so a ticket with **zero or two** is left claimed and logged
+`ERROR reason=stamp-ambiguous`: work that silently never happens.
+
+The dispatchable set is closed and the loop owns it (`scripts/beads-loop.sh`, the `AGENT` map):
+`backend-logic` · `frontend-ui` · `unit-tests` · `feature-test` · `epic-e2e-test` ·
+`feature-lead-review` · `epic-lead-review`, plus `feature-merge-pr` and `epic-merge-pr` on the two
+tickets the loop deliberately never dispatches. Anything the map does not name dispatches nothing,
+however plausible it reads.
 
 ## Gates are a type, not a stamp
 
-Epics and features are `-t gate`: a custom type, registered once with
-`bd config set types.custom "gate"` and checkable with `bd types`. `bd create -t gate` will *not* refuse
-an unregistered type — it accepts it and hides it, so a broken gate and a working gate look identical.
+An epic or a feature is `-t gate`: a **custom** type, registered once per database with
+`bd config set types.custom "gate"` and checkable with `bd types`. Three verified consequences:
 
-- **Never** put a gate on a built-in type (`epic`, `feature`, `story`, `bug`): built-ins show up in
-  `bd ready` and become claimable work, and a gate a worker can claim is a model bug.
-- **A gate carries no label at all.** Labels are inherited by children: a gate labelled anything lands
-  that label on every task below it, which turns one stamp into two and kills the ticket at dispatch.
-  If a parent might carry one, pass `--no-inherit-labels`.
-- Gates are invisible to default queries. Surveying them takes `bd list -t gate` (or `--include-gates`);
-  `bd list` alone will convince you your epic vanished.
+- `bd create -t gate` **does not refuse** an unregistered type — it accepts it and hides it, so a broken
+  gate and a working gate look identical. Register it first, check `bd types`, then create.
+- **A gate carries no label at all.** Labels are inherited by children — verified, a child under a
+  labelled parent comes back carrying the parent's label — and a gate labelled anything turns every task
+  below it into a two-stamp ticket, which is a dead ticket.
+- Gates are invisible to the default queries. `bd list` reported *no issues* while two gates existed, and
+  `bd children <gate>` answered *"no children"* while a whole subtree hung there. Surveying them takes
+  `bd list -t gate`, or `bd list --parent <id> --include-gates` for the subtree. A bare `bd list` will
+  convince you your epic vanished.
 
-## Who creates what
+Never put a gate on a built-in type (`epic`, `feature`, `story`, `bug`): built-ins show up in `bd ready`
+as claimable work, and a gate a worker can claim is a model bug.
 
-Each plan agent owns one ticket type, and the structural tickets hang with the gate they complete:
+## Accepted, and quietly ignored
 
-| Agent | Creates | Never creates |
-|---|---|---|
-| `plan-epic` | the epic gate, then `epic-e2e-test`, `epic-lead-review`, `epic-merge-pr` under it | features, worker tasks |
-| `plan-feature` | each feature gate, then `feature-test`, `feature-lead-review`, `feature-merge-pr` under **every** feature | epic-tier tickets (it links one), worker tasks |
-| `plan-task` | `backend-logic`, `frontend-ui`, `unit-tests` under one feature | gates, epic/feature-tier test tickets, reviews, merges |
+Verified against the binary: `-e`/`--estimate`, `--due`, `--skills` and `-a`/`--assignee` are all
+**accepted at create and never come back** — `bd show --json` has no key for them and `bd list --json`
+carries no `labels` either. Never put a fact in a flag that does not survive the write: put it in `-d`.
 
-Two tickets that nobody creates is a tower that builds and never ships: no review ticket means no
-reviewer is ever dispatched, no merge ticket means no PR is ever merged, and the gate can never close.
-Create the whole subtree of the gate you are holding, every time.
+And these belong to other subsystems, not to planning: `--graph`, `--waits-for`, `--waits-for-gate`,
+`--mol-type`, `--wisp-type`, `--event-*`, `--ephemeral`, `--storage-class`, `--no-history`, `--repo`,
+`--spec-id`, `--metadata`. (`--external-ref` does round-trip, for when a bead mirrors something outside.)
 
-## You own the edges you can see
+## Proving the write
 
-`blocks` edges are not the dispatcher's job and not a later cleanup — the agent that knows both ticket
-ids is the only agent that can ever write the edge, and if it doesn't, the edge never exists.
-
-- `plan-epic` wires `epic-e2e-test → epic-lead-review → epic-merge-pr` (all three are its own).
-- `plan-feature` wires `feature-test → feature-lead-review → feature-merge-pr` for each
-  feature, and holds the epic's e2e ticket back until that feature ships:
-  `bd dep add <epic-e2e-test> <feature-merge-pr> --type blocks`.
-- `plan-task` wires its workers up into the tickets `plan-feature` already made: `unit-tests` blocked by
-  `backend-logic` and `frontend-ui`; `feature-test` blocked by both as well;
-  `feature-lead-review` blocked by both test tickets.
-
-Order that must be true at the frontier: implementation before its tests, tests before review, review
-before merge, merges before the gate closes.
-
-## Write it, then prove it
+The failure mode of `bd create` is not an error, it is a row that looks fine and dispatches nothing, so
+read each ticket back the moment you create it:
 
 ```bash
-bd create "Task title" -d "<the full brief>" --acceptance "<done criteria>" \
-  -t task -p 2 -l backend-logic --parent <feature-id> --silent
-
-bd show --json <the-new-id>      # immediately, this ticket, before creating the next one
+bd show --json bd-42 | jq '.[-1] | {issue_type, labels: (.labels // []), acceptance_criteria, parent}'
 ```
 
-- One positional only — the title. Everything else is a flag; a second positional errors loudly.
-- `--silent` prints just the id; capture it, you need it for the read-back and for edges.
-- Read-back expectations: exactly one label drawn from the closed set, the right `issue_type`
-  (`task` or `gate`), and a description that stands alone. The JSON keys are `issue_type`, `owner`,
-  `acceptance_criteria`, and `labels` may be `null` — use `.labels // []`. Wrong keys return `null`
-  **without erroring**, which is how a broken write survives an entire session.
-- **Never batch the read-back to the end.** A stamp you have not verified is a stamp you did not write.
-- `-t gate` tickets are expected to show zero labels; that is the pass condition, not a failure.
+Two things that bite: `bd show --json` returns a **JSON array**, so a bare `.labels` fails — index
+`.[-1]` (or `.[0]`); and `labels` can be JSON `null` rather than `[]`, so default it. A wrong key returns
+`null` **without erroring**, which is how a broken write survives a whole session. `-t gate` rows are
+expected to show zero labels — that is the pass condition, not a failure.
 
-## You do not claim
+## Not this command
 
-`bd ready --claim`, `bd update <id> --claim`, `unclaim`, `reclaim`, `bd close` on someone else's ticket
-— all belong to the loop and the operator. A plan agent's work is finished the moment its tickets exist
-and read back right. Claiming behind the loop's back seizes a live lease or parks a ticket with no
-worker and no worktree behind it, which surfaces later as `max_parallel_stalled`: slots full, nothing
-running, tower looks calm and is not.
-
-## Before you finish
-
-Run the definition-of-ready check in [references/ticket-schema.md](./references/ticket-schema.md) over
-every ticket you wrote, and report what you created by id, with its stamp, its parent, and its blockers
-named. If you could not satisfy the check on some ticket, say so out loud rather than closing the
-report with a ✅ — an honest `ERROR reason=…` line is a fixable state, and a ✅ over a dead ticket is a
-lie that costs an afternoon to find.
+`bd create` makes rows. It does not order them beyond the edges you pass at create (real ordering is
+`bd dep add <blocked> <blocker> --type blocks`), and it does not claim, unclaim, close or heartbeat —
+`ready --claim`, `update --claim`, `unclaim` and `reclaim` belong to `scripts/beads-loop.sh` and the
+operator alone. A creator's job is finished when the rows exist and read back right.

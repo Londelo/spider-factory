@@ -121,19 +121,11 @@ tasks:
   epic:
     type: gate
     parent: null
-    depends-on: [epic-merge-pr]      # the human closes it once the epic PR is merged
+    depends-on: [epic-lead-review]      # the human closes it once the epic PR is merged
     respawn-agent: false
     description: "The highest-level understanding of what we are building. Created by plan-epic."
 
   # ---------- Epic tasks: run once the features are in ----------
-  epic-e2e-test:
-    type: task
-    category: epic-e2e-test                # broad tier: journeys ACROSS features
-    parent: epic
-    depends-on: [feature]
-    agents: [e2e-tester]
-    respawn-agent: true
-    description: "End-to-end journeys across the whole epic in a real browser on the real stack — cross-feature state handoffs, continuity, one success and one failure per feature seen from outside. Thinnest tier; third parties mocked only."
   epic-lead-review:
     type: task
     category: review
@@ -142,11 +134,19 @@ tasks:
     agents: [lead-review]
     respawn-agent: false
     description: "Review the epic as a whole — trace the change, run the tests, certify."
+  epic-e2e-test:
+    type: task
+    category: epic-e2e-test                # broad tier: journeys ACROSS features
+    parent: epic
+    depends-on: [epic-merge-pr]
+    agents: [e2e-tester]
+    respawn-agent: true
+    description: "End-to-end journeys across the whole epic in a real browser on the real stack — cross-feature state handoffs, continuity, one success and one failure per feature seen from outside. Thinnest tier; third parties mocked only."
   epic-merge-pr:
     type: task
     category: merge
     parent: epic
-    depends-on: [epic-lead-review]
+    depends-on: [feature]
     agents: [merge]
     respawn-agent: false
     description: "Merge the epic PR once its review and e2e tests are green. Never dispatched by the loop."
@@ -155,32 +155,32 @@ tasks:
   feature:
     type: gate
     parent: epic
-    depends-on: [feature-merge-pr]   # the human closes it once the feature PR is merged
+    depends-on: [feature-lead-review]   # the human closes it once the feature PR is merged
     respawn-agent: false
     description: "A piece of the epic, described in terms of what the user gets, never how to build it. Created by plan-feature."
 
   # ---------- Feature tasks: run once the base tasks are in ----------
-  feature-test:
-    type: task
-    category: feature-test                 # middle tier: one feature's pieces wired together
-    parent: feature
-    depends-on: [backend-logic, frontend-ui]
-    agents: [feature-tester]
-    respawn-agent: true
-    description: "Proves this feature's unit-tested pieces are actually wired together against the finished UI and logic, and that every error and success it encapsulates surfaces. One case per path, asserted at the seam — not a re-run of the unit tier's matrix."
   feature-lead-review:
     type: task
     category: review
     parent: feature
-    depends-on: [feature-test, unit-tests]
+    depends-on: [feature-test]
     agents: [lead-review]
     respawn-agent: false
     description: "Review the feature — trace the call chain, instrument, run the tests, certify."
+  feature-test:
+    type: task
+    category: feature-test                 # middle tier: one feature's pieces wired together
+    parent: feature
+    depends-on: [feature-merge-pr]
+    agents: [feature-tester]
+    respawn-agent: true
+    description: "Proves this feature's unit-tested pieces are actually wired together against the finished UI and logic, and that every error and success it encapsulates surfaces. One case per path, asserted at the seam — not a re-run of the unit tier's matrix."
   feature-merge-pr:
     type: task
     category: merge
     parent: feature
-    depends-on: [feature-lead-review]
+    depends-on: [backend-logic, frontend-ui]
     agents: [merge]
     respawn-agent: false
     description: "Merge the feature PR once its review and tests are green. Never dispatched by the loop."

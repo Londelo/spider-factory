@@ -49,7 +49,7 @@ mis-stamped one tier up or down gets the wrong depth of coverage, and no worker 
 | `tester-feature` | **composition tier** — one feature's pieces proved wired; its errors/successes surface | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-playwright** |
 | `tester-e2e` | **broad tier** — journeys across features on the real stack; cross-feature state, one success+failure per feature | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-playwright** |
 | `lead-review` | traces the change, instruments, runs tests, certifies | s b w | ✓ | errors, coding, files, naming |
-| `merge` | merges the PR once the frontier is clear | s b w | ✓ | files, naming |
+| `merge` | assembles a merge ticket's child branches onto one integration branch, resolves the conflicts between them, runs the tests and reports — writes no code, no tests; never merges into `main`, never opens a PR | s b w | ✓ | **read-bead** |
 
 **Tiers vs. tools.** A test agent owns a **tier** — what to cover and how deep — and is deliberately
 agnostic about the framework. A `framework-*` skill owns the **tool**: syntax, config, run and debug

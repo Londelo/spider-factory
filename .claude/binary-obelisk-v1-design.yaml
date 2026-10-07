@@ -100,10 +100,10 @@ agents:
     certify: true
     skills: [errors, coding, files, naming]
   merge:
-    description: "Collects the finished work and merges the PR once the frontier is clear."
+    description: "Assembles a merge ticket's child branches onto one integration branch, in its own worktree: finds the children, resolves the conflicts between them, then runs the project's own test command and reports. Writes no code and no tests — tests are evidence, not a suspect. Does not merge into main and opens no pull request. Never dispatched by the loop, like the other two tiers."
     spawn: [s, b, w]
     certify: true
-    skills: [files, naming]
+    skills: [read-bead]
 
 # The three plan agents build the tower top-down and do no work in it, so they have
 # no task node here — they are described at the bottom of this file.

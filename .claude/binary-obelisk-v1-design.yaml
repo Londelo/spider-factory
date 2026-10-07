@@ -7,9 +7,10 @@
 #              dispatcher matches on. Keys of `tasks:` below, bar none.
 #   agent    = a real file in agents/; what gets spawned
 #
-# The three TEST nodes collapse all three names to ONE string on purpose: the node key
-# IS the stamp IS the category, and the agent is that string plus "-er"
-#   unit-tests  -> unit-tester      feature-test -> feature-tester      epic-e2e-test -> e2e-tester
+# The three TEST nodes collapse stamp and category to ONE string on purpose: the node key
+# IS the stamp IS the category. The agent is a separate name — "tester-" plus the scope it owns
+#   unit-tests  -> tester-unit      feature-test -> tester-feature      epic-e2e-test -> tester-e2e
+# Nothing derives an agent name from a stamp: the AGENT map in scripts/beads-loop.sh alone binds them.
 # A tier is named for the TEST, never the tester, and never for a framework — the
 # framework lives only in the framework-* skill the agent loads. Where stamp, category
 # and agent drift apart, the wrong depth of coverage is dispatched and nothing reports it.
@@ -75,19 +76,19 @@ agents:
   # The three test tiers are ONE agent each, and each owns exactly one depth of coverage.
   # Tier = what to cover and how deep; the framework skill = the tool. No agent has a framework
   # opinion of its own. A tier never oversteps the next: three tiers, one test per behavior.
-  unit-tester:
+  tester-unit:
     tier: micro
     description: "Micro tier: ONE function at a time, in isolation, and exhaustive within it — every branch, boundary, empty/null, error. The only tier allowed to enumerate an input matrix. Never wiring, renders, browser or journeys."
     spawn: [s, b, w]
     certify: true
     skills: [read-bead, coding, files, naming, errors, framework-jest]
-  feature-tester:
+  tester-feature:
     tier: feature
     description: "Feature tier: proves one feature's unit-tested pieces are actually WIRED together and every error and success the feature encapsulates surfaces. Deliberately not exhaustive — one representative case per path, asserted at the seam; never re-runs the unit tier's matrix, never leaves the feature."
     spawn: [s, b, w]
     certify: true
     skills: [read-bead, coding, files, naming, errors, framework-playwright]
-  e2e-tester:
+  tester-e2e:
     tier: epic
     description: "Epic tier: journeys ACROSS features in a real browser on the real stack — cross-feature state handoffs, session/persistence continuity, one success and one failure per feature seen from outside. The thinnest tier; mocks third parties only; duplicates nothing below it."
     spawn: [s, b, w]
@@ -139,7 +140,7 @@ tasks:
     category: epic-e2e-test                # broad tier: journeys ACROSS features
     parent: epic
     depends-on: [epic-merge-pr]
-    agents: [e2e-tester]
+    agents: [tester-e2e]
     respawn-agent: true
     description: "End-to-end journeys across the whole epic in a real browser on the real stack — cross-feature state handoffs, continuity, one success and one failure per feature seen from outside. Thinnest tier; third parties mocked only."
   epic-merge-pr:
@@ -173,7 +174,7 @@ tasks:
     category: feature-test                 # middle tier: one feature's pieces wired together
     parent: feature
     depends-on: [feature-merge-pr]
-    agents: [feature-tester]
+    agents: [tester-feature]
     respawn-agent: true
     description: "Proves this feature's unit-tested pieces are actually wired together against the finished UI and logic, and that every error and success it encapsulates surfaces. One case per path, asserted at the seam — not a re-run of the unit tier's matrix."
   feature-merge-pr:
@@ -207,7 +208,7 @@ tasks:
     category: unit-tests                   # micro tier: one function, alone, exhaustively
     parent: feature
     depends-on: [backend-logic, frontend-ui]
-    agents: [unit-tester]
+    agents: [tester-unit]
     respawn-agent: true
     description: "Micro-tier tests for the feature's functions — one at a time, in isolation, exhaustive within each: every branch, boundary, empty/null input and error. The input matrix is enumerated HERE, so no tier above repeats it."
 

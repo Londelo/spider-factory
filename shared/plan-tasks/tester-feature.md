@@ -1,11 +1,11 @@
 # Feature-Test Task Template (composition tier)
 
-Template for `feature-test` category tasks — the **middle tier**. Executed by the `feature-tester`
+Template for `feature-test` category tasks — the **middle tier**. Executed by the `tester-feature`
 agent, which proves **one feature's pieces are actually wired together**: the unit-tested functions
 and components compose correctly, and every error and success the feature encapsulates surfaces.
 
 **This tier is not exhaustive and must not be planned as if it were.** It never re-runs the unit
-tier's edge-case matrix and never walks cross-feature journeys (`e2e-tester` owns those). Anything
+tier's edge-case matrix and never walks cross-feature journeys (`tester-e2e` owns those). Anything
 the `unit-tests` ticket already proved for a function is out of scope here — one representative case
 per path the feature exposes, asserted at the seam.
 

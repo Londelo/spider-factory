@@ -1,6 +1,6 @@
 # E2E-Test Task Template (whole-app tier)
 
-Template for `epic-e2e-test` category tasks — the **broad tier**. Executed by the `e2e-tester` agent,
+Template for `epic-e2e-test` category tasks — the **broad tier**. Executed by the `tester-e2e` agent,
 which walks **end-to-end journeys across features** in a real browser against the real stack, proving
 the features play nicely together.
 

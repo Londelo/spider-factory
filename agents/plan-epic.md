@@ -93,7 +93,9 @@ ever dispatched, no merge ticket means nothing is ever merged, and the gate can 
 
 The **stamp** is the one label that dispatches; the **category** is a display hint in the ticket list; a
 **tag** dispatches nothing. On this tier the stamp and the category are the same string —
-`epic-e2e-test`, and the agent is that plus `-er` (`e2e-tester`). A tier is named for the **test**, never
+`epic-e2e-test`, while the agent carries its own name: `tester-e2e`. The three testers are `tester-unit`,
+`tester-feature`, `tester-e2e`, "tester-" plus the scope each owns, and only the dispatcher's map binds a
+stamp to one, so never spell an agent name out of a stamp. A tier is named for the **test**, never
 the tester and never the framework. Mis-stamp one tier off and the worker covers the wrong depth of
 coverage, and nothing it reports will tell you so.
 

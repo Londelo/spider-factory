@@ -16,11 +16,11 @@ beads database.
 plugins/binary-obelisk/
 ├── .claude-plugin/plugin.json            # manifest
 ├── .claude/binary-obelisk-v1-design.yaml # EDITABLE design model
-├── agents/                               # engineer, frontend, unit-tester, feature-tester, e2e-tester, lead-review, merge + 3 plan agents
+├── agents/                               # engineer, frontend, tester-unit, tester-feature, tester-e2e, lead-review, merge + 3 plan agents
 ├── skills/                               # initialize-beads, review-code, standards-*, read-bead, create-bead, framework-jest, framework-playwright, …
 ├── standards/                            # coding/review standards
 ├── scripts/beads-loop.sh                 # the claim-beads dispatcher
-├── shared/                               # plan-task and review templates/formats
+├── shared/                               # plan-task and review templates/formats — the three test-tier templates are tester-unit.md, tester-feature.md, tester-e2e.md
 └── claim-beads-loop.md                   # the dispatcher's contract (same level as the folders)
 ```
 
@@ -29,13 +29,14 @@ plugins/binary-obelisk/
 |---|---|---|
 | **category** | display hint in `bd list`; names a plan-task template | `backend-logic`, `frontend-ux`, `unit-tests`, `feature-test`, `epic-e2e-test`, `review`, `merge` |
 | **stamp** | the ONE label a ticket carries (`bd create -l <stamp>`); what the dispatcher matches | `backend-logic`, `frontend-ui`, `unit-tests`, `feature-test`, `epic-e2e-test`, `feature-lead-review`, `epic-lead-review` |
-| **agent** | a real file in `agents/` | `engineer`, `frontend`, `unit-tester`, `feature-tester`, `e2e-tester`, `lead-review`, `merge` |
+| **agent** | a real file in `agents/` | `engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`, `lead-review`, `merge` |
 
 A task may list two categories; a ticket carries exactly one stamp. The three test stamps are three
-**tiers**, each with its own agent, and there the three names deliberately collapse to **one string**:
-the node key IS the stamp IS the category, and the agent is that string plus `-er` —
-`unit-tests` → `unit-tester` (micro), `feature-test` → `feature-tester` (composition),
-`epic-e2e-test` → `e2e-tester` (broad). A tier is named for the **test**, never the tester and never
+**tiers**, each with its own agent. There the stamp and the category deliberately collapse to **one
+string** — the node key IS the stamp IS the category — while the agent carries its own name, `tester-` plus
+the scope it owns: `unit-tests` → `tester-unit` (micro), `feature-test` → `tester-feature` (composition),
+`epic-e2e-test` → `tester-e2e` (broad). That binding lives only in the dispatcher's `AGENT` map; nothing
+derives an agent name from a stamp. A tier is named for the **test**, never the tester and never
 the framework. That is exactly why the stamp — not `--agent` — has to carry the tier: a ticket
 mis-stamped one tier up or down gets the wrong depth of coverage, and no worker can tell you it did.
 
@@ -44,9 +45,9 @@ mis-stamped one tier up or down gets the wrong depth of coverage, and no worker 
 |---|---|---|---|---|
 | `engineer` | business logic, endpoints, hooks, types, error factories | s b w | ✓ | files, naming |
 | `frontend` | components, layout, styling, component system | s b w | ✓ | coding, files, naming |
-| `unit-tester` | **micro tier** — one function alone; every branch, boundary, empty/null, error | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-jest** |
-| `feature-tester` | **composition tier** — one feature's pieces proved wired; its errors/successes surface | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-playwright** |
-| `e2e-tester` | **broad tier** — journeys across features on the real stack; cross-feature state, one success+failure per feature | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-playwright** |
+| `tester-unit` | **micro tier** — one function alone; every branch, boundary, empty/null, error | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-jest** |
+| `tester-feature` | **composition tier** — one feature's pieces proved wired; its errors/successes surface | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-playwright** |
+| `tester-e2e` | **broad tier** — journeys across features on the real stack; cross-feature state, one success+failure per feature | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-playwright** |
 | `lead-review` | traces the change, instruments, runs tests, certifies | s b w | ✓ | errors, coding, files, naming |
 | `merge` | merges the PR once the frontier is clear | s b w | ✓ | files, naming |
 
@@ -66,10 +67,10 @@ Every node is a real beads issue; types are `gate` and `task` (bd rejects unregi
 
 ```
 Epic  (gate — the "what"; the human closes it once epic-merge-pr is done)
- ├── epic-e2e-test         (e2e-tester,     respawn)  → epic-lead-review (lead-review) → epic-merge-pr (merge)
+ ├── epic-e2e-test         (tester-e2e,     respawn)  → epic-lead-review (lead-review) → epic-merge-pr (merge)
  └── Feature  (gate — one complete user-facing flow; human closes it once feature-merge-pr is done)
-      ├── feature-test      (feature-tester, respawn) → feature-lead-review (lead-review) → feature-merge-pr (merge)
-      └── backend-logic (engineer, respawn) · frontend-ui (frontend, respawn) → unit-tests (unit-tester, respawn)
+      ├── feature-test      (tester-feature, respawn) → feature-lead-review (lead-review) → feature-merge-pr (merge)
+      └── backend-logic (engineer, respawn) · frontend-ui (frontend, respawn) → unit-tests (tester-unit, respawn)
 ```
 
 **Gates are checkpoints, not work.** `bd ready` structurally never shows them and tasks behind

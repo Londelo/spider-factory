@@ -60,16 +60,18 @@ what each field is for; **what each field must contain is here.**
 |---|---|---|---|---|
 | `backend-logic` | `backend-logic` | `shared/plan-tasks/engineer.md` | inputs, outputs, return shapes, every edge case, the file it lives in, the existing code to follow | the function/component exists at the named path and behaves as specified, error cases included |
 | `frontend-ui` | `frontend-ux` | `shared/plan-tasks/frontend.md` | the whole component: props, state, events, styling, tokens, responsive variants, accessibility, its file path | it renders the specified states and follows the named component-system pattern |
-| `unit-tests` | `unit-tests` | `shared/plan-tasks/unit-tester.md` | the input matrix — one scenario per behaviour with concrete input→output pairs, the branches, the exact test file path | every named scenario passes under the runner |
+| `unit-tests` | `unit-tests` | `shared/plan-tasks/tester-unit.md` | the input matrix — one scenario per behaviour with concrete input→output pairs, the branches, the exact test file path | every named scenario passes under the runner |
 
 Read the matching template before you write each ticket: it is the section-by-section source of truth, and
 if your draft disagrees with it, the template wins.
 
 Stamp, category and tag are never interchangeable — the **stamp** is the one label that dispatches, the
 category is a display hint, a tag dispatches nothing. On your micro tier the three names collapse to one
-string: `unit-tests` is the stamp, the category, and the node, and the agent is that plus `-er`
-(`unit-tester`). A tier is named for the **test**, never the tester and never the framework. Mis-stamp one
-tier off and the wrong depth of coverage is dispatched, and no worker can tell you it did.
+string: `unit-tests` is the stamp, the category, and the node. The agent carries its own name — the three
+testers are `tester-unit`, `tester-feature`, `tester-e2e`, "tester-" plus the scope each owns — and only the
+dispatcher's map binds a stamp to one, so never spell an agent name out of a stamp. A tier is named for the
+**test**, never the tester and never the framework. Mis-stamp one tier off and the wrong depth of coverage
+is dispatched, and no worker can tell you it did.
 
 **Fragmentation** — one cohesive unit per ticket: one whole component (its JSX, props, state, events,
 styling, tokens, responsive variants, accessibility), one whole function with all its edge cases, one

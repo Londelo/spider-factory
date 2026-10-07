@@ -1,9 +1,9 @@
 # Unit-Test Task Template (micro tier)
 
-Template for `unit-tests` category tasks — the **micro tier**. Executed by the `unit-tester` agent,
+Template for `unit-tests` category tasks — the **micro tier**. Executed by the `tester-unit` agent,
 which tests **one function at a time, in isolation, exhaustively within that function**. It writes
-no wiring tests, no component renders, no browser tests: those belong to `feature-tester` and
-`e2e-tester`.
+no wiring tests, no component renders, no browser tests: those belong to `tester-feature` and
+`tester-e2e`.
 
 The plan agent does the homework the agent must not redo: reads the function, lists the concrete
 input → expected output pairs, names the exact file, names the mocks. Framework syntax is the
@@ -37,7 +37,7 @@ agent's skill's business (`framework-jest`) — never spell it here.
 
 > **This is the gold standard:** "Cases: 0 → `$0.00`, 100 → `$1.00`, 1234 → `$12.34`,
 > 99999 → `$999.99`, -500 → `-$5.00`."
-> Concrete input/output pairs. Tell the unit-tester exactly what to assert, not "test edge cases."
+> Concrete input/output pairs. Tell the tester-unit exactly what to assert, not "test edge cases."
 
 ### Branches to cover
 - [ ] [branch 1 — e.g., "empty input returns the default"]
@@ -53,7 +53,7 @@ agent's skill's business (`framework-jest`) — never spell it here.
 - **Factories:** `[the project's test-data factory pattern, if it has one]`
 
 ### Hand Up
-- [which behaviors this proves, so `feature-tester` must not re-assert them — e.g., "all formatCurrency
+- [which behaviors this proves, so `tester-feature` must not re-assert them — e.g., "all formatCurrency
   formatting rules; the feature tier proves only that one formatted value reaches the screen"]
 
 ### Run

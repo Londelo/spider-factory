@@ -15,8 +15,8 @@ version: 0.1.0
 # Playwright — the framework
 
 This skill is the **tool**. It says how to write a Playwright test. It never says *what* to test or
-*how much* — that belongs to the test tier (`agents/feature-tester.md` owns one feature's flow,
-`agents/e2e-tester.md` owns cross-feature journeys). The tier decides whether a test exists; this
+*how much* — that belongs to the test tier (`agents/tester-feature.md` owns one feature's flow,
+`agents/tester-e2e.md` owns cross-feature journeys). The tier decides whether a test exists; this
 skill decides only how it is spelled.
 
 Both browser tiers load this same skill. What differs between them is scope, not syntax.

@@ -26,16 +26,18 @@ LOG_ROOT="${BO_LOG_ROOT:-$HOME/.binary-obelisk/logs}"
 # stamp -> agent. The keys ARE the closed stamp set: a ticket may carry any number of
 # labels, and whichever ones land in this map are what name its agent.
 # The merge stamps are absent on purpose — they are excluded at the claim too.
-# The three test tiers are three different agents: micro / feature / end-to-end. Each tier owns a
-# depth of coverage and must not overstep into the next one's — see the agent files. The test
-# stamps are the tier's single name — the same string the design YAML calls its category, and the
-# agent key is that string plus "-er". Named for the test, never the tester, never the framework.
+# The three test tiers are three different agents: tester-unit / tester-feature / tester-e2e. Each
+# tier owns a depth of coverage and must not overstep into the next one's — see the agent files. The
+# test stamps are the tier's single name — the same string the design YAML calls its category — while
+# the agent is a separate name: "tester-" plus the scope it owns. This map is the only thing binding
+# the two; never derive an agent name from a stamp. Named for the test, never the tester, never a
+# framework.
 declare -A AGENT=(
     [backend-logic]=engineer
     [frontend-ui]=frontend
-    [unit-tests]=unit-tester
-    [feature-test]=feature-tester
-    [epic-e2e-test]=e2e-tester
+    [unit-tests]=tester-unit
+    [feature-test]=tester-feature
+    [epic-e2e-test]=tester-e2e
     [feature-lead-review]=lead-review
     [epic-lead-review]=lead-review
 )

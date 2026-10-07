@@ -15,8 +15,8 @@ version: 0.1.0
 # Jest — the framework
 
 This skill is the **tool**. It says how to write a Jest test. It never says *what* to test or *how
-much* to test — that is the test tier's job (`agents/unit-tester.md`, `agents/feature-tester.md`,
-`agents/e2e-tester.md`). When the tier and the tool disagree, the tier decides whether the test
+much* to test — that is the test tier's job (`agents/tester-unit.md`, `agents/tester-feature.md`,
+`agents/tester-e2e.md`). When the tier and the tool disagree, the tier decides whether the test
 exists at all; this skill decides only how it is spelled.
 
 ## Step 0 — Confirm the runner before writing anything

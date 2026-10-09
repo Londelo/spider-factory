@@ -2,11 +2,14 @@
 name: read-bead
 description: >
   How to READ a beads (`bd`) system: that you are working inside a ticket database, what it is, and
-  every command for reading a ticket's details, its parent, and its children — an epic reads all its
-  features, a feature reads all its tasks, a worker reads the ticket it was given plus its children
-  where children bear on the work. Use it before running any `bd show` / `bd list` / `bd dep`, and
-  whenever an instruction says "read the ticket" and you would otherwise guess a flag: a truncated
-  read or a hidden gate child silently becomes an agent building the thing nobody asked for. Reads
+  every command for reading a ticket's details, its parent, and its children. Reading a ticket means
+  three reads, always: the ticket itself in full, its children where children bear on the work, and
+  the gate closest above it in the hierarchy — the epic or feature gate the ticket sits under, which
+  is the source of truth for why the ticket exists. An epic reads all its features, a feature reads
+  all its tasks, a worker reads its own ticket plus its children plus its gate. Use it before running
+  any `bd show` / `bd list` / `bd dep`, and whenever an instruction says "read the ticket" and you
+  would otherwise guess a flag: a truncated read, a hidden gate child, or a skipped gate read
+  silently becomes an agent building the thing nobody asked for. Reads
   only — the claim belongs to `scripts/beads-loop.sh`, no worker ever closes its own ticket (closing is
   a human act), and authoring tickets lives in `create-bead`.
   Trigger: "read the ticket", "read the bead", "what does my ticket say", "read the epic", "what are
@@ -25,6 +28,11 @@ description, design notes, acceptance criteria, a priority, a type (`issue_type`
 an owner. Work is arranged as a **tower**: epic → features → tasks, held together by `parent-child`
 edges and ordered against each other by `blocks` edges; every ticket whose blockers are closed sits on
 the **frontier**, and a dispatcher claims from there.
+
+Every kind of ticket knows its place in that chain by **kind**, not by id: an epic is a `gate` at the
+top, a feature is a `gate` in the middle, and a task names its feature gate in `.parent`. So the walk
+upward — find the gate above me — is a question `bd` can always answer, and one you answer *before*
+writing code, because code contradicts the gate as soon as either one went stale.
 
 Nothing else is read at runtime. No stdout, no chat summary, no memory of a previous session survives
 the handoff — **the ticket is the brief, and the report you write on it (or in your final message) is
@@ -46,21 +54,65 @@ remembered one.
 
 ## The one reading rule
 
-**Read the ticket you were given, in full — and its children, where children bear on your work.**
+**Three reads, always: the ticket you were given — its children, where children bear on your work —
+and the gate above it.**
 
-A worker task usually has no children; a feature always has its tasks; an epic always has its features.
-Reading downward is what tells you what you must not duplicate, and reading sideways (siblings under the
-same parent) is what tells you what somebody else already owns.
+**1. The ticket itself**, in full, `bd show --json <id> --long`. What you must do, and how much (a
+task's `## Scope` block caps its ambition).
+
+**2. Its children**, where it has any — `bd show --children --json <id>`. A worker task usually has
+no children; a feature always has its tasks; an epic always has its features. Reading *down* is what
+tells you what you must not duplicate, and reading *sideways* (`bd list --parent <parent-id> --json`)
+is what tells you what a sibling already owns.
+
+**3. The gate closest above you** — *the source of truth*. The ticket you hold never carries the
+whole reason it exists; the flow it serves lives on the gate above it. A `backend-logic` task whose
+parent is feature **F** takes **F** as its source of truth, and **F** in turn answers to its epic.
+A task with no `.parent` has no gate above it: say so on the ticket rather than inventing a purpose.
+
+Why the gate is *closest above*, not top-down: a feature's `## Scope` line is written to be read
+*inside* its epic, and one task's acceptance criteria can always be satisfied while the feature
+stays unbuildable.
 
 | You hold | Read | Command |
 |---|---|---|
 | any ticket | itself, in full, before touching code | `bd show --json <id> --long` |
-| any ticket | who owns it (its parent) | `.parent` from `bd show --json <id>`, or `bd dep list <id> --json` |
 | any ticket | its direct children, if it has any | `bd show --children --json <id>` |
 | any ticket | its siblings, before duplicating them | `bd list --parent <parent-id> --json` |
+| any **task** | **the gate above it** — its parent, then that gate's own children and siblings | `.parent` from `bd show --json <id> --long`, then `bd show --json <parent-id> --long` |
 | a **feature** (or a ticket describing one) | **every task under the feature** | `bd list --parent <feature> --json` |
 | an **epic** (or a ticket describing one) | **every feature under the epic** | `bd show --children --json <epic>` — or `bd list --parent <epic> --json --include-gates` |
 | anything below you that looks finished | whether it really is | `bd show --json <child-id>` → `status`, then `bd ready --explain` |
+
+## One worked read — a `backend-logic` task
+
+A tower shaped like the real one:
+
+```
+Epic · "Tally — personal spending tracker"                    (gate)
+ └── Feature · "F1 — Recurring bills"                          (gate)
+      ├── Task · "backend-logic — BillRecurrence engine"       ← YOU HOLD THIS
+      ├── Task · "frontend-ux — BillForm / schedule screen"
+      └── Task · "unit-tests — bill-recurrence.spec"
+```
+
+You were dispatched holding the `backend-logic` ticket, and the hook tells you to read your bead.
+The three reads, in order:
+
+1. **Self** — `bd show --json <self> --long` → `.description` + `## Scope`: you implement the
+   recurrence engine, compute next dates and payments, and its `## Owned Elsewhere` forbids you to
+   reach into `modules/bills` or `components`.
+2. **Gate (up)** — `.parent` is **F1**, so **F1 is the source of truth**. `bd show --json F1 --long`
+   → its `## Scope`: the bill computes its next date and *surfaces it to the user*. Without this
+   read you would write a pure date calculator with no way to prove it right; with it, you know your
+   engine must expose what the form and the test tickets downstream of you will need.
+3. **Children (down)** — the task has none, so you **check the layer your work lands on** instead:
+   the sibling `unit-tests` ticket and `bd list --parent F1 --json` — because that unit-tests ticket
+   is exactly who might already have written your spec, and `## Owned Elsewhere` says don't
+   duplicate it.
+
+The shape, not the ids: **you = self → gate (the parent, and what the parent says) → children (or
+layer check when you are a leaf)**.
 
 ## The read surface
 
@@ -116,12 +168,13 @@ look at is a read that never happened.
 
 - **Read first, then act** — and re-read after anything changes. A ticket quoted from memory is a ticket
   that changed while you were working.
-- **Read only as deep as the work needs.** Descend where children change what you do; do not tour the
-  whole tower to feel thorough.
+- **Read only as far as the work needs** — *up* to the gate, *down* through children, *sideways* at
+  siblings — and stop there. Do not tour the whole tower to feel thorough.
 - **The database beats the assumption.** If a read contradicts what you were told, trust the read and
   report the contradiction; do not quietly reconcile it.
 - **A missing fact belongs on the ticket, never in a guess**: write exactly what remains into the ticket
   and say the gap out loud. Half-doing an unseen brief and hiding it is worse than stopping.
 - **Never claim from here**: `bd ready --claim`, `bd update --claim`, `bd unclaim` and `bd reclaim` belong
   to `scripts/beads-loop.sh` and the operator alone. Your ticket arrived already claimed.
-- Your ticket is your whole assignment: read it, read what sits under it, work nothing else.
+- Your ticket is your whole assignment: read it, read its gate above and its children below, work
+  nothing else.

@@ -190,17 +190,12 @@ bd note --json --severity high <ticket-id> "unresolved conflict: <file> — <wha
 a page object pointing at markup that no longer exists; the markup's ticket is closed>"
 ```
 
-**Step 8 — Close your ticket, whichever way it went** (the worker prompt says nobody reads your prose;
-the closed ticket is your proof of work).
-
-```bash
-bd close <ticket-id> --reason "merged <child-ids> into <integration-branch>; <runner> <n>/<n> pass
-(real runner, real file count); conflicts resolved: <n> — see the ticket note"
-```
-
-- **When you must not close:** a conflict you could not resolve, or a suite that stayed red, means the
-  job is unfinished — leave the ticket **open** and write what remains as a ticket note (Step 7). A stuck
-  ticket is how the tower stops and waits for a human, instead of walking past the hole.
+**Step 8 — Report and stop. Never close your own ticket.** Whatever the outcome — clean merge, stuck
+conflict, red suite — a human reads your final message, verifies the integration, and closes the ticket;
+a ticket you close yourself closes unverified. Leave the ticket **open** and keep the lease alive with
+`bd heartbeat <ticket-id>` until a human or the dispatcher parks it. If a conflict stayed unresolved or
+the suite stayed red, that too goes in the report and the ticket note (Step 7) — a stuck ticket is how
+the tower stops and waits for a human, instead of walking past the hole.
 - **Never `bd reopen` a closed child** to "fix" its coverage. Only a human may reopen one: they wrote the
   acceptance criteria it closed against, so they know what it asked for and you do not.
 

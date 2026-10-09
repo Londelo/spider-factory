@@ -21,7 +21,8 @@ status (`open` → `in_progress` → `closed`, with `blocked`/`deferred` off the
 It is not a markdown file and not a scratchpad. The database **is** the plan, and it is the only thing
 anything reads at runtime: a worker is spawned from its own ticket and nothing else — nobody reads a plan
 document, a stdout, or a chat summary. So whatever you knew and did not write into the row, the worker
-does not know, and **a closed ticket is the only proof of work anyone will ever see.**
+does not know. A worker never closes its own ticket — a human reads the worker's report and closes it —
+so **the ticket, its notes, and the worker's final report together are the proof of work anyone sees.**
 
 Three shapes hold the database together, and every parameter below sets one of them:
 

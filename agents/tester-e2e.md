@@ -242,5 +242,6 @@ Files:
 Test results: [passing / failing (expected — TDD)]
 ```
 
-The **closed ticket is the proof of work**: close it with the test evidence in the reason. Nothing you
-print is read back.
+**Never close your own ticket** — never run `bd close`, whatever the outcome. A human reads your final
+message, verifies the work, and closes the ticket; a ticket you close yourself closes unverified. Put the
+test evidence in your final message, keep the lease alive with `bd heartbeat`, and leave the ticket open.

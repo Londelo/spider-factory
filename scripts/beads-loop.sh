@@ -121,9 +121,10 @@ Rules:
 1. Keep your claim lease alive — the 5-minute lease must NEVER lapse. Run
    bd heartbeat $1
    between long steps; a lapsed lease means another dispatcher can seize your ticket mid-work.
-2. When your own tests pass, close the ticket yourself:
-   bd close $1 --reason \"<what you did + the test evidence that proves it>\"
-   Nobody will ask you for a report; the closed ticket IS your proof of work.
+2. Do NOT close your ticket — never run `bd close`, whatever the outcome. When your work is
+   done, keep the lease (bd heartbeat $1) and state your proof of work in your final message:
+   what you did and the test evidence that proves it. A human reads the final message,
+   checks the work, and closes the ticket; a ticket you close yourself closes unverified.
 3. If the brief needs more work than you can finish: write a beads comment on $1
    describing exactly what remains (check bd comment --help). Never half-do and hide it.
 4. Spawn nothing. Work nothing but $1. You and your ticket are one and the same."

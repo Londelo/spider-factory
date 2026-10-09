@@ -97,11 +97,16 @@ ticket**, never a second ticket: one ticket, one worker.
    with `bd create -l <stamp>` and verified with a `bd show --json` round trip per ticket.
 
 ### The dispatcher — scripts/beads-loop.sh
-Contract: [`claim-beads-loop.md`](../claim-beads-loop.md). Every tick it claims one ticket with
+The contract file `claim-beads-loop.md` was deleted in commit `fc49051` and exists nowhere else —
+this section and the YAML are the only remaining accounts of the dispatcher's behaviour.
+
+Every tick it claims one ticket with
 `bd ready --claim`, matches its single stamp against the `AGENT` map, spawns
 `claude --bg -w <ticket> --agent <agent> --permission-mode bypassPermissions` — Claude makes the
-worktree itself, the loop builds no folders — logs one line, and moves on. Spawn and forget: it
-never polls a worker, never reads output, never reaps, never merges, never ends itself.
+worktree itself, the loop builds no folders — logs one line, and moves on. The worker prompt hands
+the worker three rules — keep the lease alive, never close the ticket (report in the final message
+instead), comment what remains — and nothing more; the loop itself never polls a worker, never reads
+output, never reaps, never merges, never ends itself.
 
 - **Never guesses a specialist:** zero or two stamps → `ERROR reason=stamp-ambiguous`, left claimed
   so its lease parks it off the frontier, and the errors file is the alarm.
@@ -119,10 +124,11 @@ never polls a worker, never reads output, never reaps, never merges, never ends 
 | `bd dep add <a> <b> --type blocks` | order two nodes |
 | `bd dep tree <id>` | show the dependency tree |
 | `bd ready --claim` | atomically claim the next unblocked ticket |
-| `bd heartbeat <id>` / `bd close <id> --reason …` | the worker keeps its lease / closes its ticket |
+| `bd heartbeat <id>` | the worker keeps its lease alive — it never closes its own ticket |
 
 ### Rules
 - Always `bd ready --claim`, never a bare `bd ready` (not atomic — two loops would steal the ticket).
 - Never dispatch on a guess; never dispatch a gate; never dispatch a merge ticket (excluded at the claim).
 - Respect the chains: no review before its tests, no merge before its review.
-- The human closes the gates. The closed ticket is the worker's proof of work; nothing it prints is read back.
+- The human closes the gates. No agent closes anything: workers leave their ticket open and report in
+  their final message; the human reads the report, verifies, and closes. A self-closed ticket is a bug.

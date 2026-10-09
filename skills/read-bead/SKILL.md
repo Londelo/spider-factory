@@ -7,8 +7,8 @@ description: >
   where children bear on the work. Use it before running any `bd show` / `bd list` / `bd dep`, and
   whenever an instruction says "read the ticket" and you would otherwise guess a flag: a truncated
   read or a hidden gate child silently becomes an agent building the thing nobody asked for. Reads
-  only — the claim belongs to `scripts/beads-loop.sh`, the commands that hold a ticket open and close it
-  arrive with the ticket itself, and authoring tickets lives in `create-bead`.
+  only — the claim belongs to `scripts/beads-loop.sh`, no worker ever closes its own ticket (closing is
+  a human act), and authoring tickets lives in `create-bead`.
   Trigger: "read the ticket", "read the bead", "what does my ticket say", "read the epic", "what are
   my children", "find the parent", "which tasks does this feature have", "bd show", "bd list",
   "bd dep list".
@@ -27,9 +27,11 @@ edges and ordered against each other by `blocks` edges; every ticket whose block
 the **frontier**, and a dispatcher claims from there.
 
 Nothing else is read at runtime. No stdout, no chat summary, no memory of a previous session survives
-the handoff — **the ticket is the brief, and a closed ticket is the only proof of work anyone sees**.
-So reading it is not a preamble to the work, it *is* how you are told what to do: read it, re-read it
-after anything changed, and never act on a remembered version of it.
+the handoff — **the ticket is the brief, and the report you write on it (or in your final message) is
+the only proof of work anyone sees.** A worker never closes its own ticket, so the report — not a
+`bd close` — is where the proof lands. So reading it is not a preamble to the work, it *is* how you
+are told what to do: read it, re-read it after anything changed, and never act on a remembered
+version of it.
 
 Ground yourself before reading anything: `bd where` names the database you are actually talking to — it
 resolves by walking **up** from `$PWD` and ignores `BEADS_DIR`, so one stray `cd` into a worktree has
@@ -38,8 +40,9 @@ totals. Everything below was verified against `bd` 1.3.0 by running it.
 
 **Reads are read-only.** Nothing on this page takes a lease, claims a ticket or changes a byte of state,
 so re-read as often as you like. Anything that *writes* is outside this skill: authoring a ticket is
-`skills/create-bead`, and holding a claimed ticket open and closing it are commands that arrive with the
-ticket itself. An unfamiliar flag is settled by `bd <command> --help`, never by a remembered one.
+`skills/create-bead`, and no worker closes a ticket from anywhere — closing is a human act, done after
+reading the worker's report. An unfamiliar flag is settled by `bd <command> --help`, never by a
+remembered one.
 
 ## The one reading rule
 

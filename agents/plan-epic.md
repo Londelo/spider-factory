@@ -38,7 +38,7 @@ the tool and what each field is for; **what each field must contain is here.**
 | acceptance criteria | how the human knows to close the gate | the evidence that closes it |
 | type | `gate` (a custom type — never a built-in) | `task` |
 | priority | P4 unless told otherwise | inherit the epic's |
-| labels | **none** | exactly one stamp, below |
+| labels | **none** | exactly one dispatching label, below |
 | parent | none: the epic is the root | the epic's id |
 | waits on | the epic review, below | the epic-tier order, below |
 
@@ -80,23 +80,23 @@ merged thing rather than a branch. The merge ticket is the one the dispatcher ne
 exactly why it sits at the head of the chain — a person or the merge agent runs it by hand, and the whole
 tier waits behind it.
 
-| Ticket | Stamp (its one label) | Waits on | Description must carry | Acceptance criteria |
+| Ticket | Label (its one dispatching label) | Waits on | Description must carry | Acceptance criteria |
 |---|---|---|---|---|
 | epic merge | `epic-merge-pr` | every feature gate — `plan-feature` writes those edges, one per feature | what gets merged, from where, into what, and the preconditions | the PR merged, preconditions satisfied |
 | e2e suite | `epic-e2e-test` | the epic merge | the journeys that cross features, one success + one failure path per feature; what each journey must **not** re-prove (the feature tier owns that) | every named journey passes on the **merged** stack |
-| epic review | `epic-lead-review` | the e2e suite | what to trace across the whole epic, which suites to run, what "certified" means here | a certification naming what was traced and what was run |
+| epic review | `epic-review` | the e2e suite | **the branch it is reviewing** (it is not to be told how that branch was assembled), what to trace across the whole epic, which suites to run, and the three questions it must answer | findings posted as comments on the PR, each one naming where it lives and how it was found |
 
 Two tickets nobody creates is a tower that builds and never ships: no review ticket means no reviewer is
 ever dispatched, no merge ticket means nothing is ever merged, and the gate can never close.
 
-### Stamp, category, tag — never interchangeable
+### Label, category, tag — never interchangeable
 
-The **stamp** is the one label that dispatches; the **category** is a display hint in the ticket list; a
-**tag** dispatches nothing. On this tier the stamp and the category are the same string —
+The **label** is what `-l` attaches and what the dispatcher matches; the **category** is a display hint in the ticket list; a
+**tag** dispatches nothing. On this tier the label and the category are the same string —
 `epic-e2e-test`, while the agent carries its own name: `tester-e2e`. The three testers are `tester-unit`,
 `tester-feature`, `tester-e2e`, "tester-" plus the scope each owns, and only the dispatcher's map binds a
-stamp to one, so never spell an agent name out of a stamp. A tier is named for the **test**, never
-the tester and never the framework. Mis-stamp one tier off and the worker covers the wrong depth of
+label to one, so never spell an agent name out of a label. A tier is named for the **test**, never
+the tester and never the framework. Mis-label one tier off and the worker covers the wrong depth of
 coverage, and nothing it reports will tell you so.
 
 ### Edges you own
@@ -119,7 +119,7 @@ end of the chain — a tower that tests first and merges last proves a branch an
 Any "no" means fix the ticket, not the report.
 
 - [ ] Would a worker spawned with nothing but this ticket and its description know exactly what to do?
-- [ ] Gate: type `gate` with **zero** labels. Ticket: type `task` with **exactly one** stamp from the closed set?
+- [ ] Gate: type `gate` with **zero** labels. Ticket: type `task` with **exactly one** label from the closed set?
 - [ ] Did you read it back — this ticket, right after creating it?
 - [ ] Every ordering requirement a real blocking edge, not assumed from the parent link?
 - [ ] The chain pointing the right way — merge → e2e → review → gate — each of those three an edge you wrote?
@@ -177,6 +177,6 @@ gate: an unregistered one is accepted and hidden rather than refused. Survey the
 before you create anything, because gates stay out of the default listing and a plain list will tell you
 your epic vanished when it didn't.
 
-Then report: the epic and its three tickets with their stamps, parents and blockers named. If anything
+Then report: the epic and its three tickets with their labels, parents and blockers named. If anything
 failed the definition-of-ready check, say so plainly — a named failure is fixable, a ✅ over a dead
 ticket is not.

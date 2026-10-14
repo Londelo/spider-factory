@@ -50,7 +50,7 @@ owns the tool and what each field is for; **what each field must contain is here
 | acceptance criteria | how the human knows to close the gate | the evidence that closes it |
 | type | `gate` (a custom type — never a built-in) | `task` |
 | priority | inherit the epic's (P4 when unset) | inherit the feature's |
-| labels | **none** | exactly one stamp, below |
+| labels | **none** | exactly one dispatching label, below |
 | parent | the epic — or none, when the human said there is no epic | the feature |
 | waits on | the feature review, below | the feature-tier order, below |
 
@@ -86,11 +86,11 @@ They run **merge → suite → review**: the feature merges first and is then pr
 The merge is the one ticket the dispatcher never claims — a person or the merge agent runs it by hand —
 which is precisely why everything above it waits.
 
-| Ticket | Stamp (its one label) | Waits on | Description must carry | Acceptance criteria |
+| Ticket | Label (its one dispatching label) | Waits on | Description must carry | Acceptance criteria |
 |---|---|---|---|---|
 | feature merge | `feature-merge-pr` | every `backend-logic` and `frontend-ui` ticket under this feature — `plan-task` writes those, one edge per ticket | what merges, into what, with which preconditions | the PR merged, preconditions satisfied |
 | feature suite | `feature-test` | the feature merge | the feature's flow proved wired in a browser: its successes and its error surfaces; what it must **not** re-prove (the micro tier owns single-function branches) | every named path passes against the **merged** feature, no untested branch left in the flow |
-| feature review | `feature-lead-review` | the feature suite | what to trace, which suites to run, what to certify | a certification naming what was traced and what was run |
+| feature review | `feature-review` | the feature suite | **the branch it is reviewing** (the reviewer is not to be told how that branch was assembled), what to trace, which suites to run, and the three questions it must answer | findings posted as comments on the PR, each one naming where it lives and how it was found |
 
 Two tickets nobody creates is a tower that builds and never ships: no review ticket means no reviewer is
 ever dispatched, no merge ticket means nothing is ever merged, and the gate can never close. `plan-task`
@@ -101,14 +101,14 @@ which waits on the suite, which waits on the merge. So a closed feature gate mea
 **and** certified, transitively — nothing above you can be closed early, and nothing you skip can be closed
 either. Break any link and the human is holding a gate that should still be open.
 
-### Stamp, category, tag — never interchangeable
+### Label, category, tag — never interchangeable
 
-The **stamp** is the one label that dispatches; the **category** is a display hint in the ticket list; a
-**tag** dispatches nothing. On this tier the stamp and the category are the same string — `feature-test` —
+The **label** is what `-l` attaches and what the dispatcher matches; the **category** is a display hint in the ticket list; a
+**tag** dispatches nothing. On this tier the label and the category are the same string — `feature-test` —
 while the agent carries its own name: `tester-feature`. The three testers are `tester-unit`,
 `tester-feature`, `tester-e2e`, "tester-" plus the scope each owns, and only the dispatcher's map binds a
-stamp to one, so never spell an agent name out of a stamp. A tier is named for the **test**, never the
-tester and never the framework. Mis-stamp one tier off and the worker covers the wrong depth of coverage, and nothing
+label to one, so never spell an agent name out of a label. A tier is named for the **test**, never the
+tester and never the framework. Mis-label one tier off and the worker covers the wrong depth of coverage, and nothing
 it reports will tell you so.
 
 ### Edges you own
@@ -135,7 +135,7 @@ handling, edge cases, docs). Note per phase what it enables and what runs in par
 Any "no" means fix the ticket, not the report.
 
 - [ ] Would a worker spawned with nothing but this ticket and its description know exactly what to do?
-- [ ] Gate: type `gate` with **zero** labels. Ticket: type `task` with **exactly one** stamp from the closed set?
+- [ ] Gate: type `gate` with **zero** labels. Ticket: type `task` with **exactly one** label from the closed set?
 - [ ] Did you read it back — this ticket, right after creating it?
 - [ ] Parented to the epic (or deliberately orphaned), so the tower is intact?
 - [ ] Every ordering requirement a real blocking edge, not assumed from the parent link?
@@ -181,8 +181,8 @@ are working in and gives the one command that creates a ticket, with every param
 what each sets, and which ones are accepted and quietly ignored. The schema above says what goes into them.
 
 Create per feature in this order — gate, merge, suite, review — then wire the edges, then read every ticket
-back before you write the next. A stamp you have not verified is a stamp you did not write, and an unstamped
+back before you write the next. A label you have not verified is a label you did not write, and an unlabeled
 ticket is not slightly degraded, it is unworkable.
 
-Then report per phase: each feature with its three tickets, stamps, parents, blockers, and which features
+Then report per phase: each feature with its three tickets, labels, parents, blockers, and which features
 are ready for `plan-task`. Name anything that failed the definition-of-ready check instead of ✅-ing it.

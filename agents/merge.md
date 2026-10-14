@@ -85,7 +85,7 @@ tail -50 ~/.binary-obelisk/logs/*/claims        # one run per directory
 ```
 
 A `claims` line is TAB-separated and each line is one ticket: `timestamp`, `CLAIMED`,
-`ticket=<id>`, `stamp=<stamp>`, `agent=<agent>`, `worktree="<path>"`.
+`ticket=<id>`, `label=<label>`, `agent=<agent>`, `worktree="<path>"`.
 
 ```bash
 grep -F "ticket=<child-id>" ~/.binary-obelisk/logs/*/claims    # one run per directory; the log is the ONLY index
@@ -102,7 +102,7 @@ git log --oneline <integration-branch>...<child-branch>        # its commits, an
 
 A ticket appearing **two or three times is normal**, not a problem. `respawn-agent: true` means a fresh
 session of the same agent re-checks the same ticket, and the same *agent* may serve two different
-stamps (`lead-review` serves both review stamps). You want every branch the ticket's work landed on, in
+labels (`review` serves both review labels). You want every branch the ticket's work landed on, in
 `ticket-id` order, and you want to know that two tickets changed the same file (Step 5).
 
 **Step 4 — Verify each branch is ready.** A `git worktree list` or `git diff` run by absolute path, from

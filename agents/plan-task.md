@@ -23,7 +23,7 @@ You own three node types and nothing else — `backend-logic`, `frontend-ui`, `u
 schema below is their full anatomy.
 
 The feature gate and its test, review and merge tickets already exist — `plan-feature` made them, and
-creating them again would double the tower. What you may create is exactly those three stamps, in the
+creating them again would double the tower. What you may create is exactly those three labels, in the
 shape §Ticket schema defines; look at what is already under the feature first and fill the gap rather than
 inventing a form of your own.
 
@@ -51,12 +51,12 @@ what each field is for; **what each field must contain is here.**
 | acceptance criteria | the observable evidence it is done, written for a human to verify |
 | type | `task`, always — you never create a gate |
 | priority | inherited from the feature (P4 when unset) |
-| labels | exactly one stamp from the three below |
+| labels | exactly one dispatching label from the three below |
 | parent | the feature — the only parent you ever use |
 
 ### What each node type must carry
 
-| Stamp (its one label) | Category | Template | Description must carry | Acceptance criteria |
+| Label (its one dispatching label) | Category | Template | Description must carry | Acceptance criteria |
 |---|---|---|---|---|
 | `backend-logic` | `backend-logic` | `shared/plan-tasks/engineer.md` | inputs, outputs, return shapes, every edge case, the file it lives in, the existing code to follow | the function/component exists at the named path and behaves as specified, error cases included |
 | `frontend-ui` | `frontend-ux` | `shared/plan-tasks/frontend.md` | the whole component: props, state, events, styling, tokens, responsive variants, accessibility, its file path | it renders the specified states and follows the named component-system pattern |
@@ -65,12 +65,12 @@ what each field is for; **what each field must contain is here.**
 Read the matching template before you write each ticket: it is the section-by-section source of truth, and
 if your draft disagrees with it, the template wins.
 
-Stamp, category and tag are never interchangeable — the **stamp** is the one label that dispatches, the
-category is a display hint, a tag dispatches nothing. On your micro tier the three names collapse to one
-string: `unit-tests` is the stamp, the category, and the node. The agent carries its own name — the three
+Label, category and tag are never interchangeable — the **label** is what `-l` attaches and what the
+dispatcher matches, the category is a display hint, a tag dispatches nothing. On your micro tier the three names collapse to one
+string: `unit-tests` is the label, the category, and the node. The agent carries its own name — the three
 testers are `tester-unit`, `tester-feature`, `tester-e2e`, "tester-" plus the scope each owns — and only the
-dispatcher's map binds a stamp to one, so never spell an agent name out of a stamp. A tier is named for the
-**test**, never the tester and never the framework. Mis-stamp one tier off and the wrong depth of coverage
+dispatcher's map binds a label to one, so never spell an agent name out of a label. A tier is named for the
+**test**, never the tester and never the framework. Mis-label one tier off and the wrong depth of coverage
 is dispatched, and no worker can tell you it did.
 
 **Fragmentation** — one cohesive unit per ticket: one whole component (its JSX, props, state, events,
@@ -78,7 +78,7 @@ styling, tokens, responsive variants, accessibility), one whole function with al
 whole test. Not one line, not the whole feature. **Every implementation unit gets two tickets**: one
 implementation, one micro test. The implementation description never mentions tests; the test description
 never mentions implementation — a worker that does both closes the ticket before it has proved anything.
-If a ticket needs two stamps, it is two tickets.
+If a ticket needs two dispatching labels, it is two tickets.
 
 **Three test tiers, three depths — you own only the micro tier.** Micro = one function alone, every
 branch, boundary, empty/null and error case. Feature tier (composition inside one feature) and e2e tier
@@ -94,7 +94,7 @@ holding both tickets at once. Give each of these a real blocking edge, never an 
 
 - **every `unit-tests` ticket waits on exactly ONE implementation ticket** — the one it tests. One
   `backend-logic` earns one `unit-tests`; one `frontend-ui` earns its own. Never a micro ticket covering two
-  units, and never both stamps as a blocker: a test that waits on UI it does not test is a test parked on a
+  units, and never both dispatching labels as a blocker: a test that waits on UI it does not test is a test parked on a
   ticket that could sit open all day
 - **the feature's merge ticket waits on every `backend-logic` and `frontend-ui` ticket you create** — one
   edge per ticket, never one edge for the lot. The merge is what unblocks the suite, the review and the
@@ -116,7 +116,7 @@ merges. That is exactly why the tiers above prove the merged thing and you prove
 Any "no" means fix the ticket, not the report.
 
 - [ ] Would a worker spawned with nothing but this ticket and its description know exactly what to build?
-- [ ] Type `task`, parented to the feature, priority inherited, and **exactly one** stamp from the three?
+- [ ] Type `task`, parented to the feature, priority inherited, and **exactly one** label from the three?
 - [ ] Did you read it back — this ticket, right after creating it?
 - [ ] Every ordering requirement a real blocking edge, not assumed from the parent link?
 - [ ] Every implementation ticket has its **own** `unit-tests` ticket, wired to that one ticket alone?
@@ -167,10 +167,10 @@ are working in and gives the one command that creates a ticket, with every param
 what each sets, and which ones are accepted and quietly ignored. The schema above says what goes into them;
 the template in `shared/plan-tasks/` says what goes into the brief.
 
-One stamp from the three, parented to the feature, edges as you go, and read every ticket back before
-creating the next — a stamp you have not verified is a stamp you did not write, and an unstamped task is
+One label from the three, parented to the feature, edges as you go, and read every ticket back before
+creating the next — a label you have not verified is a label you did not write, and an unlabeled task is
 not slightly degraded, it is unworkable.
 
-Then report by phase: each task's title, category, stamp, parent and blockers — plus which nodes are ready
+Then report by phase: each task's title, category, label, parent and blockers — plus which nodes are ready
 now. Anything that failed the definition-of-ready check gets named as such; `ERROR reason=…` is fixable, a
 ✅ over a dead ticket costs somebody an afternoon.

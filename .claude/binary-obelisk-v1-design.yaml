@@ -3,28 +3,33 @@
 # THREE NAMES, NEVER INTERCHANGEABLE — collapsing any two is how a tower silently
 # dispatches nothing:
 #   category = display hint, shown in `bd list`, names a plan-task template
-#   stamp    = the ONE label a ticket carries (`bd create -l <stamp>`); what the
+#   label    = the ONE label a ticket carries (`bd create -l <label>`); what the
 #              dispatcher matches on. Keys of `tasks:` below, bar none.
 #   agent    = a real file in agents/; what gets spawned
 #
-# The three TEST nodes collapse stamp and category to ONE string on purpose: the node key
-# IS the stamp IS the category. The agent is a separate name — "tester-" plus the scope it owns
+# The three TEST nodes collapse label and category to ONE string on purpose: the node key
+# IS the label IS the category. The agent is a separate name — "tester-" plus the scope it owns
 #   unit-tests  -> tester-unit      feature-test -> tester-feature      epic-e2e-test -> tester-e2e
-# Nothing derives an agent name from a stamp: the AGENT map in scripts/beads-loop.sh alone binds them.
+# Nothing derives an agent name from a label: the AGENT map in scripts/beads-loop.sh alone binds them.
 # A tier is named for the TEST, never the tester, and never for a framework — the
-# framework lives only in the framework-* skill the agent loads. Where stamp, category
+# framework lives only in the framework-* skill the agent loads. Where label, category
 # and agent drift apart, the wrong depth of coverage is dispatched and nothing reports it.
 #
 # Every node is a real beads issue. Relationships live in the arrays:
-#   task.stamp     -> written with `bd create -l <stamp>`
-#   task.parent    -> `--deps type:parent-child:<parent>`
-#   task.depends-on-> `bd dep add <task> <dep> --type blocks`
+#   task.label     -> written with `bd create -l <label>`
+#   task.parent    -> `--parent <id>` (or `--deps parent-child:<id>`) — hierarchy and reading
+#                     ONLY; a parent-child edge never blocks
+#   task.depends-on-> `bd dep add <task> <dep> --type blocks` — the ONLY thing that blocks: every
+#                     parent is blocked-by each of its children (bottom-up), and the next tier is
+#                     blocked-by the gate two levels down, not by the chain beside it
 #   task.agents    -> who does the work
 #
 # Nothing here is read at runtime — the loop's only input is the beads database.
 # The tower is built top-down by the plan agents (plan-epic -> plan-feature ->
-# plan-task) and EXECUTED bottom-up (`bd ready --claim`, close children, parent
-# auto-unblocks). See claim-beads-loop.md for the dispatcher.
+# plan-task) and EXECUTED bottom-up (`bd ready --claim` hands out whatever is unblocked;
+# closing a ticket's children is what lets its gate close). The dispatcher is
+# scripts/beads-loop.sh; its contract lives in .claude/CLAUDE.md (the old claim-beads-loop.md
+# was deleted in fc49051).
 #
 # respawn-agent: true = a fresh session of the same agent re-checks the work before
 # the ticket may close. It is a STEP inside the one ticket, never a second ticket.
@@ -94,13 +99,13 @@ agents:
     spawn: [s, b, w]
     certify: true
     skills: [read-bead, coding, files, naming, errors, framework-playwright]
-  lead-review:
-    description: "Comprehensive review — traces the change, instruments, runs the tests, certifies."
+  review:
+    description: "Reads its ticket and the tickets around it, reads the diff it is handed, maps the whole system the change touches, instruments that system with trace logs, runs the tests against the instrumented code, then answers three questions from first principles — does the code do what its source of truth demands, do the tests prove it, is it simple and readable. Posts findings as PR comments; files no tickets and commits or pushes nothing — the trace logs stay in the working tree."
     spawn: [s, b, w]
     certify: true
-    skills: [errors, coding, files, naming]
+    skills: [read-bead, github-pr-comments, coding, files, naming, errors]
   merge:
-    description: "Assembles a merge ticket's child branches onto one integration branch, in its own worktree: finds the children, resolves the conflicts between them, then runs the project's own test command and reports. Writes no code and no tests — tests are evidence, not a suspect. Does not merge into main and opens no pull request. Never dispatched by the loop, like the other two tiers."
+    description: "Assembles a merge ticket's child branches onto one integration branch, in its own worktree: finds the children, resolves the conflicts between them, then runs the project's own test command and reports. Writes no code and no tests — tests are evidence, not a suspect. Does not merge into main and opens no pull request. Dispatched by the loop on merge tickets, like the test tiers."
     spawn: [s, b, w]
     certify: true
     skills: [read-bead]
@@ -109,37 +114,39 @@ agents:
 # no task node here — they are described at the bottom of this file.
 
 # ================================ TASKS ================================
-# Node keys ARE the stamps — one label, written at create time by plan-task, and
-# verified with a `bd show --json` round trip. A ticket with zero or two stamps is
+# Node keys ARE the dispatching labels — one per ticket, written at create time by plan-task, and
+# verified with a `bd show --json` round trip. A ticket with zero or two dispatching labels is
 # never dispatched: the loop does not guess specialists.
 #
-# `gate` nodes are checkpoints, not work: the loop never sees one, and everything
-# behind an open gate stays off the ready frontier. The human reads the merged PR
-# and closes the gate. There is no human agent.
+# `gate` nodes are checkpoints, not work, and they are invisible to `bd ready` — the loop
+# never sees one, so there is nothing to filter. What a gate DOES is hold the NEXT tier
+# back: the tickets behind it are blocked-by the gate itself, and only a human closes a
+# gate, so the tower stalls at the gate until a human verifies and closes it.
+# The human reads the merged PR and closes the gate. There is no human agent.
 tasks:
 
   # ---------- Epic: the "what", one per product intent ----------
   epic:
     type: gate
     parent: null
-    depends-on: [epic-lead-review]      # the human closes it once the epic PR is merged
+    depends-on: [epic-merge-pr, epic-e2e-test, epic-review]  # blocked-by every child (bottom-up); the human closes it once they are all closed
     respawn-agent: false
     description: "The highest-level understanding of what we are building. Created by plan-epic."
 
   # ---------- Epic tasks: run once the features are in ----------
-  epic-lead-review:
+  epic-review:
     type: task
     category: review
     parent: epic
-    depends-on: [epic-e2e-test]
-    agents: [lead-review]
+    depends-on: [feature, epic-e2e-test]   # the tier stalls at the feature gate until a human closes it
+    agents: [review]
     respawn-agent: false
-    description: "Review the epic as a whole — trace the change, run the tests, certify."
+    description: "Review the epic as a whole — map the flow across the features, instrument it, run the suites against the instrumented code, then answer the three questions."
   epic-e2e-test:
     type: task
     category: epic-e2e-test                # broad tier: journeys ACROSS features
     parent: epic
-    depends-on: [epic-merge-pr]
+    depends-on: [feature, epic-merge-pr]   # the tier stalls at the feature gate; merge goes in first
     agents: [tester-e2e]
     respawn-agent: true
     description: "End-to-end journeys across the whole epic in a real browser on the real stack — cross-feature state handoffs, continuity, one success and one failure per feature seen from outside. Thinnest tier; third parties mocked only."
@@ -150,25 +157,25 @@ tasks:
     depends-on: [feature]
     agents: [merge]
     respawn-agent: false
-    description: "Merge the epic PR once its review and e2e tests are green. Never dispatched by the loop."
+    description: "Assemble the epic's branches onto one integration branch. This runs BEFORE the e2e suite and before the review, so both are proved against the assembled result and never against a lone branch. Dispatched by the loop like any other label."
 
   # ---------- Feature: a piece of the epic, one complete user-facing flow ----------
   feature:
     type: gate
     parent: epic
-    depends-on: [feature-lead-review]   # the human closes it once the feature PR is merged
+    depends-on: [backend-logic, frontend-ui, unit-tests, feature-merge-pr, feature-test, feature-review]  # blocked-by every child (bottom-up); the human closes it once they are all closed
     respawn-agent: false
     description: "A piece of the epic, described in terms of what the user gets, never how to build it. Created by plan-feature."
 
   # ---------- Feature tasks: run once the base tasks are in ----------
-  feature-lead-review:
+  feature-review:
     type: task
     category: review
     parent: feature
     depends-on: [feature-test]
-    agents: [lead-review]
+    agents: [review]
     respawn-agent: false
-    description: "Review the feature — trace the call chain, instrument, run the tests, certify."
+    description: "Review the feature — map the flow it sits in, instrument it, run the suites against the instrumented code, then answer the three questions."
   feature-test:
     type: task
     category: feature-test                 # middle tier: one feature's pieces wired together
@@ -184,7 +191,7 @@ tasks:
     depends-on: [backend-logic, frontend-ui]
     agents: [merge]
     respawn-agent: false
-    description: "Merge the feature PR once its review and tests are green. Never dispatched by the loop."
+    description: "Assemble this feature's branches onto one integration branch. This runs BEFORE the feature suite and before the review, so both are proved against the assembled result and never against a lone branch. Never dispatched by the loop."
 
   # ---------- Base tasks: created from every feature; the ready frontier ----------
   backend-logic:
@@ -216,11 +223,26 @@ tasks:
 # Build the tower top-down; the claim loop runs it bottom-up.
 #   plan-epic    vague idea -> one epic            (`bd create -t gate`)
 #   plan-feature epic -> features, parent-child    (phases: foundations -> core -> dependent -> polish)
-#   plan-task    feature -> the tasks above, each stamped at create time
+#   plan-task    feature -> the tasks above, each labeled at create time
 
 # ============================ EXECUTION ORDER ==========================
-# The order the ready frontier releases them:
-#   1. backend-logic, frontend-ui        (the frontier, no deps)
-#   2. unit-tests, feature-test
-#   3. feature-lead-review -> feature-merge-pr -> human closes the feature gate
-#   4. epic-e2e-test -> epic-lead-review -> epic-merge-pr -> human closes the epic gate
+# The order the ready frontier releases them. The depends-on graph above is the ONLY thing
+# that enforces this order, so trust that graph over this comment if they ever drift.
+#
+# Merge always goes in FIRST, then the testing tier, then review, then a human closes the
+# gate. Nothing above a merge is ever proved against a lone branch — every tier above it is
+# proved against the assembled result, which is the entire reason the merge sits at the head.
+# No agent closes a gate and nothing closes itself.
+#
+#   feature:  backend-logic · frontend-ui                              (the frontier, no deps)
+#             -> feature-merge-pr                                      (assemble the children)
+#             -> unit-tests · feature-test                             (proved on the assembled branch)
+#             -> feature-review                                        (the three questions, same branch)
+#             -> feature gate                                          (a human closes it)
+#
+#   epic:     epic-merge-pr -> epic-e2e-test -> epic-review -> epic gate (a human closes it)
+#
+# NOTE: unit-tests hangs off the base pair, NOT off feature-merge-pr, so the unit tier is
+# still written against the individual branches. feature-test and epic-e2e-test both sit
+# behind their merge. If the unit tier is meant to be proved on the assembled branch too,
+# that edge has to move — this comment describes the graph, it does not change it.

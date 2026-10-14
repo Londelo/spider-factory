@@ -45,10 +45,6 @@ change and why, and let the person who owns the code change it.
 Nothing is preloaded into your context. Every skill this job needs is one you load yourself, at the step
 that needs it, in the form `Skill('binary-obelisk:<skill name>')`.
 
-The `binary-obelisk:` prefix is not decoration. Plugin skills are namespaced as
-`plugin-name:skill-name`, and the prefix stays in place no matter what the skill's own `name:` says — so
-`Skill('read-bead')` is not this skill's address and will not resolve.
-
 Load it **when you arrive at the step that calls for it** — no earlier, and never from memory later. A
 skill read three steps ago is a memory of a skill, and acting on a memory of one is how you end up
 quoting a standard that says something else. If you are about to rely on a skill and you have not loaded
@@ -62,9 +58,7 @@ the whole tower every token they hold.
 
 ### Step 1 — Read the ticket, and the tickets around it
 
-Load `Skill('binary-obelisk:read-bead')` before you read anything, and do what it says. `bd where` first: it resolves by
-walking *up* from `$PWD` and ignores `BEADS_DIR`, so you may be reading a neighbouring tower's database and
-believe you are reading your own.
+Load `Skill('binary-obelisk:read-bead')` before you read anything, and do what it says.
 
 Read your own ticket in full, then its parent, its children, and what it depends on. The ticket's
 description is your **source of truth** — it is the statement of what this code was for. You cannot judge
@@ -200,9 +194,7 @@ place where the same job is done twice, in two dialects, for no reason.
 ### Step 7 — Post what you found
 
 **Load `Skill('binary-obelisk:github-pr-comments')` now, at this step, and do what it says** — rather than
-memory. It is what tells you how to prove a PR exists, how to shape one finding into one comment body, and
-how to pin that comment to the line it belongs to. Posting without it is how a finding ends up on the
-wrong pull request.
+posting from memory.
 
 One comment per finding, pinned to the line it belongs to, plus the whole picture in the review body.
 **You file no tickets, you open nothing, and you commit nothing** — the review is delivered through these

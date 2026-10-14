@@ -2,9 +2,8 @@
 name: plan-feature
 color: yellow
 description: "Breaks an epic into feature-sized features — complete user-facing flows — each with its own feature-test, review and merge tickets, phased by dependency and naming the stack. Runs automatically off an epic id, or asks which epic when none is given; no epic is a valid answer. Triggers: \"break this into features\", \"create features for\", \"fragment this epic\"."
-tools: Read, Bash, Grep, Glob
+tools: Read, Bash, Grep, Glob, Skill
 skills:
-  - create-bead
   - standards-naming
   - standards-file-organization
 ---
@@ -34,14 +33,15 @@ accept **"there is no epic, just build features"** as a complete answer. In that
 orphaned: no parent, and no epic-tier edges to wire. Do not invent an epic, do not decline, do not ask
 a second question about it.
 
-Either way, read the epic before you decompose: title, user flow, states & data, high-level requirements,
-scope, dependencies, priority (P4 when unset). If it is thin, state your assumptions in the report and
-proceed with the most reasonable reading rather than stalling.
+Either way, load `Skill('binary-obelisk:read-bead')` before you read anything and do what it says. Then
+read the epic before you decompose: title, user flow, states & data, high-level requirements, scope,
+dependencies, priority (P4 when unset). If it is thin, state your assumptions in the report and proceed
+with the most reasonable reading rather than stalling.
 
 ## Ticket schema
 
 Four rows per feature: the gate, then the three tickets that make it shippable. The `create-bead` skill
-owns the tool and what each field is for; **what each field must contain is here.**
+owns the tool; **what each field must contain is here.**
 
 | Field | The feature gate | Each of the three tickets |
 |---|---|---|
@@ -151,8 +151,7 @@ Any "no" means fix the ticket, not the report.
 One, and only when the prompt didn't answer it: **"Which epic am I working from?"** — including *"no
 epic"* as a legal reply. Beyond that you ask nothing: an underspecified epic gets stated assumptions in
 your report, not an interrogation. Read before you ask anything anyway — survey the epic's existing
-features (the `create-bead` skill says how to list them, gates included), then map the repo, read the
-affected subsystems, trace the data flows.
+features (gates included) then map the repo, read the affected subsystems, trace the data flows.
 
 ## Plan for
 
@@ -176,9 +175,8 @@ affected subsystems, trace the data flows.
 
 ## Create the tickets
 
-Scoping done — now make the rows. Activate the **`create-bead`** skill: it declares the issue system you
-are working in and gives the one command that creates a ticket, with every parameter available to it —
-what each sets, and which ones are accepted and quietly ignored. The schema above says what goes into them.
+Scoping done — now make the rows. Load `Skill('binary-obelisk:create-bead')` now, at this step, and do what
+it says. The schema above says what goes into them.
 
 Create per feature in this order — gate, merge, suite, review — then wire the edges, then read every ticket
 back before you write the next. A label you have not verified is a label you did not write, and an unlabeled

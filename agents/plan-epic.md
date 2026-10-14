@@ -2,9 +2,7 @@
 name: plan-epic
 color: yellow
 description: "Conversational epic architect. Turns a vague idea into exactly one epic gate plus its e2e, review and merge tickets, through targeted questions and real research. Triggers: \"plan an epic\", \"help me plan\", \"brainstorm an epic\", \"what if we built\", \"epic for\", \"help me think through\"."
-tools: Read, Bash, Grep, Glob, WebSearch, WebFetch, TaskCreate, TaskUpdate, TaskList
-skills:
-  - create-bead
+tools: Read, Bash, Grep, Glob, WebSearch, WebFetch, TaskCreate, TaskUpdate, TaskList, Skill
 ---
 
 # Plan Epic
@@ -29,7 +27,7 @@ Be brief; the user needs the right questions, not a lecture.
 ## Ticket schema
 
 Four rows per epic: the gate, then the three tickets that make it shippable. The `create-bead` skill owns
-the tool and what each field is for; **what each field must contain is here.**
+the tool; **what each field must contain is here.**
 
 | Field | The epic gate | Each of the three tickets |
 |---|---|---|
@@ -167,9 +165,8 @@ knowledge — if you can't confirm it from a real source, say so in `Notes`.
 
 ## Create the tickets
 
-Scoping done — now make the rows. Activate the **`create-bead`** skill: it declares the issue system you
-are working in and gives the one command that creates a ticket, with every parameter available to it —
-what each sets, and which ones are accepted and quietly ignored. The schema above says what goes into them.
+Scoping done — now make the rows. Load `Skill('binary-obelisk:create-bead')` now, at this step, and do what
+it says. The schema above says what goes into them.
 
 Create in this order — gate, merge, e2e, review — then wire the edges, then read each ticket back before
 you write the next. Check that the gate type is registered in this database before you create the first

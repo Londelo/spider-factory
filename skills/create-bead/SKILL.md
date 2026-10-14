@@ -5,7 +5,7 @@ description: >
   parameter it takes — what each flag sets, the key it lands in, which flags the binary silently
   ignores, and the traps that never error. Use it whenever a bead is being CREATED: plan-epic,
   plan-feature, plan-task, any "make me a ticket/epic/feature" request, or a tower that came out with
-  no stamps, two stamps, the wrong type, or no merge ticket.
+  no dispatching labels, two dispatching labels, the wrong type, or no merge ticket.
 version: 0.2.0
 ---
 
@@ -30,7 +30,7 @@ Three shapes hold the database together, and every parameter below sets one of t
 |---|---|---|
 | **the tower** | epic → feature → task, who belongs to whom | `--parent`, or `--deps "parent-child:<id>"` |
 | **the ordering** | what may not start yet | `--deps "blocks:<id>"`, or a `blocks` edge |
-| **the dispatch** | which specialist this ticket is for | `-l` — exactly one stamp |
+| **the dispatch** | which specialist this ticket is for | `-l` — exactly one dispatching label |
 
 ## The command
 
@@ -67,7 +67,7 @@ ticket, and human-readable output is not a contract.
 |---|---|---|---|
 | `-t`, `--type` | issue type (default `task`) | `issue_type` | `task` for anything worked, `gate` for an epic/feature — see §Gates |
 | `-p`, `--priority` | `0`–`4` (`P0`–`P4`, 0 highest), default **2** | `priority` | inherit the parent's; P4 when nothing is set |
-| `-l`, `--labels` | labels, comma-separated | `labels` | **exactly one stamp** — see §The stamp |
+| `-l`, `--labels` | labels, comma-separated | `labels` | the **exactly one dispatching label** — see §The label |
 | `--no-inherit-labels` | stop the parent's labels copying down | — | needed only when a parent is wrongly labelled; the real rule is gates carry no label |
 | `-s`, `--status` | initial status | `status` | leave it alone — `open` is what a ticket waiting to be claimed looks like |
 
@@ -94,19 +94,19 @@ ticket, and human-readable output is not a contract.
 | `--validate` | refuses when the description lacks the sections its type requires | `-t task` demands `## Acceptance Criteria` **in the description** |
 | `--force` | create despite a prefix mismatch | almost never what you meant |
 
-## The stamp
+## The label
 
-`-l` is not decoration — it is the entire dispatch decision. The dispatcher reads one label off the row
+`-l` is not decoration — it is the entire dispatch decision. The dispatcher reads the labels off the row and keeps the ones the map names
 and that alone names the specialist, so a ticket with **zero or two** is left claimed and logged
-`ERROR reason=stamp-ambiguous`: work that silently never happens.
+`ERROR reason=label-ambiguous`: work that silently never happens.
 
 The dispatchable set is closed and the loop owns it (`scripts/beads-loop.sh`, the `AGENT` map):
 `backend-logic` · `frontend-ui` · `unit-tests` · `feature-test` · `epic-e2e-test` ·
-`feature-lead-review` · `epic-lead-review`, plus `feature-merge-pr` and `epic-merge-pr` on the two
-tickets the loop deliberately never dispatches. Anything the map does not name dispatches nothing,
-however plausible it reads.
+`feature-review` · `epic-review` · `feature-merge-pr` · `epic-merge-pr`. The last two are the merge
+tier and they DO dispatch — the map names `merge` for them, so a merge ticket is claimed and worked
+like any other. Anything the map does not name dispatches nothing, however plausible it reads.
 
-## Gates are a type, not a stamp
+## Gates are a type, not a label
 
 An epic or a feature is `-t gate`: a **custom** type, registered once per database with
 `bd config set types.custom "gate"` and checkable with `bd types`. Three verified consequences:
@@ -115,7 +115,7 @@ An epic or a feature is `-t gate`: a **custom** type, registered once per databa
   gate and a working gate look identical. Register it first, check `bd types`, then create.
 - **A gate carries no label at all.** Labels are inherited by children — verified, a child under a
   labelled parent comes back carrying the parent's label — and a gate labelled anything turns every task
-  below it into a two-stamp ticket, which is a dead ticket.
+  below it into a ticket carrying two dispatching labels, which is a dead ticket.
 - Gates are invisible to the default queries. `bd list` reported *no issues* while two gates existed, and
   `bd children <gate>` answered *"no children"* while a whole subtree hung there. Surveying them takes
   `bd list -t gate`, or `bd list --parent <id> --include-gates` for the subtree. A bare `bd list` will

@@ -10,7 +10,7 @@
 # The three TEST nodes collapse label and category to ONE string on purpose: the node key
 # IS the label IS the category. The agent is a separate name — "tester-" plus the scope it owns
 #   unit-tests  -> tester-unit      feature-test -> tester-feature      epic-e2e-test -> tester-e2e
-# Nothing derives an agent name from a label: the AGENT map in scripts/beads-loop.sh alone binds them.
+# Nothing derives an agent name from a label: the AGENT map in CLI/beads-loop.sh alone binds them.
 # A tier is named for the TEST, never the tester, and never for a framework — the
 # framework lives only in the framework-* skill the agent loads. Where label, category
 # and agent drift apart, the wrong depth of coverage is dispatched and nothing reports it.
@@ -28,7 +28,7 @@
 # The tower is built top-down by the plan agents (plan-epic -> plan-feature ->
 # plan-task) and EXECUTED bottom-up (`bd ready --claim` hands out whatever is unblocked;
 # closing a ticket's children is what lets its gate close). The dispatcher is
-# scripts/beads-loop.sh; its contract lives in .claude/CLAUDE.md (the old claim-beads-loop.md
+# CLI/beads-loop.sh; its contract lives in .claude/CLAUDE.md (the old claim-beads-loop.md
 # was deleted in fc49051).
 #
 # respawn-agent: true = a fresh session of the same agent re-checks the work before

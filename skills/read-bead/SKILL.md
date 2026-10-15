@@ -10,7 +10,7 @@ description: >
   any `bd show` / `bd list` / `bd dep`, and whenever an instruction says "read the ticket" and you
   would otherwise guess a flag: a truncated read, a hidden gate child, or a skipped gate read
   silently becomes an agent building the thing nobody asked for. Reads
-  only — the claim belongs to `scripts/beads-loop.sh`, no worker ever closes its own ticket (closing is
+  only — the claim belongs to `CLI/beads-loop.sh`, no worker ever closes its own ticket (closing is
   a human act), and authoring tickets lives in `create-bead`.
   Trigger: "read the ticket", "read the bead", "what does my ticket say", "read the epic", "what are
   my children", "find the parent", "which tasks does this feature have", "bd show", "bd list",
@@ -175,6 +175,6 @@ look at is a read that never happened.
 - **A missing fact belongs on the ticket, never in a guess**: write exactly what remains into the ticket
   and say the gap out loud. Half-doing an unseen brief and hiding it is worse than stopping.
 - **Never claim from here**: `bd ready --claim`, `bd update --claim`, `bd unclaim` and `bd reclaim` belong
-  to `scripts/beads-loop.sh` and the operator alone. Your ticket arrived already claimed.
+  to `CLI/beads-loop.sh` and the operator alone. Your ticket arrived already claimed.
 - Your ticket is your whole assignment: read it, read its gate above and its children below, work
   nothing else.

@@ -211,7 +211,7 @@ the tower stops and waits for a human, instead of walking past the hole.
    order and what Step 2–4 found disagree, the ticket wins, and you say so.
 4. **Never `git checkout main`, never write to `main`.** You start on your own branch and stay on it.
 5. **Never `bd unclaim` / `reclaim` / `reclaim-stale`, and claim nothing else.** Those belong to
-   `scripts/beads-loop.sh` and the operator. Your claim lease keeps your ticket parked while you work;
+   `CLI/beads-loop.sh` and the operator. Your claim lease keeps your ticket parked while you work;
    releasing it does not help anyone and reads as abandonment to anything downstream that looks.
 6. **Keep the lease alive** — `bd heartbeat <ticket-id>` between long steps; a lapsed lease lets another
    dispatcher take the ticket mid-merge.

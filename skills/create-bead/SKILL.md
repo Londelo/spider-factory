@@ -100,7 +100,7 @@ ticket, and human-readable output is not a contract.
 and that alone names the specialist, so a ticket with **zero or two** is left claimed and logged
 `ERROR reason=label-ambiguous`: work that silently never happens.
 
-The dispatchable set is closed and the loop owns it (`scripts/beads-loop.sh`, the `AGENT` map):
+The dispatchable set is closed and the loop owns it (`CLI/beads-loop.sh`, the `AGENT` map):
 `backend-logic` · `frontend-ui` · `unit-tests` · `feature-test` · `epic-e2e-test` ·
 `feature-review` · `epic-review` · `feature-merge-pr` · `epic-merge-pr`. The last two are the merge
 tier and they DO dispatch — the map names `merge` for them, so a merge ticket is claimed and worked
@@ -152,5 +152,5 @@ expected to show zero labels — that is the pass condition, not a failure.
 
 `bd create` makes rows. It does not order them beyond the edges you pass at create (real ordering is
 `bd dep add <blocked> <blocker> --type blocks`), and it does not claim, unclaim, close or heartbeat —
-`ready --claim`, `update --claim`, `unclaim` and `reclaim` belong to `scripts/beads-loop.sh` and the
+`ready --claim`, `update --claim`, `unclaim` and `reclaim` belong to `CLI/beads-loop.sh` and the
 operator alone. A creator's job is finished when the rows exist and read back right.

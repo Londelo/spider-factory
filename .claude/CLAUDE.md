@@ -8,7 +8,7 @@ claim-beads dispatcher that turns tickets into background workers.
 [`.claude/binary-obelisk-v1-design.yaml`](./binary-obelisk-v1-design.yaml) is the design model —
 databases, skills, agents, tasks. `.claude/CLAUDE.md` (this file) is transcribed from it; when
 the two disagree, the YAML wins. The dispatcher's contract is now this section plus
-[`scripts/beads-loop.sh`](../scripts/beads-loop.sh) itself — `claim-beads-loop.md` was deleted in
+[`CLI/beads-loop.sh`](../CLI/beads-loop.sh) itself — `claim-beads-loop.md` was deleted in
 commit `fc49051` and exists nowhere else. **None of these are read at runtime** — the loop's only
 input is the beads database.
 
@@ -20,7 +20,11 @@ plugins/binary-obelisk/
 ├── agents/                               # engineer, frontend, tester-unit, tester-feature, tester-e2e, review, merge + 3 plan agents
 ├── skills/                               # initialize-beads, github-pr-comments, standards-*, read-bead, create-bead, framework-jest, framework-playwright, …
 ├── standards/                            # coding/review standards
-├── scripts/beads-loop.sh                 # the claim-beads dispatcher
+├── CLI/                                  # the `bo` command — a bin package installed by symlink (no node)
+│   ├── bin/bo                            # the entrypoint `bo` (start/stop/status/logs), self-locates via readlink -f
+│   ├── beads-loop.sh                     # the claim-beads dispatcher engine
+│   ├── commands/                         # start.sh · stop.sh · status.sh
+│   └── install-cli.sh                    # the hand-rolled "npm link": symlinks bin/bo onto PATH
 ├── scripts/tower-walk.sh                 # experiment harness — builds a tower and walks the frontier by hand
 └── shared/                               # plan-task and review templates/formats — the three test-tier templates are tester-unit.md, tester-feature.md, tester-e2e.md
 ```
@@ -109,7 +113,7 @@ ticket**, never a second ticket: one ticket, one worker.
 3. **plan-task** — feature → its tasks, each `parent-child` to the feature, **labeled at creation**
    with `bd create -l <label>` and verified with a `bd show --json` round trip per ticket.
 
-### The dispatcher — scripts/beads-loop.sh
+### The dispatcher — CLI/beads-loop.sh
 The contract file `claim-beads-loop.md` was deleted in commit `fc49051` and exists nowhere else —
 this section and the YAML are the only remaining accounts of the dispatcher's behaviour.
 

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# bo — the binary-obelisk loop CLI.
+# Resolves its REAL directory (readlink -f) so it works when invoked through the
+# ~/.local/bin/bo symlink that install-cli.sh installs.
+set -euo pipefail
+here="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"   # .../CLI/bin
+cmd="${1:-}"; sub="${2:-}"
+usage() {
+    cat <<'USAGE'
+bo — binary-obelisk loop dispatcher
+
+  bo loop start     start the dispatcher in the current tower (detached)
+  bo loop status    is it running? show the last log lines
+  bo loop logs      tail the live log
+  bo loop stop      stop it
+
+Run it from inside a tower project (one with a beads DB).
+USAGE
+}
+case "$cmd" in
+    ""|help|-h|--help) usage; exit 0 ;;
+esac
+case "$cmd/$sub" in
+    loop/start)  exec bash "$here/../commands/start.sh"  "$@" ;;
+    loop/stop)   exec bash "$here/../commands/stop.sh"   "$@" ;;
+    loop/status) exec bash "$here/../commands/status.sh" "$@" ;;
+    loop/logs)   exec bash "$here/../commands/status.sh" --logs "$@" ;;
+    *) echo "bo: unknown command '$*' — try 'bo loop start|status|logs|stop'." >&2; exit 1 ;;
+esac

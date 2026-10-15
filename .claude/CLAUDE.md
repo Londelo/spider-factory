@@ -20,11 +20,10 @@ plugins/binary-obelisk/
 ├── agents/                               # engineer, frontend, tester-unit, tester-feature, tester-e2e, review, merge + 3 plan agents
 ├── skills/                               # setup, initialize-beads, github-pr-comments, standards-*, read-bead, create-bead, framework-jest, framework-playwright, …
 ├── standards/                            # coding/review standards
-├── CLI/                                  # the `bo` command — a bin package installed by symlink (no node)
-│   ├── bin/bo                            # the entrypoint `bo` (start/stop/status/logs), self-locates via readlink -f
+├── CLI/                                  # the `bo` command — a bin package, no node, installed by a launcher script
+│   ├── bin/bo                            # the entrypoint `bo` — one command, `bo loop`, foreground
 │   ├── beads-loop.sh                     # the claim-beads dispatcher engine
-│   ├── commands/                         # start.sh · stop.sh · status.sh
-│   └── install-cli.sh                    # the hand-rolled "npm link": symlinks bin/bo onto PATH
+│   └── install-cli.sh                    # writes a real launcher onto PATH (not a symlink, so it survives uninstall)
 ├── scripts/tower-walk.sh                 # experiment harness — builds a tower and walks the frontier by hand
 └── shared/                               # plan-task and review templates/formats — the three test-tier templates are tester-unit.md, tester-feature.md, tester-e2e.md
 ```

@@ -39,7 +39,7 @@ re-implement it here — hand off to that skill and come back.
 
 **CLI not installed** → offer to install it (Step 3).
 
-**Everything present** → nothing to do. Say so, and mention `bo loop start` to run the dispatcher.
+**Everything present** → nothing to do. Say so, and mention `bo loop` to run the dispatcher.
 
 ## Step 3 — Install the CLI
 
@@ -59,6 +59,10 @@ That symlinks `bin/bo` into `~/.local/bin`. If it prints a PATH warning, tell th
 rm -f "$HOME/.local/bin/bo"
 ```
 
+**If the plugin was uninstalled instead** — the symlink is left dangling and `bo` prints a
+warning that names the dead target and tells the user to `rm -f ~/.local/bin/bo`. If they report
+that message, run the `rm` above for them; nothing else on the machine needs cleaning.
+
 **Uninstall beads from this repo** — this deletes the beads database. Confirm the repo path first;
 this is destructive to the tower:
 ```bash
@@ -76,4 +80,4 @@ reverse (`brew uninstall beads` / `npm rm -g @beads/bd`).
 | install the CLI | `bash "$(claude plugin details binary-obelisk --json \| jq -r '.root')/CLI/install-cli.sh"` |
 | uninstall the CLI | `rm -f ~/.local/bin/bo` |
 | uninstall beads (repo) | `rm -rf .beads` (destructive — confirm path) |
-| run the dispatcher | `bo loop start` (see the CLI's `bo help`) |
+| run the dispatcher | `bo loop` (foreground — Ctrl-C stops it) |

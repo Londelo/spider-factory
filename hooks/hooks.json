@@ -1,0 +1,16 @@
+{
+  "description": "Finishes a dispatched worker's ticket when its session stops: push what is left, open the PR, write the PR url and branch back onto the ticket, close it. Sessions the dispatcher did not spawn exit on the hook's first line.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/worker-stop.sh\"",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}

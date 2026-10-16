@@ -18,7 +18,7 @@ plugins/binary-obelisk/
 ├── .claude-plugin/plugin.json            # manifest
 ├── .claude/binary-obelisk-v1-design.yaml # EDITABLE design model
 ├── agents/                               # engineer, frontend, tester-unit, tester-feature, tester-e2e, review, merge + 3 plan agents
-├── skills/                               # setup, initialize-beads, github-pr-comments, standards-*, read-bead, create-bead, framework-jest, framework-playwright, …
+├── skills/                               # setup, initialize-beads, pr-comments, standards-*, read-bead, create-bead, framework-jest, framework-playwright, …
 ├── standards/                            # coding/review standards
 ├── CLI/                                  # the `bo` command — a bin package, no node, installed by a launcher script
 │   ├── bin/bo                            # the entrypoint `bo` — one command, `bo loop`, foreground
@@ -52,7 +52,7 @@ mis-labeled one tier up or down gets the wrong depth of coverage, and no worker 
 | `tester-unit` | **micro tier** — one function alone; every branch, boundary, empty/null, error | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-jest** |
 | `tester-feature` | **composition tier** — one feature's pieces proved wired; its errors/successes surface | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-playwright** |
 | `tester-e2e` | **broad tier** — journeys across features on the real stack; cross-feature state, one success+failure per feature | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-playwright** |
-| `review` | **three questions, from first principles** — does the code do what its source of truth demands, do the tests prove it, is it simple and readable. Maps the system the change sits in (entry → exit, following imports), instruments it with trace logs, runs the tests against the instrumented code, posts findings as PR comments — files no tickets, and commits or pushes nothing | s b w | ✓ | **read-bead**, coding, files, naming, errors, **github-pr-comments** |
+| `review` | **three questions, from first principles** — does the code do what its source of truth demands, do the tests prove it, is it simple and readable. Maps the system the change sits in (entry → exit, following imports), instruments it with trace logs, runs the tests against the instrumented code, posts findings as PR comments — files no tickets, and commits or pushes nothing | s b w | ✓ | **read-bead**, coding, files, naming, errors, **pr-comments** |
 | `merge` | assembles a merge ticket's child branches onto one integration branch, resolves the conflicts between them, runs the tests and reports — writes no code, no tests; never merges into `main`, never opens a PR | s b w | ✓ | **read-bead** |
 
 **Tiers vs. tools.** A test agent owns a **tier** — what to cover and how deep — and is deliberately

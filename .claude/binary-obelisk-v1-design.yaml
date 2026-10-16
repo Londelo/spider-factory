@@ -103,7 +103,7 @@ agents:
     description: "Reads its ticket and the tickets around it, reads the diff it is handed, maps the whole system the change touches, instruments that system with trace logs, runs the tests against the instrumented code, then answers three questions from first principles — does the code do what its source of truth demands, do the tests prove it, is it simple and readable. Posts findings as PR comments; files no tickets and commits or pushes nothing — the trace logs stay in the working tree."
     spawn: [s, b, w]
     certify: true
-    skills: [read-bead, github-pr-comments, coding, files, naming, errors]
+    skills: [read-bead, pr-comments, coding, files, naming, errors]
   merge:
     description: "Assembles a merge ticket's child branches onto one integration branch, in its own worktree: finds the children, resolves the conflicts between them, then runs the project's own test command and reports. Writes no code and no tests — tests are evidence, not a suspect. Does not merge into main and opens no pull request. Dispatched by the loop on merge tickets, like the test tiers."
     spawn: [s, b, w]

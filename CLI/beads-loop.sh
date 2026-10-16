@@ -175,7 +175,10 @@ echo "beads-loop: logging to $logDir  (Ctrl-C to stop)"
 # Claude makes the worktree itself (-w names it after the ticket, so it is never shared)
 dispatchWorker() {
     local ticketId="$1" agentName="$2"
-    if ! claude --bg -w "$ticketId" --agent "$agentName" --permission-mode bypassPermissions \
+    # BO_TICKET is what the Stop hook closes the ticket for; without it the worker just stops
+    # and the ticket sits in_progress until its lease lapses.
+    if ! BO_TICKET="$ticketId" BO_PROJECT_DIR="$PWD" BO_LOG_DIR="$logDir" \
+            claude --bg -w "$ticketId" --agent "$agentName" --permission-mode bypassPermissions \
             "$(buildWorkerPrompt "$ticketId")" >"$logDir/last-spawn" 2>&1; then
         logTo errors "ticket=$ticketId agent=$agentName reason=worker-not-dispatched msg=\"$(lastLineOf "$logDir/last-spawn")\""
         bd unclaim "$ticketId" >/dev/null 2>&1 || true

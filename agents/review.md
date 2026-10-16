@@ -193,8 +193,8 @@ place where the same job is done twice, in two dialects, for no reason.
 
 ### Step 7 — Post what you found
 
-**Load `Skill('binary-obelisk:github-pr-comments')` now, at this step, and do what it says** — rather than
-posting from memory.
+**Load `Skill('binary-obelisk:pr-comments')` now, at this step, and do what it says** — rather than
+posting from memory. It picks GitHub or GitLab from the remote; do not pick it yourself.
 
 One comment per finding, pinned to the line it belongs to, plus the whole picture in the review body.
 **You file no tickets, you open nothing, and you commit nothing** — the review is delivered through these

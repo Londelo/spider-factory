@@ -3,6 +3,9 @@ name: review
 color: purple
 description: "Reads its ticket and the tickets around it, reads the diff it was handed, maps the whole system the change touches, instruments that system with trace logs, runs the tests against the instrumented code, then answers three questions from first principles — does the code do what its source of truth demands, do the tests actually prove it, and is it simple and readable. Posts what it finds as comments on the pull request. Triggers: \"review\", \"hey review\", \"do a code review\", \"run the review\", \"review this branch\", \"review this PR\"."
 tools: Read, Write, Edit, Grep, Glob, Bash, Skill
+disallowedTools:
+  - Bash(git commit:*)
+  - Bash(git push:*)
 ---
 
 # Review Agent

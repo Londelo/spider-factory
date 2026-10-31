@@ -7,7 +7,7 @@ This document contains complete examples of review-proposal.md structure.
 ## Complete Review Proposal Example
 
 ```markdown
-# Review Proposal - vf2-5146_bb_review
+# Review Proposal - feature/presale-notifications
 
 ## ⚠️ Issues
 
@@ -72,23 +72,16 @@ app.get('/users', async (req, res) => {
 **Code**:
 
 Pseudocode:
-1. Create `PaymentErrorHandler` class
-   - `handle(error): PaymentResult` - main handler
-   - `categorizeError(error): ErrorType` - identify error type
-   - `formatResponse(type, message): PaymentResult` - consistent format
-   - `logPaymentError(error, context)` - centralized logging
+1. Add a `paymentErrors.ts` module of error factories on `createServiceError` (`standards-errors`)
+   - `PaymentDeclinedError({ method })`, `InsufficientFundsError({ method })`, `GatewayTimeoutError({ method })`, `InvalidPaymentDataError({ field })`
+   - a `formatPaymentResult(error): PaymentResult` that maps each error type to the client response
 
 2. Update each payment method:
    - Wrap operation in try/catch
-   - Call `PaymentErrorHandler.handle(error)` instead of inline handling
-   - Remove duplicate error formatting logic
-   - Pass payment context for better logging
+   - Log with `...formatError(error)` plus the payment context and rethrow the named factory's error
+   - Remove the duplicate error-formatting logic each method grew
 
-3. Add payment-specific error types:
-   - `PaymentDeclinedError` for declined cards
-   - `InsufficientFundsError` for balance issues
-   - `NetworkError` for gateway timeouts
-   - `ValidationError` for invalid payment data
+3. Keep the throw in the shell — the pure core returns result objects (`standards-errors`)
 
 </details>
 
@@ -149,9 +142,9 @@ Pseudocode:
 
 **File**: `src/controllers/orderController.ts` line 45
 
-**Problem**: This function lacks error handling, violating the error handling standard (JP-STD-ERR-001) which requires all async operations to have explicit error handling.
+**Problem**: This function has no error handling, violating `standards-errors` — every `await` in the shell gets its own try/catch, and the catch logs with `formatError` spread in and rethrows.
 
-**Solution**: Add try/catch block with proper error handling.
+**Solution**: Add a try/catch that logs and rethrows a named error factory.
 
 **Code**:
 ```typescript
@@ -161,8 +154,8 @@ async function processOrder(orderId: string) {
     const order = await orderService.process(orderId);
     return order;
   } catch (error) {
-    logger.error('Order processing failed', { orderId, error });
-    throw new OrderProcessingError('Failed to process order', error);
+    logger.error('Order processing failed', { ...formatError(error), orderId });
+    throw OrderProcessingError({ orderId });
   }
 }
 ```
@@ -187,14 +180,15 @@ async function processOrder(orderId: string) {
 **Code**:
 
 Pseudocode:
-1. Create `CacheKeyBuilder` class
-   - `constructor(prefix: string)` - set namespace prefix
-   - `forEntity(type: string, id: string): string` - build entity key
-   - `forQuery(params: object): string` - build query key with sorted params
-   - `pattern(type: string): string` - get pattern for bulk invalidation
+1. Add a `cacheKeys.ts` module of factory functions, one per key shape (`standards-coding`: a factory
+   returns an object, never a `class`)
+   - `CacheKeyPrefix(prefix)` - holds the namespace
+   - `forEntity(type, id)` - build entity key
+   - `forQuery(params)` - build query key with sorted params
+   - `pattern(type)` - get pattern for bulk invalidation
 
 2. Update each service using cache:
-   - Replace string concatenation with `CacheKeyBuilder` methods
+   - Replace string concatenation with the `cacheKeys` functions
    - Use consistent entity type names
    - Store key patterns for invalidation
 
@@ -344,7 +338,7 @@ function validateEmail(email: string): boolean {
 
 Use when the fix requires architectural changes:
 - Refactoring multiple functions
-- Creating new classes/modules
+- Creating new modules of factory functions
 - Reorganizing code structure
 - Multi-step changes across files
 

@@ -1,4 +1,4 @@
-# E2E-Test Task Template (whole-app tier)
+# E2E-Test Task Template (broad tier)
 
 Template for `epic-e2e-test` category tasks — the **broad tier**. Executed by the `tester-e2e` agent,
 which walks **end-to-end journeys across features** in a real browser against the real stack, proving
@@ -15,14 +15,13 @@ One journey per user-visible outcome. Browser mechanics belong to the agent's
 ## Task: E2E journey `[user-facing outcome]`
 
 **File:** `e2e/[journey-name].playwright.spec.ts`
-**Unit:** `test.describe('[journey name]', ...)`
-**Category:** e2e-test
-**Tier:** epic (whole app, journeys crossing feature boundaries)
+**Category:** epic-e2e-test
+**Tier:** broad (journeys across features on the real stack)
 **Scope:** cross-feature (never co-located — the project-level flows directory)
 **Mode:** testing-changes | tdd
 **Depth:** light (one headline journey) | standard (headline + the failure journey) | thorough (the full promised set across features)
 **Existing test file:** no (create new) | yes (append to `path/to/existing.playwright.spec.ts`)
-**Skip:** no | yes — [reason, e.g., "stays inside one feature — feature-test task TKT-42 owns it"]
+**Skip:** no | yes — [reason, e.g., "stays inside one feature — that feature's `feature-test` ticket owns it"]
 
 ### Description
 [Short: the outcome the epic promised and who reaches it. Not "test the flow end to end" — say

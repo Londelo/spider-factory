@@ -153,7 +153,8 @@ Any "no" means fix the ticket, not the report.
 
 - [ ] Would a worker spawned with nothing but this ticket and its description know exactly what to build?
 - [ ] Type `task`, parented to the feature, priority inherited, and **exactly one** label from the three?
-- [ ] Did you read it back — this ticket, right after creating it?
+- [ ] Did you read it back with `bd show --json` — this ticket, right after creating it, its labels and
+      `metadata` read back exactly as written (a wrong key reads `null` without erroring)?
 - [ ] Does **every** ticket carry the feature's `branch` metadata, copied verbatim from the
       gate, and carry **no** `pr` key of its own?
 - [ ] Does **every** task in the feature have **exactly one** predecessor, and the first one none?

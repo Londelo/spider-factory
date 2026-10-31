@@ -196,9 +196,9 @@ For each `<details>` block in review-proposal.md:
    - Line numbers are single integers (not ranges)
 
 4. **Extract the entire `<details>` block as the comment body**:
-   - Keep `<details>` tags (makes it collapsible in GitLab)
+   - Keep `<details>` tags (collapses the comment; both forges render them)
    - Keep `<summary>` and `<h3>` tags
-   - Remove the `**File:**` line (position object shows this)
+   - Remove the `**File:**` line (the comment is pinned to that line already)
    - Keep all **Problem**, **Solution**, **Code**, or **Suggestion** sections
 
 5. **Result format**:
@@ -230,13 +230,12 @@ For each `<details>` block in review-proposal.md:
 **Code**:
 
 Pseudocode:
-1. Create `PaymentErrorHandler` class
-   - `handle(error): PaymentResult` - main handler
-   - `categorizeError(error): ErrorType` - identify error type
+1. Add a `paymentErrors.ts` module of error factories built on `createServiceError`
+   (`standards-errors`) — one per failure the payment methods can hit
 
 2. Update each payment method:
    - Wrap operation in try/catch
-   - Call `PaymentErrorHandler.handle(error)` instead of inline handling
+   - Log with `...formatError(error)` and rethrow the named factory's error, instead of handling it inline
 
 </details>
 ```
@@ -256,13 +255,12 @@ Pseudocode:
   **Code**:
 
   Pseudocode:
-  1. Create `PaymentErrorHandler` class
-     - `handle(error): PaymentResult` - main handler
-     - `categorizeError(error): ErrorType` - identify error type
+  1. Add a `paymentErrors.ts` module of error factories built on `createServiceError`
+     (`standards-errors`) — one per failure the payment methods can hit
 
   2. Update each payment method:
      - Wrap operation in try/catch
-     - Call `PaymentErrorHandler.handle(error)` instead of inline handling
+     - Log with `...formatError(error)` and rethrow the named factory's error, instead of handling it inline
 
   </details>
   ```
@@ -271,15 +269,15 @@ Pseudocode:
 
 ## What Gets Posted vs What Doesn't
 
-**Posted to GitLab:**
+**Posted as line-level comments:**
 - ✅ Issues (entire `<details>` block from `## ⚠️ Issues` section, minus `**File:**` line)
 - ✅ Nits (entire `<details>` block from `## 📝 Nits` section, minus `**File:**` line)
 
-**NOT posted to GitLab:**
+**Not posted:**
 - ❌ Questions (from review.md - discussion only)
-- ❌ Nice Work items (from review.md - acknowledgment only)
+- ❌ Acknowledgments — the review reports findings, not praise (see `review-format.md`: don't compliment something just because it's not bad)
 - ❌ Document headers, section titles (`## ⚠️ Issues`, `## 📝 Nits`)
-- ❌ `**File:**` lines (position object provides this info)
+- ❌ `**File:**` lines (the comment is already pinned to that line)
 - ❌ `---` horizontal rules between items
 
 ---
@@ -288,10 +286,10 @@ Pseudocode:
 
 When extracting comment bodies from `<details>` blocks:
 
-- **Keep HTML tags**: `<details>`, `<summary>`, `<h3>` make it collapsible in GitLab
+- **Keep HTML tags**: `<details>`, `<summary>`, `<h3>` make it collapsible (both forges render them)
 - **Keep markdown formatting**: Bold text, code blocks, backticks
 - **Include language tags**: ` ```typescript ` should be preserved
 - **Preserve indentation**: Especially in pseudocode
-- **Remove `**File:**` line**: Position object already specifies file and line
+- **Remove `**File:**` line**: The comment is already pinned to that file and line
 - **Remove `---` rules**: Not needed in individual comments
 - **Keep `...` markers**: These indicate omitted code and should stay in the body

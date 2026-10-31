@@ -91,7 +91,7 @@ If the change introduces new concepts, thresholds, or configuration values, expl
 
 ### Function Descriptions
 **DO:** Cover every function in the flow chart. Each function header must be a link to the exact line: `[**functionName**](../../path/to/file.ext#L123)`. 1-2 sentences. Explain what and why for someone who knows nothing about the system.
-**DON'T:** Long paragraphs. Skip functions. Generic descriptions like "processes data" without specifics. Omit the link on the function name — the link is required here, even though it's banned from the flow chart. Forget the `../../` prefix — this file lives in `reviews/[date-time]/`, so links must climb two levels to reach the repo root.
+**DON'T:** Long paragraphs. Skip functions. Generic descriptions like "processes data" without specifics. Omit the link on the function name — the link is required here, even though it's banned from the flow chart. Drop the `../../` prefix: this file lives in `reviews/[date-time]/`, so every link must climb two levels to reach the repo root.
 
 ### Unchanged functions
 ```markdown

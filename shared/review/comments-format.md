@@ -8,7 +8,7 @@ This document defines how to extract individual comments from review-proposal.md
 
 ## Overview
 
-The review-proposal.md contains issues and nits structured per [proposal-format.md](proposal-format.md). This document shows how to extract each one as an individual comment body for posting.
+The review-proposal.md contains issues and nits structured per [proposal-format.md](proposal-format.md). This document shows how to extract each one as an individual comment body; the `pr-comments` skill is what posts it.
 
 ---
 
@@ -36,7 +36,7 @@ Each finding in review-proposal.md is wrapped in `<details>` tags with the title
 function initializeClient() {
   ...
   const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error('API_KEY required');
+  if (!apiKey) throw MissingApiKeyError({ service: 'sendgrid' });
   ...
 }
 ```
@@ -47,7 +47,7 @@ function initializeClient() {
 **Extract:**
 - File path: `src/config/api.ts`
 - Line number: `5`
-- Comment body (for GitLab):
+- Comment body (the same body posts to either forge):
   ```markdown
   <details>
   <summary><h3>1. Hardcoded API Key</h3></summary>
@@ -61,7 +61,7 @@ function initializeClient() {
   function initializeClient() {
     ...
     const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error('API_KEY required');
+    if (!apiKey) throw MissingApiKeyError({ service: 'sendgrid' });
     ...
   }
   ```
@@ -88,7 +88,7 @@ function initializeClient() {
 **Extract:**
 - File path: `src/models/user.ts`
 - Line number: `12`
-- Comment body (for GitLab):
+- Comment body (the same body posts to either forge):
   ```markdown
   <details>
   <summary><h3>1. Variable Naming</h3></summary>
@@ -169,7 +169,8 @@ Inside each `<details>` block, find the line formatted as:
 
 ## Extraction Data Structure
 
-For each finding, extract:
+For each finding, extract four values — the pair the `pr-comments` skill pins the comment with, plus its
+type and body:
 ```json
 {
   "file_path": "src/config/api.ts",
@@ -196,7 +197,7 @@ Or for nits:
 When extracting comment body from `<details>` block:
 
 **Include:**
-- `<details>` and `</details>` tags (makes it collapsible in GitLab)
+- `<details>` and `</details>` tags (collapses the comment; both forges render them)
 - `<summary>` and `</summary>` tags
 - `<h3>` heading with the title
 - `**Problem:**` section (for issues)
@@ -205,7 +206,7 @@ When extracting comment body from `<details>` block:
 - `**Suggestion:**` section (for nits)
 
 **Exclude:**
-- `**File:**` line with path and line number (GitLab position shows this)
+- `**File:**` line with path and line number (the comment is already pinned to that line, so the body must not repeat it)
 - `---` horizontal rules (not needed in individual comments)
 
 ---
@@ -213,7 +214,7 @@ When extracting comment body from `<details>` block:
 ## Markdown Formatting
 
 The extracted comment bodies include HTML and markdown:
-- `<details>` tags make the comment collapsible in GitLab
+- `<details>` tags make the comment collapsible (both forges render them)
 - `<summary>` tags contain the title shown when collapsed
 - `<h3>` tags format the title heading
 - `**Bold**` for section headers
@@ -221,4 +222,5 @@ The extracted comment bodies include HTML and markdown:
 - Backticks for inline code
 - `...` to represent omitted code in examples
 
-GitLab renders both HTML and markdown correctly in line-level comments.
+Both forges render HTML and markdown in a comment body. Which tool posts it is not this document's
+decision — the `pr-comments` skill reads the remote and picks the tool; this document only defines the body.

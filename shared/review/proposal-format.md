@@ -8,7 +8,7 @@ This document defines the structure and formatting rules for the review proposal
 
 ## Overview
 
-The review proposal expands brief findings from review.md into full, structured comments. Each issue and nit will become a line-level comment posted to the GitLab MR.
+The review proposal expands brief findings from review.md into full, structured comments. Each issue and nit becomes a line-level comment on the pull request, posted by the `pr-comments` skill — which reads the remote and picks the forge, so nothing here names one.
 
 ---
 
@@ -143,13 +143,13 @@ For straightforward changes, show exact code with minimal context:
 function initializeClient() {
   ...
   const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error('API_KEY required');
+  if (!apiKey) throw MissingApiKeyError({ service: 'sendgrid' });
   ...
 }
 ```
 
 **Key rules**:
-- Show the function/class signature for context
+- Show the function signature for context
 - Use `...` to skip irrelevant code
 - Show only the lines being added/changed
 - Include just enough context to locate the change
@@ -164,26 +164,24 @@ For larger refactors or architectural changes, use pseudocode:
 **Solution:** Consider creating a centralized error handling approach.
 
 Pseudocode:
-1. Create `ErrorHandler` class
-   - `handle(error): Response` - main handler
-   - `formatError(error): ErrorResponse` - format consistently
-   - `logError(error)` - centralized logging
+1. Add a `routeErrors.ts` module of error factories on `createServiceError` (`standards-errors`)
+   - `ValidationError({ field })`, `AuthenticationError({ reason })`, `NotFoundError({ resource })`
+   - each one logs with `...formatError(error)` spread in, never the raw catch variable
 
 2. Update each route:
    - Wrap in try/catch
-   - Call `ErrorHandler.handle()` instead of inline handling
-   - Remove duplicate error formatting logic
+   - Log and rethrow the named factory's error instead of handling it inline
+   - Remove the duplicate error-formatting logic each route grew
 
-3. Add error types:
-   - `ValidationError` for input errors
-   - `AuthenticationError` for auth failures
-   - `NotFoundError` for missing resources
+3. Return a result object (`standards-errors`: gate validators return, they don't throw) where the
+   caller must branch on the outcome
 ```
 
 **Key rules**:
 - Use numbered steps for the high-level approach
 - Use bullet points for implementation details
-- Reference function/class names but don't write actual code
+- Reference function and module names but don't write actual code
+- Propose factory functions and modules, never a `class` — `standards-coding` forbids one
 - Focus on the "what" and "why", not the exact syntax
 - Keep it vague enough for them to implement their way
 
@@ -285,7 +283,7 @@ Keep it simple - no code block needed for deletions.
 - Group all issues under `## ⚠️ Issues` section
 - Group all nits under `## 📝 Nits` section
 - Number each finding within its section (1, 2, 3, ...)
-- Wrap each finding in `<details>` tags with `<h3>` in the summary (makes them collapsible in GitLab)
+- Wrap each finding in `<details>` tags with `<h3>` in the summary (collapses it; both forges render the tags)
 - Separate each finding with `---` horizontal rule
 - Include file path and line number for every finding
 - Questions from review.md are NOT included (they're for discussion only)

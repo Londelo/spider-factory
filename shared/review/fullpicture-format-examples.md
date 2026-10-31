@@ -110,12 +110,10 @@ handleFieldChange 🎯
 
 ### Function Descriptions
 
-**[handleFieldChange](../../components/RegistrationForm/index.tsx#L67)** — Updates form state on input change and triggers debounced validation.
+**🎯 [handleFieldChange](../../components/RegistrationForm/index.tsx#L67)** — Updates form state on input change and triggers debounced validation. Now validates on every change instead of waiting for submit.
 
-**🎯 [handleFieldChange](../../components/RegistrationForm/index.tsx#L67)** — Now triggers real-time validation on every change instead of waiting for submit.
-
-- **BEFORE:** Validation only ran on form submit
-- **AFTER:** Validation runs with 500ms debounce on every field change
+- **Before:** Validation only ran on form submit
+- **After:** Validation runs with 500ms debounce on every field change
 - **Why:** Immediate feedback reduces form abandonment and catches errors before submission
 
 **[setFieldValue](../../lib/store/form.ts#L18)** — Updates a single field's value in the Zustand store. Used for optimistic UI updates.
@@ -126,7 +124,7 @@ handleFieldChange 🎯
 
 **[validateFieldRemote](../../services/validation.ts#L23)** — Asynchronous uniqueness and carrier checks via API. Returns `{ valid: boolean, error?: string }`.
 
-**[setFieldError](../../lib/store/form.ts#L18)** — Stores an error message in Zustand and triggers a component re-render with inline error UI.
+**[setFieldError](../../lib/store/form.ts#L41)** — Stores an error message in Zustand and triggers a component re-render with inline error UI.
 
 ---
 
@@ -228,7 +226,7 @@ handler
 
 **[getUpcomingMarkets](../../apps/notification/planSends/getMarketsAndCounts.ts#L56)** — Queries MongoDB for markets with presales in the next 2-27 hours, filtered by notifiable campaigns.
 
-**[AddMarketCounts](../../apps/notification/planSends/getMarketsAndCounts.ts#L88)** — Iterates over markets, calling AddCountToMarket for each to attach eligible counts.
+**[AddMarketCounts](../../apps/notification/planSends/getMarketsAndCounts.ts#L88)** — Maps over the markets, calling AddCountToMarket for each to attach eligible counts.
 
 **[AddCountToMarket](../../apps/notification/planSends/getMarketsAndCounts.ts#L46)** — Fetches eligible counts for a single market via the Entry Service API.
 

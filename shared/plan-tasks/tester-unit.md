@@ -15,7 +15,7 @@ agent's skill's business (`framework-jest`) — never spell it here.
 ## Task: Unit-test `[functionName]`
 
 **File:** `exact/path/to/test/file.spec.ts`
-**Unit under test:** `one function` (or one component's pure helper) — never a module, never a feature
+**Unit under test:** `one back-end function` — never a module, never a feature, never a component
 **Category:** unit-tests
 **Tier:** micro (one function, alone)
 **Mode:** testing-changes | tdd

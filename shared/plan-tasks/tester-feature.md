@@ -17,7 +17,6 @@ Browser mechanics are the agent's skill's business (`framework-playwright`) — 
 ## Task: Feature-test `[flow name]`
 
 **File:** `exact/path/to/file.playwright.spec.ts`
-**Unit:** `test.describe('[flow name]', ...)`
 **Category:** feature-test
 **Tier:** feature (one feature's pieces wired together)
 **Scope:** single-entry (co-locate with the page/component entry point) | cross-entry (project-level flows dir)
@@ -53,12 +52,12 @@ persist."]
 > Real routes, real ids, real outcomes. Tell the agent exactly what to assert, not "test the flow."
 
 ### Locators
-- **Primary:** `[#-first — page.locator('#email'); the frontend agent provides ids — list the real ones]`
-- **Fallback:** `[accessible role when no id exists — page.getByRole('button', { name: 'Sign In' })]`
+- **Primary:** `[#-first — the frontend agent provides ids — list the real ones]`
 - [name any element still missing an `id` and cross-link its `frontend-ui` task]
+- **Fallback:** `[the accessible name and role to target when no id exists — "the button named Sign In"]`
 
 ### Boundary Mocks — outside the feature only
-- **API routes:** [`page.route()` targets + realistic fixture shape — "**/api/subscriptions" returns [{id, name, price, renewalDate}]]`
+- **API routes:** [`**/api/subscriptions` is intercepted at the boundary; realistic fixture shape [{id, name, price, renewalDate}]]`
 - **Third-party:** [external services to mock/block]
 - **Never mocked:** [modules inside the feature under test — stubbing those deletes the wiring being proved]
 
@@ -74,11 +73,11 @@ persist."]
 - **File location:** [exact path — co-located, or the project-level flows directory for cross-entry]
 - **Browsers:** [whatever playwright.config.ts already declares — read it, don't invent]
 - **Config:** [note only if this ticket must create/modify config]
-- **Pattern reference:** [e.g., "follow e2e/login.spec.ts for auth + mock setup"]
+- **Pattern reference:** [the project's own closest existing browser spec, path spelled exactly]
 
 ### Owned Elsewhere — do not duplicate
 - **unit tier:** [the branches/edge cases the `unit-tests` ticket already proves — name them]
-- **epic tier:** [cross-feature journeys left to `e2e-test`]
+- **epic tier:** [cross-feature journeys left to `epic-e2e-test`]
 
 ### Run
 - Run the file you touched and confirm PASS (FAIL-first if `Mode: tdd`)

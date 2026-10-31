@@ -141,9 +141,8 @@ can be closed either. Break any link and the human is holding a gate that should
 
 The **label** is what `-l` attaches and what the dispatcher matches; the **category** is a display hint in the ticket list; a
 **tag** dispatches nothing. On this tier the label and the category are the same string — `feature-test` —
-while the agent carries its own name: `tester-feature`. The three testers are `tester-unit`,
-`tester-feature`, `tester-e2e`, "tester-" plus the scope each owns, and only the dispatcher's map binds a
-label to one, so never spell an agent name out of a label. A tier is named for the **test**, never the
+while the agent carries its own name: `tester-feature`. Only the dispatcher's map binds a label to an
+agent, so never spell an agent name out of a label. A tier is named for the **test**, never the
 tester and never the framework. Mis-label one tier off and the worker covers the wrong depth of coverage, and nothing
 it reports will tell you so.
 
@@ -176,7 +175,8 @@ Any "no" means fix the ticket, not the report.
 
 - [ ] Would a worker spawned with nothing but this ticket and its description know exactly what to do?
 - [ ] Gate: type `gate` with **zero** labels. Ticket: type `task` with **exactly one** label from the closed set?
-- [ ] Did you read it back — this ticket, right after creating it?
+- [ ] Did you read it back with `bd show --json` — this ticket, right after creating it, its labels and
+      `metadata` read back exactly as written (a wrong key reads `null` without erroring)?
 - [ ] Parented to the epic (or deliberately orphaned), so the tower is intact?
 - [ ] Every ordering requirement a real blocking edge, not assumed from the parent link?
 - [ ] Nothing above its altitude — packages named with a why, no component, function, hook or file path?

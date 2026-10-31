@@ -115,16 +115,16 @@ human act left is closing a gate.
 | e2e suite | `epic-e2e-test` | the epic merge | the journeys that cross features, one success + one failure path per feature; what each journey must **not** re-prove (the feature tier owns that) | every named journey passes on the **merged** stack |
 | epic review | `epic-review` | the e2e suite | **the branch it is reviewing** (it is not to be told how that branch was assembled), what to trace across the whole epic, which suites to run, and the three questions it must answer | findings posted as comments on the PR, each one naming where it lives and how it was found |
 
-Two tickets nobody creates is a tower that builds and never ships: no review ticket means no reviewer is
-ever dispatched, no merge ticket means nothing is ever merged, and the gate can never close.
+Three tickets nobody creates is a tower that builds and never ships: no review ticket means no reviewer is
+ever dispatched, no e2e ticket means the merged stack is never proved, no merge ticket means nothing is ever
+merged, and the gate can never close.
 
 ### Label, category, tag — never interchangeable
 
 The **label** is what `-l` attaches and what the dispatcher matches; the **category** is a display hint in the ticket list; a
 **tag** dispatches nothing. On this tier the label and the category are the same string —
-`epic-e2e-test`, while the agent carries its own name: `tester-e2e`. The three testers are `tester-unit`,
-`tester-feature`, `tester-e2e`, "tester-" plus the scope each owns, and only the dispatcher's map binds a
-label to one, so never spell an agent name out of a label. A tier is named for the **test**, never
+`epic-e2e-test`, while the agent carries its own name: `tester-e2e`. Only the dispatcher's map binds a
+label to an agent, so never spell an agent name out of a label. A tier is named for the **test**, never
 the tester and never the framework. Mis-label one tier off and the worker covers the wrong depth of
 coverage, and nothing it reports will tell you so.
 
@@ -149,7 +149,8 @@ Any "no" means fix the ticket, not the report.
 
 - [ ] Would a worker spawned with nothing but this ticket and its description know exactly what to do?
 - [ ] Gate: type `gate` with **zero** labels. Ticket: type `task` with **exactly one** label from the closed set?
-- [ ] Did you read it back — this ticket, right after creating it?
+- [ ] Did you read it back with `bd show --json` — this ticket, right after creating it, its labels and
+      `metadata` read back exactly as written (a wrong key reads `null` without erroring)?
 - [ ] Every ordering requirement a real blocking edge, not assumed from the parent link?
 - [ ] The chain pointing the right way — merge → e2e → review → gate — each of those three an edge you wrote?
 - [ ] Nothing above its altitude — no framework, package, file or function anywhere in the epic?

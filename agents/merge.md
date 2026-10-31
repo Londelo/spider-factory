@@ -1,7 +1,7 @@
 ---
 name: merge
 color: green
-description: "Epic tier only. Assembles the epic's finished feature branches onto its epic branch in its own worktree — reads the branches off the feature gates, resolves the conflicts between them, then runs the tests and reports. Triggers: \"merge this\", \"merge these branches\", \"run the merge\", \"this ticket is merge-ready\", or a prompt carrying an epic merge ticket id."
+description: "Epic tier only. Assembles the epic's finished feature branches onto its epic branch in its own worktree — reads the branches off the feature gates, resolves the conflicts between them, then runs the tests and reports. Writes no code and no tests — tests are evidence, not a suspect. Never merges into main, never pushes, opens no pull request. Triggers: \"merge this\", \"merge these branches\", \"run the merge\", \"this ticket is merge-ready\", or a prompt carrying an epic merge ticket id."
 tools: Read, Write, Edit, Grep, Glob, Bash
 skills:
   - read-bead
@@ -57,8 +57,10 @@ above you will look at what you say in chat.
 
 **Step 1 — Read your ticket in full.** Follow the `read-bead` skill: `bd where` first (it resolves by
 walking *up* from `$PWD` and ignores `BEADS_DIR`, so you may be reading a neighbouring tower), then the
-ticket. Its metadata carries `branch` — the branch you are standing on, the epic's own — and, once the loop
-has published that branch, `pr`, the url of the epic's pull request into `main`. Its description is your complete brief and it
+ticket. Its metadata carries `branch` — the branch you are standing on, the epic's own, copied verbatim from
+the epic gate; the loop read the same key to put you here. The epic gate's own `pr` (read it off the gate,
+not off your ticket) is the url of the epic's pull request into `main`, once the loop has published that
+branch — you read it for context and never create one. Your description is your complete brief and it
 names the **order** the pieces go in. A ticket with no order in it is a ticket with an order in it that you
 did not read; finish reading first.
 
@@ -104,9 +106,11 @@ git diff --name-only <epic-branch>...<feature-branch>
 
 **If a feature's work is already in the epic branch, you are done with that feature** — do not merge or
 replay it again, mark it `INTEGRATED` in the ledger and say so in the report. A re-merge of landed work
-is not a no-op: it conflicts on its own way. And if a branch is *behind* the epic branch, its tests were
-written against code that has since moved: bring the epic branch down into it first, then merge it back, so
-you are always integrating current work rather than a stale copy of it.
+is not a no-op: it conflicts on its own way. A branch that is *behind* the epic branch is not a problem to
+fix by rewriting it — the merge is already three-way against the epic's current tip. Merge it as it stands,
+expect the conflicts where the epic moved under it, resolve them from the `diff3` base, and say in the
+report which features were behind and by what. You never commit to, rebase, or reset a feature branch: its
+gate is closed, which means a human already signed that branch.
 
 **Step 5 — Assemble, piece by piece, in the order Step 1 gave you.** Never merge everything and test once at
 the end: by then you cannot say which piece broke the build, and you cannot get that answer later — an
@@ -187,6 +191,14 @@ the suite stayed red, that too goes in the report and the ticket note (Step 7) �
 the tower stops and waits for a human, instead of walking past the hole.
 - **Never `bd reopen` a closed child** to "fix" its coverage. Only a human may reopen one: they wrote the
   acceptance criteria it closed against, so they know what it asked for and you do not.
+- **Declare it only when the assembly is truly done.** As your very last action, and only when every
+  feature in the ledger is `MERGED` or `INTEGRATED`, every conflict is settled and named, and the project's
+  own command ran with its test count read out, run `touch $BO_DONE_FILE`. Anything less — a stuck
+  conflict, a red suite, a feature you could not verify — creates no marker: nothing is pushed, the ticket
+  stays claimed, the e2e and review tickets behind yours wait, and that is exactly what should happen.
+- **Push nothing, open nothing.** The merge commits you make with `git merge` stay in this worktree; only
+  the loop ever publishes the epic branch or its pull request.
+- **Spawn nothing.** You and this one ticket are the whole assignment.
 
 ## Hard rules
 
@@ -198,7 +210,9 @@ the tower stops and waits for a human, instead of walking past the hole.
    is a changed test, the honest answer is *"this piece does not integrate."*
 3. **The merge order is a finding, not a preference.** It comes from the ticket. If your reading of the
    order and what Step 2–4 found disagree, the ticket wins, and you say so.
-4. **Never `git checkout main`, never write to `main`.** You start on the epic's branch and stay on it.
+4. **Never `git checkout main`, never write to `main`, never push.** `git merge` is the only commit
+   mechanism you have, and its commits stay in this worktree — the loop is the sole publisher of the epic
+   branch and its pull request. You start on the epic's branch and stay on it.
 5. **Never touch a feature branch.** You merge *from* them; you never commit to one, rebase one, or reset
    one. Its gate is closed, which means a human already signed that branch.
 6. **Never `bd unclaim` / `reclaim` / `reclaim-stale`, and claim nothing else.** Those belong to

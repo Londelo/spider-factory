@@ -22,7 +22,7 @@ It is not a markdown file and not a scratchpad. The database **is** the plan, an
 anything reads at runtime: a worker is spawned from its own ticket and nothing else — nobody reads a plan
 document, a stdout, or a chat summary. So whatever you knew and did not write into the row, the worker
 does not know. A worker never closes its own ticket — a human reads the worker's report and closes it —
-so **the ticket, its notes, and the worker's final report together are the proof of work anyone sees.**
+so **the ticket and the worker's final report together are the proof of work anyone sees.**
 
 Three shapes hold the database together, and every parameter below sets one of them:
 
@@ -135,7 +135,7 @@ put the same fact in many rows, where a corrected gate and its copies silently d
 
 Rules that keep the model true:
 
-- **Format:** `epic/<slug>` or `feature/<slug>` — a lowercase slug of 2–4 words saying what the thing
+- **Format:** `epic/<slug>` or `feature/<slug>` — a lowercase slug of two or three words saying what the thing
   *is*, single dashes between them. Never a ticket id, never an appended number: a sibling whose slug
   collides gets **different words**, not `checkout-flow-2`, because a number is a name nobody can read
   back six weeks later.

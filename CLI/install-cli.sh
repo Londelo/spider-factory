@@ -1,22 +1,20 @@
 #!/usr/bin/env bash
-# install-cli.sh — put `bo` on PATH. No node, no package manager.
-#
-# It writes a small REAL file at ~/.local/bin/bo rather than symlinking into the plugin.
-# That is deliberate: a symlink dies the moment the plugin is uninstalled, and a dead
-# symlink can't run far enough to explain itself — the shell just says
-# "No such file or directory". A real launcher outlives the plugin and names the problem.
-#
-# Run this once after installing the plugin:
+# install-cli.sh — put `bo` on PATH as a real file at ~/.local/bin/bo, never a symlink, so it outlives an
+# uninstalled plugin and can name its own problem. No node, no package manager.
 #   bash "$(claude plugin details binary-obelisk --json | jq -r '.root')/CLI/install-cli.sh"
 # Re-running it overwrites the launcher, which is how you repoint it after a reinstall.
 set -euo pipefail
-here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"   # .../CLI
-pluginRoot="$(dirname "$here")"
-binDir="$HOME/.local/bin"
-launcher="$binDir/bo"
 
-mkdir -p "$binDir"
-cat > "$launcher" <<EOF
+locateLauncherPaths() {
+    here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+    pluginRoot="$(dirname "$here")"
+    binDir="$HOME/.local/bin"
+    launcher="$binDir/bo"
+}
+
+writeLauncher() {
+    mkdir -p "$binDir"
+    cat > "$launcher" <<EOF
 #!/usr/bin/env bash
 # bo launcher — written by binary-obelisk's CLI/install-cli.sh. Do not edit; re-run that.
 # Plugin: $pluginRoot
@@ -31,10 +29,21 @@ if [[ ! -f "\$plugin/CLI/bin/bo" ]]; then
 fi
 exec bash "\$plugin/CLI/bin/bo" "\$@"
 EOF
-chmod +x "$launcher"
+    chmod +x "$launcher"
+}
 
-case ":$PATH:" in
-    *":$binDir:"*) ;;
-    *) echo "bo: add  export PATH=\"$binDir:\$PATH\"  to your shell profile." >&2 ;;
-esac
-echo "installed: $launcher -> $pluginRoot/CLI/bin/bo"
+warnWhenBinDirMissingFromPath() {
+    case ":$PATH:" in
+        *":$binDir:"*) ;;
+        *) echo "bo: add  export PATH=\"$binDir:\$PATH\"  to your shell profile." >&2 ;;
+    esac
+}
+
+announceInstallation() {
+    echo "installed: $launcher -> $pluginRoot/CLI/bin/bo"
+}
+
+locateLauncherPaths
+writeLauncher
+warnWhenBinDirMissingFromPath
+announceInstallation

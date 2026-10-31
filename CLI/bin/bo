@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
-# bo — the binary-obelisk loop CLI. One command: `bo loop`.
-#
-# The only command is `bo loop`, and it runs the dispatcher in the foreground.
-# Everything the loop does — claiming, spawning, logging, stalling — is the engine's
-# business; see ../beads-loop.sh. This file just finds it and hands over.
+# bo — the binary-obelisk CLI. One command, `bo loop`, which runs the dispatcher in the foreground.
+#   bo loop      from inside a tower project (one with a beads DB); Ctrl-C stops dispatching.
+#   The engine is ../beads-loop.sh; its contract is .claude/CLAUDE.md §The dispatcher.
 set -uo pipefail
-
-# The plugin-disappeared case is caught one level out, by the launcher install-cli.sh
-# writes onto PATH — a dead symlink can't run far enough to report anything, so the
-# guard has to live in a real file. By the time this file is running, the plugin is here.
-here="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"   # .../CLI/bin
-engine="$here/../beads-loop.sh"
 
 usage() {
     cat <<'USAGE'
@@ -26,29 +18,48 @@ Run it from inside a tower project (one with a beads DB).
 USAGE
 }
 
-case "${1:-}" in
-    ""|-h|--help|help)
-        usage
-        exit 0
-        ;;
-    loop)
-        [[ -f "$engine" ]] || {
-            echo "bo: the dispatcher engine is missing at $engine — this install is broken. Re-run its CLI/install-cli.sh." >&2
-            exit 1
-        }
-        # refuse to start outside a tower — the engine would spin on a DB that isn't there
-        bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 || {
-            echo "bo: no beads DB found from $PWD — cd into a tower project and re-run." >&2
-            exit 1
-        }
-        echo "bo: dispatching $PWD — Ctrl-C to stop."
-        # Foreground, so every log line lands on the terminal. Ctrl-C is the engine's
-        # business: beads-loop.sh traps INT/TERM itself and reports what it claimed.
-        bash "$engine"
-        echo "bo: the engine ended (exit $?)."
-        ;;
-    *)
-        echo "bo: unknown command '$*' — the only command is 'bo loop'. Try 'bo --help'." >&2
+locateEngine() {
+    here="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+    engine="$here/../beads-loop.sh"
+}
+
+requireEngine() {
+    [[ -f "$engine" ]] || {
+        echo "bo: the dispatcher engine is missing at $engine — this install is broken. Re-run its CLI/install-cli.sh." >&2
         exit 1
-        ;;
-esac
+    }
+}
+
+requireBeadsProject() {
+    bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 || {
+        echo "bo: no beads DB found from $PWD — cd into a tower project and re-run." >&2
+        exit 1
+    }
+}
+
+dispatchOverCurrentTower() {
+    requireEngine
+    requireBeadsProject
+    echo "bo: dispatching $PWD — Ctrl-C to stop."
+    bash "$engine"
+    echo "bo: the engine ended (exit $?)."
+}
+
+runRequestedCommand() {
+    case "${1:-}" in
+        ""|-h|--help|help)
+            usage
+            exit 0
+            ;;
+        loop)
+            dispatchOverCurrentTower
+            ;;
+        *)
+            echo "bo: unknown command '$*' — the only command is 'bo loop'. Try 'bo --help'." >&2
+            exit 1
+            ;;
+    esac
+}
+
+locateEngine
+runRequestedCommand "$@"

@@ -101,8 +101,9 @@ await page.route('**/api/subscriptions', route =>
 await page.route('**/googletagmanager.com/**', route => route.abort())   // third-party noise
 ```
 
-- Fixture payloads must be **realistic** — real shapes, real dates, real edge values — from the
-  ticket's `**Realistic data:**` field.
+- Fixture payloads must be **realistic** — real shapes, real dates, real edge values — taken from the
+  ticket's own fields: `### Boundary Mocks` (the fixture shape it names) and `### Fixtures & Data`. The
+  ticket states the data; it never states this syntax.
 - `page.route` is for the *external* boundary. Never stub a module, store, or function that lives
   inside the feature you are testing: that deletes the exact wiring the test exists to prove.
 - `await page.unroute(...)` in cleanup when a route is registered inside a test, not a hook.

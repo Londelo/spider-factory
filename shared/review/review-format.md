@@ -1,6 +1,15 @@
 # Review Format - Initial Review Output
 
-This document defines the structure and formatting rules for the initial code review summary (`review.md`).
+This document defines the structure and formatting rules for the review summary (`review.md`).
+
+The findings themselves go out as line-level comments on the pull request — the `pr-comments` skill picks
+the forge from the remote, so nothing here names one. This shape is the review body, and the file written
+into the working tree when the skill reports there is no PR to post to.
+
+Every finding here came from one of the review's five session sources: the ticket, the system map, the
+trace, the test output, or a past review — and it answers one of the three questions (does the code do
+what the source of truth demands, do the tests prove it, is it simple and readable) or reports what a
+loaded `standards-*` skill says. Name which, in the finding.
 
 **For complete examples, see [review-format-examples.md](review-format-examples.md)**
 
@@ -69,19 +78,20 @@ Log of past findings that need NO further action — `Agree, nothing to add` / `
 
 ## Review Findings Categories
 
-These findings will be posted as line-level comments on specific lines of code in the GitLab MR.
+These findings go out as line-level comments on specific lines of code on the pull request.
 
 **Scope**: Flag issues wherever you find them - in changed code (primary focus) or context files (secondary focus). Separate them in your review to show priority.
 
 ### ⚠️ Issues
-Problems that should be addressed. Must be grounded in something found in session — a loaded standard, the Jira ticket, the full flow, the trace/test output, or a past review.
+Problems that should be addressed. Must be grounded in something found in session — a loaded `standards-*`
+skill, the beads ticket, the system map, the trace, the test output, or a past review.
 
 **In Changed Code**: These are blocking - must be fixed before merge.
 **In Context Files**: These are pre-existing issues. Nice to fix but not blocking this PR.
 
 **Examples**:
-- ⚠️ SQL injection vulnerability (violates security.md) - [reference](../../path/to/file.ext#L123)
-- ⚠️ Missing error handling (violates errors.md) - [reference](../../path/to/file.ext#L123)
+- ⚠️ The search box is read straight into the database query, so a visitor can ask for rows they were never allowed to see (the ticket required only their own rows) - [reference](../../path/to/file.ext#L123)
+- ⚠️ A failed save is caught and ignored, so the user is told the record stored when it did not (violates `standards-errors`) - [reference](../../path/to/file.ext#L123)
 - ⚠️ Trace shows `userId` is read but never written before the DB update - [reference](../../path/to/file.ext#L123)
 - ⚠️ Implementation does not satisfy ticket acceptance criteria #3 - [reference](../../path/to/file.ext#L123)
 
@@ -101,7 +111,7 @@ Clarifications needed about implementation choices or behavior.
 - ❓ Should this handle the case where user is null? - [reference](../../path/to/file.ext#L123)
 - ❓ Is the 5-second timeout configurable? - [reference](../../path/to/file.ext#L123)
 
-**These will NOT be posted** to GitLab. Questions are for the review summary only and should be addressed in conversation, not as line-level comments.
+**These are not posted** as line-level comments. Questions belong in the review summary and get answered in conversation.
 
 ### 📝 Nits
 Minor style or preference items. Optional improvements.
@@ -148,8 +158,8 @@ Each bullet should be readable by someone who doesn't know this repo and isn't t
 
 ### Ground Findings in Session Evidence
 Before flagging any issue:
-1. Identify what in session supports it — a loaded standard, the Jira ticket, the full flow output, the trace/test output, or a past review
-2. Reference that source in the finding (e.g. "violates errors.md", "trace shows...", "ticket AC #2 unmet")
+1. Identify what in session supports it — a loaded `standards-*` skill, the beads ticket, the system map, the trace, the test output, or a past review
+2. Reference that source in the finding (e.g. "violates `standards-errors`", "trace shows...", "ticket AC #2 unmet")
 3. If you can't tie it back to anything in session, don't flag it
 
 ---

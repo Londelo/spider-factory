@@ -12,7 +12,8 @@ version: 0.1.0
 ## What this skill does
 
 Bootstraps a repository for beads (bd) issue tracking with Claude Code integration:
-installs the `bd` CLI if missing, runs `bd init`, sets up Claude Code hooks, and installs git hooks.
+installs the `bd` CLI if missing, runs `bd init`, registers the `gate` type the tower needs, sets up
+Claude Code hooks, and installs git hooks.
 
 ## Prerequisites
 
@@ -50,10 +51,23 @@ If Homebrew fails, fall back to the install script. If neither works, tell the u
 
 ```bash
 cd <repo-path>
-bd init
+BD_NON_INTERACTIVE=1 bd init
+bd where
 ```
 
 This creates `.beads/` with the Dolt-backed database and writes a beads section to `CLAUDE.md`.
+`bd where` proves which database this directory resolves to — bd walks **up**, so it answers for the
+nearest `.beads/` above you, not the one you think you are in.
+
+### Step 3b: Register the `gate` type (the tower does not work without it)
+
+Epics and features are `-t gate`, a **custom** type. `bd` does not refuse an unregistered type — it
+accepts `gate`, writes the row, and hides it, so a broken tower and a working one look identical.
+
+```bash
+bd config set types.custom "gate"
+bd types          # `gate` must be listed here before you create anything
+```
 
 ### Step 4: Set up Claude Code integration
 
@@ -81,6 +95,7 @@ This installs pre-commit, post-merge, pre-push, and post-checkout hooks for expo
 bd setup claude --check
 bd doctor
 bd version
+bd types          # `gate` still listed
 ```
 
 Report the results to the user. If anything is stale or missing, note it.
@@ -88,8 +103,9 @@ Report the results to the user. If anything is stale or missing, note it.
 ### Step 7: Give the user a starting prompt
 
 Tell the user:
-- Where to find ready work: `bd ready`
-- How to create an issue: `bd create "title" -p 2 -t task`
+- Where to look for ready work: `bd ready` — claiming is the dispatcher's job (`bo loop`), not something
+  to do by hand
+- How to create an issue: `bd create "title" -p 2 -t task` (an epic or feature is `-t gate`, unlabelled)
 - That they should restart Claude Code for hooks to activate
 - What `bd prime` does (prints workflow context and persistent memories)
 

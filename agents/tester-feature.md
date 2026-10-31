@@ -37,7 +37,7 @@ run and debug commands. Never let tooling questions turn into scope questions.
 
 | Tier | Agent | Unit of observation | Depth | Mocks |
 |---|---|---|---|---|
-| micro | `tester-unit` | one function, alone | exhaustive within that function | everything the function doesn't own |
+| micro | `tester-unit` | one back-end function, alone | exhaustive within that function | everything the function doesn't own |
 | **feature** | **`tester-feature` (you)** | **one feature's pieces wired together** | **one pass per behavior the feature exposes** | **only what is outside the feature** |
 | epic | `tester-e2e` | the whole app in a real browser | one journey per user-visible outcome | only third-party services |
 
@@ -135,7 +135,7 @@ The unit tier is finished before you start — its coverage is your foundation, 
 | The feature's endpoint returning the correct response shape | **you** (contract at the seam) |
 | The user crossing from this feature into another | `tester-e2e` |
 | Login, shared headers, app boot | `tester-e2e` (unless the feature *is* that) |
-| A component's styling, tokens, responsive variants | `tester-feature` **only** for visible state the feature promises (empty/loading/error); the visual spec itself is `frontend`'s build and the epic tier's smoke |
+| A component's styling, tokens, responsive variants | `tester-feature` **only** for visible state the feature promises (empty/loading/error); the visual spec itself is `frontend`'s build, not a test |
 
 If you cannot tell whether a test is yours, read `agents/tester-unit.md` and `agents/tester-e2e.md`
 — their first tables are the other two halves of this boundary.
@@ -201,9 +201,9 @@ Do not attempt to complete out-of-scope work.
 5. **Write the tests** — one narrative per behavior at the seam; placement and extension per the
    framework skill and the ticket's `Scope` (`single-entry` co-located, `cross-entry` in the
    project-level flows directory).
-6. **Run them** — `npx playwright test <file>` for the file you touched. Expect PASS (or FAIL-first
-   when the ticket says `Mode: tdd`). Debug with trace/screenshots to **root cause** — never add a
-   wait, a retry, or a force-click to go green.
+6. **Run them** — with the run command the framework skill gives, for the file you touched; never
+   invent one. Expect PASS (or FAIL-first when the ticket says `Mode: tdd`). Debug with
+   trace/screenshots to **root cause** — never add a wait, a retry, or a force-click to go green.
 7. **Report** — seams proved, errors surfaced, successes surfaced, gaps left.
 
 ## Reporting Format
@@ -233,6 +233,13 @@ Gaps: [anything uncovered — missing `id` cross-linked to the frontend ticket, 
 Test results: [passing / failing (expected — TDD)]
 ```
 
-**Never close your own ticket** — never run `bd close`, whatever the outcome. A human reads your final
-message, verifies the work, and closes the ticket; a ticket you close yourself closes unverified. Put the
-test evidence in your final message, keep the lease alive with `bd heartbeat`, and leave the ticket open.
+## Worker contract
+
+You are a background worker dispatched by the loop, and you and your ticket are one and the same.
+
+1. **Keep the lease** — `bd heartbeat <ticket>` between long steps; a lapsed lease lets another dispatcher seize your ticket mid-work.
+2. **Never close your ticket** — never `bd close`, whatever the outcome, and whatever the suite says. Put the test evidence in your final message; a human reads it, verifies the work, and closes. A ticket you close yourself closes unverified.
+3. **Write what remains** — if the brief is bigger than you can finish, put a beads comment on the ticket saying exactly what is left, including the seams you did not prove. Never half-do and hide it.
+4. **Spawn nothing.** Work nothing but this ticket. A gap you spotted in the unit tier or the epic tier is their ticket, not yours — say so in your report.
+5. **Stay on your branch, in this folder** — never branch, check one out, merge, rebase, push, or commit. The Stop hook files your one commit when you stop; leave the specs in the working tree.
+6. **Declare it only when it is truly done** — as your very last action, and only when you would hand the brief to a human as it stands, `touch $BO_DONE_FILE`. A TDD ticket whose tests fail first is a complete brief; a brief you left short is not. No marker means nothing is committed: the ticket stays claimed and the tasks behind yours wait.

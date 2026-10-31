@@ -58,8 +58,9 @@ ticket, and human-readable output is not a contract.
 | `--body-file <f>`, `--stdin` | the brief from a file/stdin | `description` | use for a long brief — shell quoting mangles a multi-line `-d` |
 | `--acceptance` | done criteria | `acceptance_criteria` | observable evidence, written for a human to verify |
 | `--design` | design notes | `design` | your reasoning; never the worker's instructions |
-| `--notes` | notes | `notes` | worth keeping, not part of the brief |
+| `--notes` | notes | `notes` | worth keeping, not part of the brief — prose only; the branch keys are not notes, see §The branch keys |
 | `--context` | extra context | **appended to `description`** as a `## Context` section | verified: it is not its own field, so it reads back inside the brief |
+| `--metadata '<json>'` | a JSON object of your own keys | `metadata` | the branch keys live here — see §The branch keys |
 
 ### The kind — what the row is
 
@@ -102,9 +103,59 @@ and that alone names the specialist, so a ticket with **zero or two** is left cl
 
 The dispatchable set is closed and the loop owns it (`CLI/beads-loop.sh`, the `AGENT` map):
 `backend-logic` · `frontend-ui` · `unit-tests` · `feature-test` · `epic-e2e-test` ·
-`feature-review` · `epic-review` · `feature-merge-pr` · `epic-merge-pr`. The last two are the merge
-tier and they DO dispatch — the map names `merge` for them, so a merge ticket is claimed and worked
-like any other. Anything the map does not name dispatches nothing, however plausible it reads.
+`feature-review` · `epic-review` · `epic-merge-pr`. The last one is the merge tier and it DOES
+dispatch — the map names `merge` for it, so a merge ticket is claimed and worked like any other.
+Anything the map does not name dispatches nothing, however plausible it reads. **There is no
+`feature-merge-pr`:** a feature is a branch, its tasks land on it one commit at a time, and there is
+nothing left to assemble.
+
+## The branch keys
+
+One branch per epic, one per feature, and a task is a commit on its feature's branch. The name is not
+chosen at work time — the plan agents write it at create time as **metadata**, and the dispatcher reads
+that key straight off the claim. Two keys exist and only one is yours:
+
+```bash
+bd create "Create formatCurrency function" \
+  -d "<the complete brief>" --acceptance "<the observable evidence>" \
+  -t task -l backend-logic --parent <feature-id> \
+  --metadata '{"branch":"feature/checkout-flow"}' \
+  --silent
+```
+
+| Key | Who writes it | What it is |
+|---|---|---|
+| `branch` | the plan agents | the ticket's own branch — the worktree the loop enters (creating it only for the feature's first task), the commit's branch, the pull request's head |
+| `pr` | the loop, then the Stop hook | the url of the pull request that exists on that branch — the loop writes it onto the epic gate when it publishes it, the hook onto each ticket whose work landed. **Never written by a plan agent**: it is a url of something that does not exist yet |
+
+**A pull request's base is not a key.** It is the epic gate's own `branch`, and the parent chain already
+names that gate — ticket → feature → epic — so the loop walks up and reads it there, reading `main` when
+the ticket hangs under the epic itself. Writing the epic's branch down onto every ticket underneath would
+put the same fact in many rows, where a corrected gate and its copies silently disagree.
+
+Rules that keep the model true:
+
+- **Format:** `epic/<slug>` or `feature/<slug>` — a lowercase slug of 2–4 words saying what the thing
+  *is*, single dashes between them. Never a ticket id, never an appended number: a sibling whose slug
+  collides gets **different words**, not `checkout-flow-2`, because a number is a name nobody can read
+  back six weeks later.
+- **One value per feature**, copied verbatim from the feature's own metadata into every task under it —
+  three tasks that each invented a name are three branches and one feature. The epic's tasks, its
+  e2e/review/merge tickets all carry the **epic's** `branch`, and so do the gates. The merge agent finds the
+  feature branches by reading the feature gates' `branch`.
+- **Metadata is the carrier.** Verified against the binary: `metadata` comes back as one JSON object
+  under `bd show --json` AND is present in the `bd ready --claim --json` payload, so the loop reads
+  `.metadata.branch` exactly — no second query, no parsing a stray colon can
+  break. `notes` is prose and nothing else; `external_ref` round-trips through `bd show` but is **absent**
+  from the claim payload. A branch name anywhere else is a fact the loop cannot see.
+- A ticket with no `branch` key is left claimed and logged `ERROR reason=metadata-missing` — a task with
+  nowhere to put its work is as dead as one with no label. A ticket with no `pr` is normal: that key appears
+  only once a pull request exists.
+
+Read the keys back with the rest of the row, exactly as written, at creation. To fix one after the fact:
+`bd update <id> --set-metadata branch=feature/checkout-flow`. Verified: `--set-metadata` **merges** — the
+keys already on the ticket survive, which is how the hook can add `pr` to a ticket without disturbing the
+`branch` the plan wrote.
 
 ## Gates are a type, not a label
 
@@ -132,7 +183,9 @@ carries no `labels` either. Never put a fact in a flag that does not survive the
 
 And these belong to other subsystems, not to planning: `--graph`, `--waits-for`, `--waits-for-gate`,
 `--mol-type`, `--wisp-type`, `--event-*`, `--ephemeral`, `--storage-class`, `--no-history`, `--repo`,
-`--spec-id`, `--metadata`. (`--external-ref` does round-trip, for when a bead mirrors something outside.)
+`--spec-id`. (`--metadata` is not on that list — it round-trips and reaches the dispatcher, see §The
+branch keys. `--external-ref` round-trips too, for when a bead mirrors something outside, but it is
+absent from the claim payload, so nothing the loop needs may live there.)
 
 ## Proving the write
 
@@ -140,7 +193,7 @@ The failure mode of `bd create` is not an error, it is a row that looks fine and
 read each ticket back the moment you create it:
 
 ```bash
-bd show --json bd-42 | jq '.[-1] | {issue_type, labels: (.labels // []), acceptance_criteria, parent}'
+bd show --json bd-42 | jq '.[-1] | {issue_type, labels: (.labels // []), acceptance_criteria, parent, metadata}'
 ```
 
 Two things that bite: `bd show --json` returns a **JSON array**, so a bare `.labels` fails — index

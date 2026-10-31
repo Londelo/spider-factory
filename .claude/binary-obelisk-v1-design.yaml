@@ -24,6 +24,26 @@
 #                     blocked-by the gate two levels down, not by the chain beside it
 #   task.agents    -> who does the work
 #
+# TWO BRANCHES PER TOWER, not one per ticket. An epic has `epic/<slug>` and each feature has
+# `feature/<slug>`; the tasks under a feature are COMMITS on that feature's branch, never branches
+# of their own. TWO KEYS live in the ticket's `metadata`, read as `metadata` on the claim payload:
+#   --metadata '{"branch":"feature/checkout-flow"}'
+# `branch` is where this ticket's work lands — the plan's key, copied VERBATIM down from its own gate:
+# the epic's rows carry the epic's, a feature's rows carry the feature's. `pr` is the pull request's URL:
+# never written by a plan agent — the loop writes it onto the epic gate when it publishes that gate's
+# branch, and the Stop hook writes it onto each ticket whose work landed. A PULL REQUEST'S BASE IS NOT A
+# KEY: it is the epic gate's own `branch`, and the PARENT CHAIN names that gate (ticket -> feature ->
+# epic), so the loop walks up and reads it there — `main` when the ticket hangs under the epic itself.
+# Copying the epic's branch onto every row beneath it puts one fact in many places, where a corrected gate
+# and its copies silently disagree; the tower already says which epic a ticket belongs to. Metadata is
+# structured, so the loop reads the keys exactly; `notes` is prose and parses like prose, and
+# `--external-ref` survives `bd show` but is absent from `bd ready --claim --json`. Nothing ever recomputes
+# a branch name, and `--set-metadata` merges, so a later key never erases an earlier one.
+#
+# ONE CHAIN PER FEATURE. Each task waits on exactly one predecessor, so `bd ready` can hand out
+# only one task of a feature at a time — one branch, one pair of hands. Features are independent
+# and run side by side; an edge between two features exists only when one genuinely needs the other.
+#
 # Nothing here is read at runtime — the loop's only input is the beads database.
 # The tower is built top-down by the plan agents (plan-epic -> plan-feature ->
 # plan-task) and EXECUTED bottom-up (`bd ready --claim` hands out whatever is unblocked;
@@ -83,7 +103,7 @@ agents:
   # opinion of its own. A tier never oversteps the next: three tiers, one test per behavior.
   tester-unit:
     tier: micro
-    description: "Micro tier: ONE function at a time, in isolation, and exhaustive within it — every branch, boundary, empty/null, error. The only tier allowed to enumerate an input matrix. Never wiring, renders, browser or journeys."
+    description: "Micro tier: ONE back-end function at a time, in isolation, and exhaustive within it — every branch, boundary, empty/null, error. The only tier allowed to enumerate an input matrix. Back-end only: it never touches components. Never wiring, renders, browser or journeys."
     spawn: [s, b, w]
     certify: true
     skills: [read-bead, coding, files, naming, errors, framework-jest]
@@ -105,7 +125,7 @@ agents:
     certify: true
     skills: [read-bead, pr-comments, coding, files, naming, errors]
   merge:
-    description: "Assembles a merge ticket's child branches onto one integration branch, in its own worktree: finds the children, resolves the conflicts between them, then runs the project's own test command and reports. Writes no code and no tests — tests are evidence, not a suspect. Does not merge into main and opens no pull request. Dispatched by the loop on merge tickets, like the test tiers."
+    description: "Epic tier only. Assembles the epic's finished feature branches onto its epic branch, in its own worktree: finds the pieces, resolves the conflicts between them, then runs the project's own test command and reports. Writes no code and no tests — tests are evidence, not a suspect. Does not merge into main and opens no pull request. Dispatched by the loop like any other label."
     spawn: [s, b, w]
     certify: true
     skills: [read-bead]
@@ -129,6 +149,7 @@ tasks:
   epic:
     type: gate
     parent: null
+    branch: "epic/<slug>"           # the epic's ONE metadata key, and the base every feature PR beneath it aims at. Carried verbatim by the epic's own tickets.
     depends-on: [epic-merge-pr, epic-e2e-test, epic-review]  # blocked-by every child (bottom-up); the human closes it once they are all closed
     respawn-agent: false
     description: "The highest-level understanding of what we are building. Created by plan-epic."
@@ -157,15 +178,16 @@ tasks:
     depends-on: [feature]
     agents: [merge]
     respawn-agent: false
-    description: "Assemble the epic's branches onto one integration branch. This runs BEFORE the e2e suite and before the review, so both are proved against the assembled result and never against a lone branch. Dispatched by the loop like any other label."
+    description: "Assemble the epic's finished feature branches onto its epic branch. This runs BEFORE the e2e suite and before the review, so both are proved against the assembled result. Dispatched by the loop like any other label."
 
   # ---------- Feature: a piece of the epic, one complete user-facing flow ----------
   feature:
     type: gate
     parent: epic
-    depends-on: [backend-logic, frontend-ui, unit-tests, feature-merge-pr, feature-test, feature-review]  # blocked-by every child (bottom-up); the human closes it once they are all closed
+    branch: "feature/<slug>"        # metadata `branch`, carried verbatim by every task under it. Its PR's base is the epic's `branch`, read off the epic gate — never copied down. The `pr` url is not the plan's — the Stop hook writes it.
+    depends-on: [backend-logic, unit-tests, frontend-ui, feature-test, feature-review]  # blocked-by every child (bottom-up); the human closes it once they are all closed
     respawn-agent: false
-    description: "A piece of the epic, described in terms of what the user gets, never how to build it. Created by plan-feature."
+    description: "A piece of the epic, described in terms of what the user gets, never how to build it. Created by plan-feature. The gate's PR IS the feature branch: closing the gate is merging it onto the epic branch."
 
   # ---------- Feature tasks: run once the base tasks are in ----------
   feature-review:
@@ -180,69 +202,77 @@ tasks:
     type: task
     category: feature-test                 # middle tier: one feature's pieces wired together
     parent: feature
-    depends-on: [feature-merge-pr]
+    depends-on: [frontend-ui]              # the tail of the task chain, not a merge — it is proved on the feature branch
     agents: [tester-feature]
     respawn-agent: true
     description: "Proves this feature's unit-tested pieces are actually wired together against the finished UI and logic, and that every error and success it encapsulates surfaces. One case per path, asserted at the seam — not a re-run of the unit tier's matrix."
-  feature-merge-pr:
-    type: task
-    category: merge
-    parent: feature
-    depends-on: [backend-logic, frontend-ui]
-    agents: [merge]
-    respawn-agent: false
-    description: "Assemble this feature's branches onto one integration branch. This runs BEFORE the feature suite and before the review, so both are proved against the assembled result and never against a lone branch. Never dispatched by the loop."
 
-  # ---------- Base tasks: created from every feature; the ready frontier ----------
+  # ---------- The feature's task chain ----------
+  # These three labels are the worker stamps plan-task creates, ONE CHAIN: each ticket waits on the
+  # one ticket before it, the first waits on nothing. One chain is what keeps one branch owned by one
+  # pair of hands — `bd ready` can only ever hand out the single unblocked ticket of a feature, so two
+  # workers never commit to the same feature branch at once. Features stay independent of each other
+  # and run side by side; that parallelism is the absence of an edge, never the presence of one.
   backend-logic:
     type: task
     category: backend-logic
     parent: feature
-    depends-on: []                   # no dependencies — claimed first
+    depends-on: []                   # the head of the chain — claimed first
     agents: [engineer]
     respawn-agent: true
     description: "The feature's logic and back-end work."
+  unit-tests:
+    type: task
+    category: unit-tests                   # micro tier: one back-end function, alone, exhaustively
+    parent: feature
+    depends-on: [backend-logic]             # the chain: its one predecessor is the unit it tests
+    agents: [tester-unit]
+    respawn-agent: true
+    description: "Micro-tier tests for the feature's BACK-END functions — one at a time, in isolation, exhaustive within each: every branch, boundary, empty/null input and error. The input matrix is enumerated HERE, so no tier above repeats it. Back-end only: the UI has no micro tier, the components are proved by the feature tier."
   frontend-ui:
     type: task
     category: frontend-ux
     parent: feature
-    depends-on: []                   # no dependencies — claimed first
+    depends-on: [unit-tests]         # the chain: waits on the one ticket before it; the tail before the suite
     agents: [frontend]
     respawn-agent: true
-    description: "The feature's UI work."
-  unit-tests:
-    type: task
-    category: unit-tests                   # micro tier: one function, alone, exhaustively
-    parent: feature
-    depends-on: [backend-logic, frontend-ui]
-    agents: [tester-unit]
-    respawn-agent: true
-    description: "Micro-tier tests for the feature's functions — one at a time, in isolation, exhaustive within each: every branch, boundary, empty/null input and error. The input matrix is enumerated HERE, so no tier above repeats it."
+    description: "The feature's UI work — built after the logic is written and proved, so the page is built against functions that already hold."
 
 # ============================ PLAN AGENTS ==============================
 # Build the tower top-down; the claim loop runs it bottom-up.
-#   plan-epic    vague idea -> one epic            (`bd create -t gate`)
-#   plan-feature epic -> features, parent-child    (phases: foundations -> core -> dependent -> polish)
-#   plan-task    feature -> the tasks above, each labeled at create time
+#   plan-epic    vague idea -> one epic + `epic/<slug>`            (`bd create -t gate`; its ONE key)
+#   plan-feature epic -> features, parent-child + `feature/<slug>` (phases: foundations -> core ->
+#                        dependent -> polish; two structural tickets per feature, not three)
+#   plan-task    feature -> the tasks above, each labeled at create time, all chained, all carrying
+#                        the feature's `branch` copied verbatim from the gate
+# Each plan agent writes one key, its own gate's `branch`, down to its own rows. No plan agent ever writes
+# `pr`: that url belongs to the loop (the epic gate's) and the Stop hook (every ticket whose work landed).
+# No plan agent writes a PR base either: a ticket aims at its epic's branch because it hangs under that
+# epic, and the loop reads that branch off the gate.
+#
+# A slug is the name of the thing, lowercased, hyphenated, two or three words: `checkout-flow`,
+# `notes-sync`. No ids, no dates, no ticket numbers, no randomness — a person reads the branch name in
+# `git branch` and knows which feature it is. The plan agent that names a gate owns that branch name and
+# writes it onto the gate's metadata once; the rows of that gate's own tier copy it, and nobody recomputes it.
 
 # ============================ EXECUTION ORDER ==========================
 # The order the ready frontier releases them. The depends-on graph above is the ONLY thing
 # that enforces this order, so trust that graph over this comment if they ever drift.
 #
-# Merge always goes in FIRST, then the testing tier, then review, then a human closes the
-# gate. Nothing above a merge is ever proved against a lone branch — every tier above it is
-# proved against the assembled result, which is the entire reason the merge sits at the head.
-# No agent closes a gate and nothing closes itself.
+# ONE CHAIN, ONE BRANCH. Every task under a feature waits on the single ticket before it, so the
+# frontier releases them in this order and never two of them at once — each one is a commit onto the
+# feature's branch, and only one pair of hands ever holds that branch. Nothing is assembled and nothing
+# is merged at the feature tier: the branch IS the work. Features run side by side because nothing
+# joins them; the epic is where the joining happens. No agent closes a gate and nothing closes itself.
 #
-#   feature:  backend-logic · frontend-ui                              (the frontier, no deps)
-#             -> feature-merge-pr                                      (assemble the children)
-#             -> unit-tests · feature-test                             (proved on the assembled branch)
-#             -> feature-review                                        (the three questions, same branch)
-#             -> feature gate                                          (a human closes it)
+#   feature:  backend-logic -> unit-tests -> frontend-ui                 (one chain, one branch)
+#             -> feature-test                                            (proved on the feature branch)
+#             -> feature-review                                          (the three questions, same branch)
+#             -> feature gate                                            (a human closes it: the PR to
+#                                                                          the epic branch merges then)
 #
 #   epic:     epic-merge-pr -> epic-e2e-test -> epic-review -> epic gate (a human closes it)
 #
-# NOTE: unit-tests hangs off the base pair, NOT off feature-merge-pr, so the unit tier is
-# still written against the individual branches. feature-test and epic-e2e-test both sit
-# behind their merge. If the unit tier is meant to be proved on the assembled branch too,
-# that edge has to move — this comment describes the graph, it does not change it.
+# The epic tier still assembles, because it has many branches to assemble: the merge puts every
+# finished feature branch onto the epic branch, and both the e2e suite and the review are proved
+# against that assembled result.

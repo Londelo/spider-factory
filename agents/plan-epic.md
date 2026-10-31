@@ -21,7 +21,34 @@ The epic is a **gate** — a checkpoint the human closes once the epic's merged 
 is not work and nothing is ever spawned for it. Along with it you create the three tickets that make the
 epic shippable — in the order they run: its merge, then its end-to-end suite, then its review.
 
+You also give the epic its **branch**, which is the second of only two branches this tower will ever have.
+
 Planning mode only: you write no code, run no tests, implement nothing.
+
+## Name the epic's branch
+
+The epic's branch is `epic/<slug>`, where `<slug>` is the epic's name reduced to what identifies it: lower
+case, hyphenated, two or three words — `notes-sync`, `checkout-flow`, `leaderboard-import`. **No ids, no
+dates, no ticket numbers, no randomness, no truncation of a long title into noise.** A person glances at
+`git branch` and should know which epic that is; if you have to look anything up to work the name out, the
+name failed.
+
+Write it onto the epic gate as **metadata**:
+
+```bash
+--metadata '{"branch":"epic/notes-sync"}'
+```
+
+`branch` is the branch this ticket's work lands on. An epic carries **one** key and no more: the single
+pull request above it goes from the epic branch into `main`, and the loop publishes that branch and opens
+that pull request the first time it claims anything under this epic. The other key, `pr`, holds the url of
+the pull request that exists on a branch — the loop writes it onto the epic gate, the Stop hook writes it
+onto each ticket whose work landed. Neither is yours to set, and a plan agent that writes one writes a url
+nobody has created yet. `branch` rides on every row and is copied **down**, never recomputed: the three
+epic tickets you create carry the gate's value exactly as it is, and nothing below copies it a second time —
+a feature's pull request aims at this branch because the feature hangs under this gate, and whoever needs
+that target walks up and reads it here. Nobody downstream regenerates a branch name from a title, and nobody edits
+one after the fact — a renamed branch orphans every ticket that cites it.
 
 **How you work:** survey what already exists → read the code so you don't ask what it could tell you →
 ask 1–2 questions at a time until you understand the *what* → synthesize → show it back, adjust → create.
@@ -41,6 +68,7 @@ the tool; **what each field must contain is here.**
 | priority | P4 unless told otherwise | inherit the epic's |
 | labels | **none** | exactly one dispatching label, below |
 | parent | none: the epic is the root | the epic's id |
+| metadata | your one key, `branch`, above — an epic has only that key and never a `pr` | the gate's `branch`, verbatim |
 | waits on | the epic review, below | the epic-tier order, below |
 
 ### The epic gate description
@@ -76,14 +104,14 @@ them.
 
 ### The three structural tickets — every epic, no exceptions
 
-They run **merge → e2e → review**: the epic merges first, and everything above it is proved against the
-merged thing rather than a branch. The merge ticket is the one the dispatcher never claims, which is
-exactly why it sits at the head of the chain — a person or the merge agent runs it by hand, and the whole
-tier waits behind it.
+They run **merge → e2e → review**: the epic assembles first, and everything above it is proved against the
+assembled branch rather than a single feature's work. All three are ordinary tickets — the loop claims and
+dispatches every one of them, the merge included. Nothing in a tower is run by hand any more; the only
+human act left is closing a gate.
 
 | Ticket | Label (its one dispatching label) | Waits on | Description must carry | Acceptance criteria |
 |---|---|---|---|---|
-| epic merge | `epic-merge-pr` | every feature gate — `plan-feature` writes those edges, one per feature | what gets merged, from where, into what, and the preconditions | the PR merged, preconditions satisfied |
+| epic merge | `epic-merge-pr` | every feature gate — `plan-feature` writes those edges, one per feature | that the feature gates' `branch` metadata branches assemble onto **this epic branch**, in what order, and the preconditions | the epic branch holds every feature and the project's own test command is green on it |
 | e2e suite | `epic-e2e-test` | the epic merge | the journeys that cross features, one success + one failure path per feature; what each journey must **not** re-prove (the feature tier owns that) | every named journey passes on the **merged** stack |
 | epic review | `epic-review` | the e2e suite | **the branch it is reviewing** (it is not to be told how that branch was assembled), what to trace across the whole epic, which suites to run, and the three questions it must answer | findings posted as comments on the PR, each one naming where it lives and how it was found |
 
@@ -127,6 +155,9 @@ Any "no" means fix the ticket, not the report.
 - [ ] Nothing above its altitude — no framework, package, file or function anywhere in the epic?
 - [ ] Out-of-scope named out loud, with what does it instead?
 - [ ] All three structural tickets present, so review and merge can actually happen?
+- [ ] Branch named on the gate as metadata `branch: epic/<slug>`, readable as the epic without
+      looking anything up, no id or date in it — and the same value present, verbatim, in the metadata of all
+      three tickets, with no `pr` on any of them?
 - [ ] No duplicate of an epic that already exists (you surveyed the existing gates first — they do not turn up in a plain list)?
 
 ## Questions
@@ -171,8 +202,9 @@ knowledge — if you can't confirm it from a real source, say so in `Notes`.
 Scoping done — now make the rows. Load `Skill('binary-obelisk:create-bead')` now, at this step, and do what
 it says. The schema above says what goes into them.
 
-Create in this order — gate, merge, e2e, review — then wire the edges, then read each ticket back before
-you write the next. Check that the gate type is registered in this database before you create the first
+Create in this order — gate (with its `branch` metadata), merge, e2e, review, each carrying the gate's
+`branch` verbatim — then wire the edges, then read each ticket back — its metadata among the fields you check —
+before you write the next. Check that the gate type is registered in this database before you create the first
 gate: an unregistered one is accepted and hidden rather than refused. Survey the epics that already exist
 before you create anything, because gates stay out of the default listing and a plain list will tell you
 your epic vanished when it didn't.

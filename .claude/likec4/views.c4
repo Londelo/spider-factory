@@ -1,0 +1,296 @@
+views {
+
+  view index {
+    title "How to read this — start here"
+    description '''
+**Colors:** blue = the dispatcher (`bo loop`), purple = worker agents, teal = plan agents, cyan = the Stop hook, amber = gates (only a human closes them), slate = tickets, gray = infrastructure and the human, red dashed = errors that pop up, green = branch worktree boxes.
+
+**Shapes:** person = human, storage = beads DB, cylinder = GitHub, component = dispatcher and hook, agent = worker and planner, rectangle with a lock = gate, document = ticket or note, dashed red rectangle = error.
+
+**Arrows:** dashed gray = blocks (the depends-on chain, read left to right, oldest first), blue = dispatches (one edge per dispatching label), purple = works (agent to ticket), teal dashed = plans (top-down tower build), amber = closes (human to gate), dotted red = raises (where an error pops up).
+
+**The walkthrough order:** 1 plan the tower, 2 one tick of the loop, then the stage views with the branch boxes, then worker to Stop hook to gate, then the epic tier, then every error. A box that repeats across views is the same element, not a copy. Open any node to read its description.
+'''
+    include dispatcher
+    include hook
+    include human
+    include beads
+    include origin
+    include decisions
+    include planAgents.planEpic
+    include workers.engineer
+    include workers.testerUnit
+    include workers.frontend
+    include workers.testerFeature
+    include workers.testerE2e
+    include workers.reviewAgent
+    include workers.mergeAgent
+    include tower.featA
+    include tower.featA.backendA with { navigateTo stageBackends }
+    include errors.labelAmbiguous
+    include errors.frontierEmpty
+  }
+
+  view towerMap {
+    title "Maps / 1. The Tower — the epic, two features, every ticket"
+    description '''
+**What it is:** the whole beads tower as one linked structure: the epic gate, its three epic tickets, two feature gates each with a five-ticket line — backend-logic, unit-tests, frontend-ui, feature-test, feature-review. Arrows are the depends-on chain; a gate waits on its own review ticket (that edge lives in bd, invisible here — a node may not arrow at its own parent). Open any node to read what is inside the ticket.
+'''
+    include tower.epic
+    include tower.epic.epicMergePr with { navigateTo stageEpicTier }
+    include tower.epic.epicE2e with { navigateTo stageEpicTier }
+    include tower.epic.epicReview with { navigateTo stageEpicTier }
+    include tower.featA
+    include tower.featA.backendA with { navigateTo stageBackends }
+    include tower.featA.unitA with { navigateTo stageUnits }
+    include tower.featA.frontendA with { navigateTo stageFrontends }
+    include tower.featA.featureTestA with { navigateTo stageFeatureTier }
+    include tower.featA.featureReviewA with { navigateTo stageFeatureTier }
+    include tower.featB
+    include tower.featB.backendB with { navigateTo stageBackends }
+    include tower.featB.unitB with { navigateTo stageUnits }
+    include tower.featB.frontendB with { navigateTo stageFrontends }
+    include tower.featB.featureTestB with { navigateTo stageFeatureTier }
+    include tower.featB.featureReviewB with { navigateTo stageFeatureTier }
+  }
+
+  deployment view allBranches {
+    title "Maps / 2. Branches — one box per branch"
+    description '''
+**What it is:** every branch as a container box — `.claude/worktrees/<branch with / to +>`. Inside each box: the worker instances that run there and the tickets whose work lands there. A worktree belongs to a branch, not a ticket: the loop makes it for the branch's first task and every later task re-enters it.
+'''
+    include worktreesRoot
+    include worktreesRoot.wtEpic
+    include worktreesRoot.wtA
+    include worktreesRoot.wtB
+    include worktreesRoot.**
+  }
+
+  dynamic view planTower {
+    variant sequence
+    title "Walkthrough / 1. Plan the tower, top-down"
+    description '''
+**What it is:** the human and the three plan agents build the whole tower before any work starts. Each plan agent writes exactly one metadata key — its own tier's `branch` — onto its gate and the rows below it.
+'''
+    human -> planAgents.planEpic "'a recipe box app' — one vague idea"
+    planAgents.planEpic -> beads "clarify, research, then create exactly one epic gate + merge / e2e / review tickets" {
+      notes 'the only metadata written: { "branch": "epic/recipe-box" } — on the gate and its three tickets'
+    }
+    human -> planAgents.planFeature "plan the features for RECIPE-1"
+    planAgents.planFeature -> beads "RECIPE-5 feature/add-recipe and RECIPE-11 feature/search-recipes, each with feature-test and feature-review" {
+      notes 'phased foundations, core, dependent, polish; a colliding sibling gets different words, never -2'
+    }
+    human -> planAgents.planTask "plan the tasks for RECIPE-5"
+    planAgents.planTask -> beads "RECIPE-6, RECIPE-7, RECIPE-8, chained one to the next" {
+      notes '''each created labeled: bd create -l backend-logic --parent RECIPE-5
+metadata: { "branch": "feature/add-recipe" } copied VERBATIM from the feature gate
+every ticket verified with a bd show --json round trip'''
+    }
+    human -> dispatcher "bo loop — and the tower starts walking itself"
+  }
+
+  dynamic view tickWalkthrough {
+    variant sequence
+    title "Walkthrough / 2. One tick of bo loop"
+    description '''
+**What it is:** the dispatcher's claim-to-spawn path, with every decision and every error that can pop up on the way. Left-claimed tickets park behind their own lease; unclaimed ones return for the next tick.
+'''
+    dispatcher -> beads "probe the frontier: bd list --status open,blocked --limit 0" {
+      notes 'frontier = [RECIPE-6, RECIPE-12] — the first task of each feature, both unblocked, claimed together'
+    }
+    dispatcher -> beads "bd ready --claim (atomic — a bare bd ready would let two loops steal the ticket)" {
+      notes '''the claim payload:
+{"id":"RECIPE-6","labels":["backend-logic"],
+ "metadata":{"branch":"feature/add-recipe"},
+ "parent":"RECIPE-5"}'''
+    }
+    alt {
+      when 'exactly one dispatching label sits in the AGENT map' {
+        dispatcher -> workers.engineer "AGENT[backend-logic] = engineer"
+      }
+      else 'zero or two dispatching labels' {
+        dispatcher -> errors.labelAmbiguous "never guesses a specialist"
+        dispatcher -> beads "leave it CLAIMED — the lease parks it off the frontier"
+      }
+    }
+    alt {
+      when 'the claim carries metadata.branch' {
+        dispatcher -> beads "BO_BRANCH = feature/add-recipe — read off the claim, nothing re-derives it, nothing parses text"
+      }
+      else 'no branch key in metadata' {
+        dispatcher -> errors.metadataMissing "ERROR reason=metadata-missing — left claimed"
+      }
+    }
+    dispatcher -> beads "branchesCurrentlyAtWork()"
+    alt {
+      when 'another worker already holds feature/add-recipe' {
+        dispatcher -> beads "bd unclaim RECIPE-6"
+        dispatcher -> errors.branchBusy "one pair of hands per branch; try the next claim, max max_parallel + 2 per tick"
+      }
+      when 'the branch is free' {
+        dispatcher -> tower.epic "walk RECIPE-5 to RECIPE-1 (epicGateOf, two hops at most) — read the PR base off the gate"
+      }
+    }
+    try {
+      dispatcher -> origin "ensureEpicGatePr — the gate has no pr: push epic/recipe-box off main, open the PR"
+      dispatcher -> beads "bd update RECIPE-1 --set-metadata pr=https://github.com/…/pull/1 (merges — never disturbs branch)"
+    } catch {
+      dispatcher -> errors.epicPrFailed "left claimed — a worker under a nonexistent epic branch burns a slot; steps: walk, gate-branch, forge, missing-tool, push, pr, annotate"
+    }
+    dispatcher -> beads "ensureWorktree — git worktree add .claude/worktrees/feature+add-recipe origin/feature/add-recipe"
+    alt {
+      when 'the worktree cannot be made' {
+        dispatcher -> errors.worktreeFailed "ERROR reason=worktree-failed — left claimed"
+      }
+      when 'the worktree is ready' {
+        dispatcher -> workers.engineer "claude --bg --agent engineer --permission-mode bypassPermissions (cwd INSIDE the worktree)" {
+          notes '''the six rules the prompt hands the worker — nothing more:
+1. keep the lease alive (bd heartbeat)
+2. never close your ticket — report in the final message
+3. comment what remains
+4. spawn nothing
+5. stay on your branch; never commit, branch, merge, or push
+6. touch $BO_DONE_FILE as the very last action — ONLY if the brief is genuinely complete'''
+        }
+      }
+    }
+    alt {
+      when 'no session came back' {
+        dispatcher -> beads "bd unclaim RECIPE-6"
+        dispatcher -> errors.workerNotDispatched "ERROR reason=worker-not-dispatched"
+      }
+      when 'the worker is live' {
+        dispatcher -> beads "log one line, move on — the loop polls nothing, reaps nothing, merges nothing, ends nothing"
+      }
+    }
+  }
+
+  dynamic view workerToGate {
+    variant sequence
+    title "Walkthrough / 3. Worker, Stop hook, gate"
+    description '''
+**What it is:** one ticket's life after dispatch — heartbeat, the done marker, the fail-closed Stop hook, and the human closing the gate. The whole safety of the model rests on $BO_DONE_FILE.
+'''
+    workers.engineer -> beads "bd heartbeat RECIPE-6 — keep the lease alive"
+    workers.engineer -> beads "writes src/recipes/validate-recipe.ts in the worktree — never commits, never branches" {
+      notes "the work sits uncommitted until the Stop hook files it"
+    }
+    workers.engineer -> beads "final action: touch $BO_DONE_FILE — only if the brief is genuinely complete" {
+      notes "the worker's own declaration; the hook is fail-closed on it"
+    }
+    hook -> workers.engineer "Stop fires"
+    alt {
+      when 'no BO_DONE_FILE marker' {
+        hook -> errors.notDeclaredDone "ERROR reason=not-declared-done — fail-closed"
+        hook -> beads "RECIPE-6 stays claimed; RECIPE-7 chained behind it waits"
+      }
+      when 'the marker is there' {
+        hook -> origin "commit RECIPE-6 onto feature/add-recipe, push, open PR base epic/recipe-box — once per branch, reused after"
+        hook -> beads "write metadata pr=… onto RECIPE-6, close the task"
+        alt {
+          when 'the loop never handed down a target' {
+            hook -> errors.noPrTarget "ERROR reason=no-pr-target — named for the target, since pr now means the url"
+          }
+          when 'BO_PR_TARGET is set' {
+            hook -> dispatcher "the line opens one ticket: RECIPE-7 becomes the frontier"
+          }
+        }
+      }
+    }
+    dispatcher -> workers.testerUnit "AGENT[unit-tests] = tester-unit — respawn means a fresh session of the SAME agent re-checks inside the one ticket"
+    workers.testerUnit -> beads "covers every branch of validateRecipe (framework-jest), commits onto feature/add-recipe via the hook"
+    workers.reviewAgent -> origin "feature-review: maps entry to exit, trace logs, tests against the instrumented code, findings as PR comments"
+    human -> tower.featA "reads the report, verifies the flow, closes RECIPE-5 — only a human closes a gate" {
+      notes "its PR merges feature/add-recipe into epic/recipe-box"
+    }
+    human -> tower.featB "verify, close RECIPE-11"
+  }
+
+  dynamic view epicTier {
+    variant sequence
+    title "Walkthrough / 4. The epic tier assembles"
+    description '''
+**What it is:** after both feature gates close, the merge assembles the feature branches, the broad tier journeys, the review asks its three questions, and the human closes the epic.
+'''
+    dispatcher -> workers.mergeAgent "RECIPE-2 epic-merge-pr is on the frontier — dispatched like any other stamp"
+    workers.mergeAgent -> origin "read the feature branches off the gates, assemble onto epic/recipe-box, resolve the conflicts, run the tests, report" {
+      notes "writes no code, no tests; never merges into main, never opens a PR"
+    }
+    dispatcher -> workers.testerE2e "RECIPE-3 epic-e2e-test — journeys on the real stack" {
+      notes "cross-feature state handoffs, session continuity, one success + one failure journey per feature (framework-playwright)"
+    }
+    dispatcher -> workers.reviewAgent "RECIPE-4 epic-review — three questions from first principles"
+    human -> tower.epic "verify, close the epic gate — thumbs-up on the merged PR into main"
+  }
+
+  deployment view stageBackends {
+    title "Walkthrough / 5. Stage — back end, two branches at once"
+    description '''
+**What it is:** the frontier at the tower's bottom tier: RECIPE-6 and RECIPE-12 are each feature's first task, so both are claimed together and the two engineers run side by side — one per branch, never two workers on one branch.
+'''
+    include worktreesRoot.wtA.engA
+    include worktreesRoot.wtA.t_backendA
+    include worktreesRoot.wtB.engB
+    include worktreesRoot.wtB.t_backendB
+  }
+
+  deployment view stageUnits {
+    title "Walkthrough / 6. Stage — the micro tier follows its back end"
+    description '''
+**What it is:** unit-tests waited on the back-end ticket it tests — the line opens one ticket at a time, so tester-unit claims RECIPE-7 only after RECIPE-6 landed. The UI is not built on an unproved function.
+'''
+    include worktreesRoot.wtA.unitA
+    include worktreesRoot.wtA.t_unitA
+    include worktreesRoot.wtB.unitB
+    include worktreesRoot.wtB.t_unitB
+  }
+
+  deployment view stageFrontends {
+    title "Walkthrough / 7. Stage — the UI, last in the line"
+    description '''
+**What it is:** frontend-ui is the last task of the line — built against functions already proved. Its landing unblocks feature-test.
+'''
+    include worktreesRoot.wtA.feA
+    include worktreesRoot.wtA.t_frontA
+    include worktreesRoot.wtB.feB
+    include worktreesRoot.wtB.t_frontB
+  }
+
+  deployment view stageFeatureTier {
+    title "Walkthrough / 8. Stage — suite, then review, on the whole feature"
+    description '''
+**What it is:** nothing is proved against half a feature — feature-test waits on the LAST task, feature-review waits on the suite. Both run on the feature's branch, in their own box.
+'''
+    include worktreesRoot.wtA.ftA
+    include worktreesRoot.wtA.t_ftestA
+    include worktreesRoot.wtA.revA
+    include worktreesRoot.wtA.t_frevA
+    include worktreesRoot.wtB.ftB
+    include worktreesRoot.wtB.t_ftestB
+    include worktreesRoot.wtB.revB
+    include worktreesRoot.wtB.t_frevB
+  }
+
+  deployment view stageEpicTier {
+    title "Walkthrough / 9. Stage — the epic tier, in its own box"
+    description '''
+**What it is:** the epic branch's worktree after both gates close: merge assembles, the broad tier journeys, review comments. Then the human closes the epic and the PR into main gets the thumbs-up.
+'''
+    include worktreesRoot.wtEpic.mergeRun
+    include worktreesRoot.wtEpic.e2eRun
+    include worktreesRoot.wtEpic.epicReviewRun
+    include worktreesRoot.wtEpic.t_merge
+    include worktreesRoot.wtEpic.t_e2e
+    include worktreesRoot.wtEpic.t_epicReview
+  }
+
+  view errorMap {
+    title "Walkthrough / 10. Errors that pop up"
+    description '''
+**What it is:** every alarm the machine can raise, and who raises it. Two dispositions decide everything: LEFT CLAIMED (the lease parks the ticket off the frontier — label-ambiguous, metadata-missing, worktree-failed, epic-pr-failed, not-declared-done) or UNCLAIMED (put straight back for the next tick — worker-not-dispatched, branch-busy). The gray-handled ones are waiting-line probes, not failures: frontier_empty vs tower_stalled is two states of an empty frontier, and only the human can clear a tower stalled behind an open gate.
+'''
+    include dispatcher
+    include hook
+    include errors.**
+  }
+}

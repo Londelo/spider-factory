@@ -1,0 +1,68 @@
+deployment {
+
+  worktreesRoot = worktreeBox ".claude/worktrees/ — one box per branch" {
+    description '''
+**What it is:** the folder the loop owns. A worktree belongs to a **branch**, not to a ticket — the loop creates it for the branch's first task and every later task re-enters it. Branch names map to folder names with `/` to `+`.
+'''
+
+    wtEpic = worktreeBox "epic+recipe-box → epic/recipe-box" {
+      description '''
+**What it is:** the epic branch's worktree — where the epic tier runs. Its PR (base `main`) is published by the loop alone, and the url lives on the epic gate as `pr`.
+'''
+      mergeRun = instanceOf workers.mergeAgent
+      e2eRun = instanceOf workers.testerE2e
+      epicReviewRun = instanceOf workers.reviewAgent
+      t_merge = instanceOf tower.epic.epicMergePr
+      t_e2e = instanceOf tower.epic.epicE2e
+      t_epicReview = instanceOf tower.epic.epicReview
+    }
+
+    wtA = worktreeBox "feature+add-recipe → feature/add-recipe" {
+      description '''
+**What it is:** one branch, one pair of hands. The graph keeps a feature's tasks one linked line, so the frontier hands out one task per feature and this checkout is never written by two workers at once.
+'''
+      engA = instanceOf workers.engineer
+      unitA = instanceOf workers.testerUnit
+      feA = instanceOf workers.frontend
+      ftA = instanceOf workers.testerFeature
+      revA = instanceOf workers.reviewAgent
+      t_backendA = instanceOf tower.featA.backendA
+      t_unitA = instanceOf tower.featA.unitA
+      t_frontA = instanceOf tower.featA.frontendA
+      t_ftestA = instanceOf tower.featA.featureTestA
+      t_frevA = instanceOf tower.featA.featureReviewA
+    }
+
+    wtB = worktreeBox "feature+search-recipes → feature/search-recipes" {
+      description '''
+**What it is:** the second feature's worktree, running side by side with Add a Recipe — two features in parallel, each alone on its own branch.
+'''
+      engB = instanceOf workers.engineer
+      unitB = instanceOf workers.testerUnit
+      feB = instanceOf workers.frontend
+      ftB = instanceOf workers.testerFeature
+      revB = instanceOf workers.reviewAgent
+      t_backendB = instanceOf tower.featB.backendB
+      t_unitB = instanceOf tower.featB.unitB
+      t_frontB = instanceOf tower.featB.frontendB
+      t_ftestB = instanceOf tower.featB.featureTestB
+      t_frevB = instanceOf tower.featB.featureReviewB
+    }
+  }
+
+  worktreesRoot.wtA.engA -> worktreesRoot.wtA.t_backendA "works — one commit"
+  worktreesRoot.wtA.unitA -> worktreesRoot.wtA.t_unitA "works — test commit"
+  worktreesRoot.wtA.feA -> worktreesRoot.wtA.t_frontA "works — UI commit"
+  worktreesRoot.wtA.ftA -> worktreesRoot.wtA.t_ftestA "works — suite"
+  worktreesRoot.wtA.revA -> worktreesRoot.wtA.t_frevA "works — PR comments"
+
+  worktreesRoot.wtB.engB -> worktreesRoot.wtB.t_backendB "works — one commit"
+  worktreesRoot.wtB.unitB -> worktreesRoot.wtB.t_unitB "works — test commit"
+  worktreesRoot.wtB.feB -> worktreesRoot.wtB.t_frontB "works — UI commit"
+  worktreesRoot.wtB.ftB -> worktreesRoot.wtB.t_ftestB "works — suite"
+  worktreesRoot.wtB.revB -> worktreesRoot.wtB.t_frevB "works — PR comments"
+
+  worktreesRoot.wtEpic.mergeRun -> worktreesRoot.wtEpic.t_merge "works — assemble"
+  worktreesRoot.wtEpic.e2eRun -> worktreesRoot.wtEpic.t_e2e "works — journeys"
+  worktreesRoot.wtEpic.epicReviewRun -> worktreesRoot.wtEpic.t_epicReview "works — PR comments"
+}

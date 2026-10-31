@@ -1,5 +1,5 @@
 {
-  "description": "Finishes a dispatched worker's ticket when its session stops: push what is left, open the PR, write the PR url and branch back onto the ticket, close it. Sessions the dispatcher did not spawn exit on the hook's first line.",
+  "description": "Finishes a dispatched worker's ticket when its session stops: push what is left, open the PR, write the PR url and branch back onto the ticket, close it. A session that died on an API error instead parks its ticket in failed-agent. Sessions the dispatcher did not spawn exit on either hook's first line.",
   "hooks": {
     "Stop": [
       {
@@ -8,6 +8,17 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/worker-stop.sh\"",
             "timeout": 300
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/worker-fail.sh\"",
+            "timeout": 60
           }
         ]
       }

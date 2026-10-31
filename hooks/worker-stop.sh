@@ -84,17 +84,33 @@ if ! pushed="$(git -C "$worktreeDir" push -u origin "$branch" 2>&1)"; then
     exit 0
 fi
 
-# The remote names the forge, not the tool that happens to be installed: a repo that talks to
-# GitLab must never be pushed through gh. Where the remote says nothing, the tie-breaker is the
-# one CLI this machine actually has.
-case "$(git -C "$worktreeDir" remote get-url origin 2>/dev/null)" in
+# The remote names the forge, never the machine. An honest host settles itself; where it does not,
+# the refs that host publishes do, because only GitHub serves refs/pull and only GitLab serves
+# refs/merge-requests. A brand new repo has published neither yet, so the last resort is a machine
+# holding exactly one of the two CLIs — and where that is ambiguous too, the hook refuses to guess.
+remoteUrl="$(git -C "$worktreeDir" remote get-url origin 2>/dev/null)"
+case "$remoteUrl" in
     *gitlab*) forge=gitlab ;;
-    *) if command -v glab >/dev/null 2>&1 && ! command -v gh >/dev/null 2>&1; then
-           forge=gitlab
-       else
-           forge=github
-       fi ;;
+    *github*) forge=github ;;
+    *)
+        remoteRefs="$(git -C "$worktreeDir" ls-remote origin 2>/dev/null)"
+        if grep -qE '[[:space:]]refs/(merge-requests|pipelines|environments)/' <<<"$remoteRefs"; then
+            forge=gitlab
+        elif grep -qE '[[:space:]]refs/pull/' <<<"$remoteRefs"; then
+            forge=github
+        elif command -v glab >/dev/null 2>&1 && ! command -v gh >/dev/null 2>&1; then
+            forge=gitlab
+        elif command -v gh >/dev/null 2>&1 && ! command -v glab >/dev/null 2>&1; then
+            forge=github
+        else
+            forge=""
+        fi
+        ;;
 esac
+if [[ -z "$forge" ]]; then
+    logTo errors "ticket=$ticket reason=forge-unknown remote=\"$remoteUrl\""
+    exit 0
+fi
 forgeTool=gh
 [[ "$forge" == gitlab ]] && forgeTool=glab
 if ! command -v "$forgeTool" >/dev/null 2>&1; then

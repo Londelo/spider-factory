@@ -22,7 +22,13 @@
 #                 the resulting PR is written back as the ticket's `pr` metadata.
 #   BO_PROJECT_DIR  the tower root, where .beads lives. The worktree is NOT the tower.
 #   BO_LOG_DIR      this run's log dir; alarms land in $BO_LOG_DIR/errors
+#   BO_AGENT        the specialist the loop dispatched, so an alarm names who was doing the work
+#   BO_LABEL        the dispatching label that chose that specialist
 #   BO_DONE_FILE    the marker the worker touches when — and only when — its brief is complete
+#
+# Every line this writes goes through CLI/loop-log.sh and carries the run's identity field set —
+# run, repo, ticket, label, agent, branch, target, session, worktree — so an alarm in errors points
+# straight at the claims line that spawned it and the closes line it never reached.
 set -uo pipefail
 
 [[ -n "${BO_TICKET:-}" ]] || exit 0
@@ -34,12 +40,21 @@ towerDir="${BO_PROJECT_DIR:-$PWD}"
 logDir="${BO_LOG_DIR:-$HOME/.binary-obelisk/logs}"
 mkdir -p "$logDir" 2>/dev/null || true
 
-logTo() { printf '%-8s %s\t%s\n' "$1" "$(date +%FT%T)" "${*:2}" | tee -a "$logDir/$1" >/dev/null; }
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BO_LOG_QUIET=1
+source "$here/../CLI/loop-log.sh"
+boSeedIdentity "$logDir" "${BO_PROJECT_DIR:-$PWD}"
+boIdent ticket "$ticket"
+boIdent branch "$branch"
+boIdent target "$prTarget"
+boIdent agent "${BO_AGENT:-}"
+boIdent label "${BO_LABEL:-}"
+
 oneLine() { tr '\n' ' ' | tr -d '"\\' | sed 's/  */ /g' | cut -c1-160; }
 
 for requiredTool in bd jq git; do
     command -v "$requiredTool" >/dev/null 2>&1 || {
-        logTo errors "ticket=$ticket reason=missing-tool tool=$requiredTool"
+        logTo errors "reason=missing-tool tool=$requiredTool"
         exit 0
     }
 done
@@ -48,6 +63,8 @@ hookInput="$(cat)"
 worktreeDir="$(jq -r '.cwd // empty' <<<"$hookInput" 2>/dev/null)"
 [[ -n "$worktreeDir" && -d "$worktreeDir" ]] || worktreeDir="$PWD"
 sessionId="$(jq -r '.session_id // empty' <<<"$hookInput" 2>/dev/null)"
+boIdent worktree "$worktreeDir"
+boIdent session "$sessionId"
 
 # A second Stop in the same session re-enters this script. Once the ticket is closed the work
 # is finished and the run is over, so the re-entry leaves silently instead of committing onto
@@ -58,16 +75,16 @@ if [[ "$ticketState" == "closed" ]]; then
     exit 0
 fi
 if [[ "$ticketState" != "in_progress" ]]; then
-    logTo errors "ticket=$ticket reason=ticket-not-in-work state=\"${ticketState:-not-found}\""
+    logTo errors "reason=ticket-not-in-work state=\"${ticketState:-not-found}\""
     exit 0
 fi
 
 if [[ -z "$branch" ]]; then
-    logTo errors "ticket=$ticket reason=no-branch msg=\"BO_BRANCH was not on the spawn; the ticket's metadata should carry a 'branch' key\""
+    logTo errors "reason=no-branch msg=\"BO_BRANCH was not on the spawn; the ticket's metadata should carry a 'branch' key\""
     exit 0
 fi
 if [[ -z "$prTarget" ]]; then
-    logTo errors "ticket=$ticket reason=no-pr-target branch=$branch msg=\"BO_PR_TARGET was not on the spawn; the loop reads the target off the ticket's epic gate, and says main when the ticket sits under the epic itself\""
+    logTo errors "reason=no-pr-target msg=\"BO_PR_TARGET was not on the spawn; the loop reads the target off the ticket's epic gate, and says main when the ticket sits under the epic itself\""
     exit 0
 fi
 
@@ -75,7 +92,7 @@ fi
 # nothing lands there until the worker said, out loud, in the one place both programs read,
 # that its brief is finished. The session ending is not that statement; the marker is.
 if [[ ! -e "${BO_DONE_FILE:-/nonexistent-bo-done-file}" ]]; then
-    logTo errors "ticket=$ticket reason=not-declared-done branch=$branch worktree=\"$worktreeDir\" msg=\"the worker stopped without touching its done file; nothing was committed and the ticket stays open — the tasks behind it wait\""
+    logTo errors "reason=not-declared-done msg=\"the worker stopped without touching its done file; nothing was committed and the ticket stays open — the tasks behind it wait\""
     exit 0
 fi
 
@@ -83,14 +100,14 @@ fi
 # can refuse to file its work under the wrong ticket's name.
 currentBranch="$(git -C "$worktreeDir" branch --show-current 2>/dev/null)"
 if [[ "$currentBranch" != "$branch" ]]; then
-    logTo errors "ticket=$ticket reason=wrong-branch want=$branch got=\"${currentBranch:-detached}\" worktree=\"$worktreeDir\""
+    logTo errors "reason=wrong-branch want=$branch got=\"${currentBranch:-detached}\""
     exit 0
 fi
 
 ticketJson="$(bd -C "$towerDir" show --json --long "$ticket" 2>/dev/null)"
 ticketTitle="$(jq -r 'if type == "array" then .[0] else . end | .title // ""' <<<"$ticketJson" 2>/dev/null)"
 if [[ -z "$ticketTitle" ]]; then
-    logTo errors "ticket=$ticket reason=ticket-has-no-title"
+    logTo errors "reason=ticket-has-no-title"
     exit 0
 fi
 
@@ -104,13 +121,13 @@ $ticketTitle
 Ticket: $ticket
 COMMIT
     then
-        logTo errors "ticket=$ticket reason=commit-failed branch=$branch worktree=\"$worktreeDir\""
+        logTo errors "reason=commit-failed msg=\"the commit for this task did not land on its branch\""
         exit 0
     fi
 fi
 
 if ! pushed="$(git -C "$worktreeDir" push -u origin "$branch" 2>&1)"; then
-    logTo errors "ticket=$ticket reason=push-failed branch=$branch msg=\"$(oneLine <<<"$pushed")\""
+    logTo errors "reason=push-failed msg=\"$(oneLine <<<"$pushed")\""
     exit 0
 fi
 
@@ -138,13 +155,13 @@ case "$remoteUrl" in
         ;;
 esac
 if [[ -z "$forge" ]]; then
-    logTo errors "ticket=$ticket reason=forge-unknown remote=\"$remoteUrl\""
+    logTo errors "reason=forge-unknown remote=\"$remoteUrl\""
     exit 0
 fi
 forgeTool=gh
 [[ "$forge" == gitlab ]] && forgeTool=glab
 if ! command -v "$forgeTool" >/dev/null 2>&1; then
-    logTo errors "ticket=$ticket reason=missing-tool tool=$forgeTool forge=$forge"
+    logTo errors "reason=missing-tool tool=$forgeTool forge=$forge"
     exit 0
 fi
 
@@ -182,14 +199,14 @@ if [[ -z "$prUrl" ]]; then
         | grep -E '/(pull|merge_requests)/[0-9]+' | tail -1)"
 fi
 if ! [[ "$prUrl" =~ ^https?://[^[:space:]]+$ ]]; then
-    logTo errors "ticket=$ticket reason=pr-not-created forge=$forge branch=$branch target=$prTarget msg=\"$(oneLine <<<"$prUrl")\""
+    logTo errors "reason=pr-not-created forge=$forge msg=\"$(oneLine <<<"$prUrl")\""
     exit 0
 fi
 
 # the ticket has to say where the work went. the plan's `branch` stays untouched:
 # `--set-metadata` merges, so this adds the one key nobody can derive from the branch without the forge.
 if ! bd -C "$towerDir" update "$ticket" --set-metadata "pr=$prUrl" >/dev/null 2>&1; then
-    logTo errors "ticket=$ticket reason=ticket-not-annotated pr=$prUrl"
+    logTo errors "reason=ticket-not-annotated pr=$prUrl"
     exit 0
 fi
 
@@ -197,9 +214,9 @@ fi
 # ticket as whoever runs bd, so overriding the actor here would be the only reason to fail.
 if ! bd -C "$towerDir" close "$ticket" --session "$sessionId" \
         --reason "worker session $(oneLine <<<"$sessionId") finished; PR $prUrl" >/dev/null 2>&1; then
-    logTo errors "ticket=$ticket reason=close-failed pr=$prUrl"
+    logTo errors "reason=close-failed pr=$prUrl"
     exit 0
 fi
 
-logTo closes "ticket=$ticket branch=$branch target=$prTarget url=$prUrl"
+logTo closes "url=$prUrl"
 exit 0

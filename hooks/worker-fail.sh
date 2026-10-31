@@ -25,6 +25,12 @@
 #   BO_TICKET       the ticket this session owns
 #   BO_PROJECT_DIR  the tower root, where .beads lives. The worktree is NOT the tower.
 #   BO_LOG_DIR      this run's log dir; alarms land in $BO_LOG_DIR/errors
+#   BO_AGENT        the specialist the loop dispatched, so an alarm names who died
+#   BO_LABEL        the dispatching label that chose that specialist
+#
+# Every line goes through CLI/loop-log.sh and carries the run's identity field set — run, repo,
+# ticket, label, agent, branch, target, session, worktree — which is what ties a death in failures
+# to the claims line that spawned it and any errors the Stop hook wrote for the same session.
 set -uo pipefail
 
 [[ -n "${BO_TICKET:-}" ]] || exit 0
@@ -34,11 +40,22 @@ towerDir="${BO_PROJECT_DIR:-$PWD}"
 logDir="${BO_LOG_DIR:-$HOME/.binary-obelisk/logs}"
 mkdir -p "$logDir" 2>/dev/null || true
 
-logTo() { printf '%-8s %s\t%s\n' "$1" "$(date +%FT%T)" "${*:2}" | tee -a "$logDir/$1" >/dev/null; }
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BO_LOG_QUIET=1
+source "$here/../CLI/loop-log.sh"
+boSeedIdentity "$logDir" "$towerDir"
+boIdent ticket "$ticket"
+boIdent agent "${BO_AGENT:-}"
+boIdent label "${BO_LABEL:-}"
+boIdent branch "${BO_BRANCH:-}"
+boIdent target "${BO_PR_TARGET:-}"
+
 oneLine() { tr '\n' ' ' | tr -d '"\\' | sed 's/  */ /g' | cut -c1-200; }
 
 hookInput="$(cat)"
 sessionId="$(jq -r '.session_id // empty' <<<"$hookInput" 2>/dev/null)"
+boIdent session "$sessionId"
+boIdent worktree "$(jq -r '.cwd // empty' <<<"$hookInput" 2>/dev/null)"
 failureKind="$(jq -r '.error // "unknown"' <<<"$hookInput" 2>/dev/null)"
 lastMessage="$(jq -r '.last_assistant_message // empty' <<<"$hookInput" 2>/dev/null)"
 
@@ -47,7 +64,7 @@ lastMessage="$(jq -r '.last_assistant_message // empty' <<<"$hookInput" 2>/dev/n
 ticketState="$(bd -C "$towerDir" show --json "$ticket" 2>/dev/null \
     | jq -r 'if type == "array" then .[0] else . end | .status // empty' 2>/dev/null)"
 if [[ -z "$ticketState" ]]; then
-    logTo errors "ticket=$ticket reason=ticket-not-found"
+    logTo errors "reason=ticket-not-found"
     exit 0
 fi
 if [[ "$ticketState" != "in_progress" ]]; then
@@ -57,14 +74,14 @@ fi
 # the reason goes on first — a ticket parked in failure with nothing said about why is worse than one left in_progress
 if ! bd -C "$towerDir" update "$ticket" --append-notes "Worker session $(oneLine <<<"$sessionId") failed: $failureKind
 Last message: $(oneLine <<<"$lastMessage")" >/dev/null 2>&1; then
-    logTo errors "ticket=$ticket reason=ticket-not-annotated kind=$failureKind"
+    logTo errors "reason=ticket-not-annotated kind=$failureKind"
     exit 0
 fi
 
 if ! bd -C "$towerDir" update "$ticket" --status failed-agent >/dev/null 2>&1; then
-    logTo errors "ticket=$ticket reason=status-not-set kind=$failureKind from=$ticketState"
+    logTo errors "reason=status-not-set kind=$failureKind from=$ticketState"
     exit 0
 fi
 
-logTo failures "ticket=$ticket from=$ticketState kind=$failureKind msg=\"$(oneLine <<<"$lastMessage")\""
+logTo failures "from=$ticketState kind=$failureKind msg=\"$(oneLine <<<"$lastMessage")\""
 exit 0

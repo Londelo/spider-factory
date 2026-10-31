@@ -23,6 +23,7 @@ plugins/binary-obelisk/
 ├── CLI/                                  # the `bo` command — a bin package, no node, installed by a launcher script
 │   ├── bin/bo                            # the entrypoint `bo` — one command, `bo loop`, foreground
 │   ├── beads-loop.sh                     # the claim-beads dispatcher engine
+│   ├── loop-log.sh                       # the one log-line definition, sourced by the engine AND both hooks
 │   └── install-cli.sh                    # writes a real launcher onto PATH (not a symlink, so it survives uninstall)
 ├── scripts/tower-walk.sh                 # experiment harness — builds a tower and walks the frontier by hand
 └── shared/                               # plan-task and review templates/formats — the three test-tier templates are tester-unit.md, tester-feature.md, tester-e2e.md
@@ -174,7 +175,7 @@ Each tick: read the branches already at work (`branchesCurrentlyAtWork`), claim 
 claim, walk that parent to the epic gate and read the PR base off the gate itself (`main` when the claim's
 parent **is** that topmost gate — the tick tests it with `[[ "$gateId" == "$claimParent" ]]`), publish the
 epic gate's branch and PR if it has none
-(`ensureEpicGatePr <gate-id> <ticket-id>` — see §Branches), make sure that branch's worktree exists (`ensureWorktree` → `git worktree add` under
+(`ensureEpicGatePr <gate-id>` — see §Branches), make sure that branch's worktree exists (`ensureWorktree` → `git worktree add` under
 `.claude/worktrees/`, starting at `origin/<branch>` else `origin/<base>` else `<base>` else `HEAD`),
 then spawn `claude --bg --agent <agent> --permission-mode bypassPermissions` **with cwd inside that
 worktree** — no `-w`, because claude's `--worktree` only ever *creates* one and this branch already owns
@@ -211,6 +212,45 @@ never reads output, never reaps, never merges, never ends itself.
   third: tickets exist and are claimable, but every branch they want is already working.
 - **Waiting lines are capped at one a minute per reason**; errors are never capped.
 - Workers run `bypassPermissions` unattended → **only run this loop in a repo you fully trust**.
+
+### The log — CLI/loop-log.sh
+One directory per run under `BO_LOG_ROOT` (`~/.binary-obelisk/logs/<date_time>` — the binary obelisk
+is the central home for everything the loop leaves behind). The engine creates **every** file up
+front, so a missing file and an empty file look the same and neither hides a silent failure:
+`claims`, `errors`, `waiting`, `results`, `closes`, `failures`, plus `spawn-<ticket>` (that one
+worker's raw spawn output) and `done-<ticket>` (the worker's own declaration).
+
+`CLI/loop-log.sh` is the single definition of a line, **sourced by the engine and by both hooks** —
+one format for the whole system, or the files cannot be read against each other:
+
+```
+<tag padded to 8> <ISO time>\trun=… repo=… ticket=… label=… agent=… branch=… target=… session=… worktree=… <detail>
+```
+
+Those nine keys are the whole contract and they are on **every line of every file**, `"-"` for
+whatever is not known at that moment — an absent field would be indistinguishable from a field
+nobody set, and an error line is worth nothing if it cannot say what it happened to. The engine
+sets them as a claim resolves (`boIdent` at each step, `boClearIdentity` at the top of every attempt
+so no line inherits a ticket from the tick before); the hooks set theirs from the `BO_*` environment
+the spawn carried plus the `session_id` the hook input hands them. So an `errors` line names the
+ticket, the label, the specialist, the branch, its PR target, the repo and the session, and the same
+keys lead from it into `claims` (what was taken), `closes` (what landed) or `failures` (what died)
+by grep alone.
+
+- **`session=` is the id `claude --bg` prints** (`backgrounded · 287d3c4c`), read off that worker's
+  own `spawn-<ticket>` file by `sessionFromSpawn`. It used to go into one shared `last-spawn` that
+  every spawn overwrote, so the id survived only for the run's final worker — the one thing a human
+  needs to `claude attach`, read logs of, or stop. The hooks log the same id from their own hook
+  input, which is what ties a Stop alarm to the claims line that spawned it.
+- **`agent=` and `label=` reach the hooks** because the spawn line carries `BO_AGENT` and `BO_LABEL`;
+  the hook cannot look a specialist up from anything else.
+- A value beyond the nine keys (a `step=`, a `gate=`, an exit code, `msg=`) is passed as detail to
+  `logTo`, never added to the identity — the key set is closed, or joining stops working.
+- The engine sets identity from the **claim in hand**; `ensureEpicGatePr` logs no ticket of its own
+  for that reason, and the epic gate's own branch is `gateBranch=` on the line, never `branch=` —
+  that key belongs to the claim, and the two differ.
+- The hooks write with `BO_LOG_QUIET=1` (a hook must not print into a session); the engine leaves it
+  unset and every line also goes to the terminal.
 
 ### Key Beads Commands
 | Command | Purpose |

@@ -48,6 +48,21 @@
 #                                  only a human can unstick them. tick() probes the difference.
 #   reason=branch_busy held=N      claimable tickets exist, but every branch they want is already
 #                                  being written by a worker; each was unclaimed and skipped.
+# THE LOG — one directory per run under BO_LOG_ROOT, and every file in it created up front, so an
+# empty file and a missing file look the same and neither hides a silent failure:
+#   claims            every ticket taken, and every one put back
+#   errors            the alarm: every failure, whoever saw it
+#   waiting           the quiet ticks, one a minute per reason
+#   closes            the Stop hook's proof of work — what landed and its pull request
+#   failures          the StopFailure hook's account of a session that died mid-turn
+#   results           the run's tally, at the end or on Ctrl-C
+#   spawn-<ticket>    that one worker's raw spawn output, which holds its session id
+#   done-<ticket>     the worker's own declaration that its brief is complete
+# CLI/loop-log.sh owns the line format: tag, timestamp, then the SAME nine identity keys on every
+# line of every file — run repo ticket label agent branch target session worktree — "-" for whatever
+# is not known yet. That shared key set is what makes the files JOIN: a line in errors names the
+# ticket, the label, the agent, the branch, its pull request target, the repo and the session, and
+# the same keys lead from it into claims, closes or failures by grep alone.
 set -uo pipefail
 
 maximumParallelWorkers="${BO_MAX_PARALLEL:-4}"
@@ -124,19 +139,19 @@ fi
 
 logDir="$logRoot/$(date +%F_%H-%M-%S)"
 mkdir -p "$logDir" 2>/dev/null || { echo "beads-loop: cannot create $logDir" >&2; exit 1; }
-for logFileName in claims errors waiting results; do : > "$logDir/$logFileName"; done
+# every file a run can write is created up front, so a missing file and an empty file are the
+# same sight — closes and failures are written by the hooks, possibly long after this run ends.
+for logFileName in claims errors waiting results closes failures; do : > "$logDir/$logFileName"; done
 
-# logTo <file> <message…> — the first argument is BOTH the display tag and the file it appends
-# to, so a log line can never land in a file nobody watches. (It used to take a separate
-# filename argument, and the calls passed claimed/error/result there, silently writing past the
-# claims/errors/results files the loop pre-creates — leaving the errors "alarm" file forever empty.)
-logTo() { printf '%-8s %s\t%s\n' "$1" "$(date +%FT%T)" "${*:2}" | tee -a "$logDir/$1"; }
+engineDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$engineDir/loop-log.sh"
 
 lastLineOf() { tail -1 "$1" 2>/dev/null; }
 
 # The tower root owns the beads DB; the worktrees hang off it and each belongs to one branch.
 towerDir="$PWD"
 worktreesRoot="$towerDir/.claude/worktrees"
+boSeedIdentity "$logDir" "$towerDir"
 
 # Workers now live in their branch's worktree, not in a per-ticket one the spawner named, so the
 # count is "background sessions whose cwd is this tower or one of its worktrees" — the sessions
@@ -226,28 +241,30 @@ detectForge() {
     fi
 }
 
-# ensureEpicGatePr <epic-gate-id> <ticket-id> — zero when the epic gate carries a `pr`, which is the
+# ensureEpicGatePr <epic-gate-id> — zero when the epic gate carries a `pr`, which is the
 # only state in which a feature's pull request has a base to aim at. Where it does not, this publishes
 # the gate's branch and opens its pull request into main, then writes the url onto the gate's metadata.
+# It names no ticket: the identity the tick carries for the claim that needed this gate is already on
+# every line. The gate's own branch is gateBranch= — branch= belongs to the claim, and the two differ.
 ensureEpicGatePr() {
-    local gateId="$1" ticketId="$2"
+    local gateId="$1"
     local gateBranch forge forgeTool prUrl bodyFile start prBody
     [[ -n "$(readFieldOf "$gateId" pr)" ]] && return 0
 
     gateBranch="$(readFieldOf "$gateId" branch)"
     if [[ -z "$gateBranch" ]]; then
-        logTo errors "ticket=$ticketId reason=epic-pr-failed step=gate-branch gate=$gateId msg=\"the epic gate carries no branch metadata, so nothing beneath it has a base branch\""
+        logTo errors "reason=epic-pr-failed step=gate-branch gate=$gateId msg=\"the epic gate carries no branch metadata, so nothing beneath it has a base branch\""
         return 1
     fi
     forge="$(detectForge)"
     if [[ -z "$forge" ]]; then
-        logTo errors "ticket=$ticketId reason=epic-pr-failed step=forge gate=$gateId branch=$gateBranch"
+        logTo errors "reason=epic-pr-failed step=forge gate=$gateId gateBranch=$gateBranch"
         return 1
     fi
     forgeTool=gh
     [[ "$forge" == gitlab ]] && forgeTool=glab
     if ! command -v "$forgeTool" >/dev/null 2>&1; then
-        logTo errors "ticket=$ticketId reason=epic-pr-failed step=missing-tool tool=$forgeTool forge=$forge gate=$gateId"
+        logTo errors "reason=epic-pr-failed step=missing-tool tool=$forgeTool forge=$forge gate=$gateId"
         return 1
     fi
 
@@ -259,7 +276,7 @@ ensureEpicGatePr() {
             fi
         done
         if [[ -z "$start" ]] || ! git -C "$towerDir" push --quiet origin "$start:refs/heads/$gateBranch" 2>/dev/null; then
-            logTo errors "ticket=$ticketId reason=epic-pr-failed step=push gate=$gateId branch=$gateBranch msg=\"the epic branch could not be published off main\""
+            logTo errors "reason=epic-pr-failed step=push gate=$gateId gateBranch=$gateBranch msg=\"the epic branch could not be published off main\""
             return 1
         fi
     fi
@@ -285,14 +302,14 @@ ensureEpicGatePr() {
         prUrl="$(grep -oE 'https?://[^[:space:]]+' <<<"$prBody" | grep -E '/(pull|merge_requests)/[0-9]+' | tail -1)"
     fi
     if ! [[ "$prUrl" =~ ^https?://[^[:space:]]+$ ]]; then
-        logTo errors "ticket=$ticketId reason=epic-pr-failed step=pr gate=$gateId branch=$gateBranch forge=$forge msg=\"$(tr '\n' ' ' <<<"${prBody-$prUrl}" | cut -c1-160)\""
+        logTo errors "reason=epic-pr-failed step=pr gate=$gateId gateBranch=$gateBranch forge=$forge msg=\"$(tr '\n' ' ' <<<"${prBody-$prUrl}" | cut -c1-160)\""
         return 1
     fi
     if ! bd -C "$towerDir" update "$gateId" --set-metadata "pr=$prUrl" >/dev/null 2>&1; then
-        logTo errors "ticket=$ticketId reason=epic-pr-failed step=annotate gate=$gateId pr=$prUrl"
+        logTo errors "reason=epic-pr-failed step=annotate gate=$gateId pr=$prUrl"
         return 1
     fi
-    logTo claims "gate=$gateId reason=epic-published branch=$gateBranch pr=$prUrl"
+    logTo claims "gate=$gateId reason=epic-published gateBranch=$gateBranch pr=$prUrl"
     return 0
 }
 
@@ -363,6 +380,7 @@ Rules:
 claimedThisRun=0
 tickCount=0
 onInterrupt() {
+    boClearIdentity
     logTo results "ticks=$tickCount claimed=$claimedThisRun"
     printf "\nbeads-loop: stopped. claimed=%d  log: %s\n" "$claimedThisRun" "$logDir"
     exit 0
@@ -371,34 +389,45 @@ trap 'onInterrupt' INT TERM
 
 echo "beads-loop: logging to $logDir  (Ctrl-C to stop)"
 
-# BO_* is how the Stop hook knows which ticket to finish; without them the worker just stops and
-# its ticket sits in_progress until the lease lapses. The spawn runs INSIDE the branch's worktree
-# and carries no -w: claude's --worktree only ever CREATES one, and this branch already has its.
+# BO_* is how the Stop hook knows which ticket to finish, and what to say about it on every log line
+# it writes; without them the worker just stops and its ticket sits in_progress until the lease lapses.
+# The spawn runs INSIDE the branch's worktree and carries no -w: claude's --worktree only ever
+# CREATES one, and this branch already has its.
 dispatchWorker() {
-    local ticketId="$1" agentName="$2" branch="$3" prTarget="$4"
-    local worktreePath doneFile
+    local ticketId="$1" agentName="$2" branch="$3" prTarget="$4" label="$5"
+    local worktreePath doneFile spawnFile session
+
+    boIdent agent "$agentName"
 
     if ! worktreePath="$(ensureWorktree "$branch" "$prTarget")" || [[ -z "$worktreePath" ]]; then
         # left claimed, like a mislabelled ticket: its lease parks the unworkable one off the
         # frontier instead of the loop spinning on a branch it cannot build
-        logTo errors "ticket=$ticketId reason=worktree-failed branch=$branch target=$prTarget worktree=\"$(worktreePathFor "$branch")\""
+        boIdent worktree "$(worktreePathFor "$branch")"
+        logTo errors "reason=worktree-failed msg=\"the branch folder could not be made from origin/$branch or from its target $prTarget\""
         return 1
     fi
+    boIdent worktree "$worktreePath"
 
     doneFile="$logDir/done-${ticketId//\//+}"
     rm -f "$doneFile"
+    # One spawn output file PER TICKET. It used to be one shared last-spawn that every spawn
+    # overwrote, so the session id claude printed survived only for the run's final worker — the id
+    # a human needs to attach to the session, read its logs, or stop it.
+    spawnFile="$logDir/spawn-${ticketId//\//+}"
     if ! ( cd "$worktreePath" \
             && BO_TICKET="$ticketId" BO_BRANCH="$branch" BO_PR_TARGET="$prTarget" \
+               BO_AGENT="$agentName" BO_LABEL="$label" \
                BO_PROJECT_DIR="$towerDir" BO_LOG_DIR="$logDir" BO_DONE_FILE="$doneFile" \
                claude --bg --agent "$agentName" --permission-mode bypassPermissions \
-               "$(buildWorkerPrompt "$ticketId" "$branch" "$doneFile")" ) >"$logDir/last-spawn" 2>&1; then
-        logTo errors "ticket=$ticketId agent=$agentName reason=worker-not-dispatched msg=\"$(lastLineOf "$logDir/last-spawn")\""
+               "$(buildWorkerPrompt "$ticketId" "$branch" "$doneFile")" ) >"$spawnFile" 2>&1; then
+        logTo errors "reason=worker-not-dispatched msg=\"$(lastLineOf "$spawnFile")\""
         bd unclaim "$ticketId" >/dev/null 2>&1 || true
         return 1
     fi
 
+    boIdent session "$(sessionFromSpawn "$spawnFile")"
     claimedThisRun=$((claimedThisRun + 1))
-    logTo claims "ticket=$ticketId label=${matchedLabels[0]} agent=$agentName branch=$branch target=$prTarget worktree=\"$worktreePath\""
+    logTo claims "reason=dispatched"
 }
 
 # one claim per dispatch, but a ticket whose BRANCH is already at work goes straight back and the
@@ -414,6 +443,7 @@ tick() {
 
     while (( attempts < attemptCap )); do
         attempts=$((attempts + 1))
+        boClearIdentity
 
         # at capacity with nothing in progress means the slots are ghosts —
         # a broken tower must never read as a calm one
@@ -460,6 +490,7 @@ tick() {
         fi
 
         ticketId="$(jq -r '.[0].id // empty' <<< "$claimResult" 2>/dev/null)"
+        boIdent ticket "$ticketId"
         if [[ -z "$ticketId" ]]; then
             logTo errors "reason=bd-failure exit=0 msg=\"claim returned no id: $(tr -d '\n' <<< "$claimResult" | head -c 60)\""
             return
@@ -471,6 +502,7 @@ tick() {
         mapfile -t ticketLabels < <(jq -r '.[0].labels // [] | .[]' <<< "$claimResult" 2>/dev/null)
         branch="$(jq -r '.[0].metadata.branch // empty' <<< "$claimResult" 2>/dev/null)"
         claimParent="$(jq -r '.[0].parent // empty' <<< "$claimResult" 2>/dev/null)"
+        boIdent branch "$branch"
 
         # zero or two specialist names among the labels is the tower's bug, not ours,
         # and the claim is LEFT in place: its lease parks the broken ticket off the frontier
@@ -481,19 +513,20 @@ tick() {
             fi
         done
         if (( ${#matchedLabels[@]} != 1 )); then
-            logTo errors "ticket=$ticketId reason=label-ambiguous matched=\"${matchedLabels[*]-}\" labels=\"${ticketLabels[*]-}\""
+            logTo errors "reason=label-ambiguous matched=\"${matchedLabels[*]-}\" labels=\"${ticketLabels[*]-}\""
             return
         fi
+        boIdent label "${matchedLabels[0]}"
 
         # the branch is not decoration — with no branch there is no folder to work in and nothing
         # to push, so this is a plan bug and it gets the same treatment as a mislabelled ticket.
         if [[ -z "$branch" ]]; then
-            logTo errors "ticket=$ticketId reason=metadata-missing branch=\"${branch-}\" msg=\"the plan agents create every ticket with --metadata carrying a branch; with no branch key the loop has nowhere to put this work\""
+            logTo errors "reason=metadata-missing msg=\"the plan agents create every ticket with --metadata carrying a branch; with no branch key the loop has nowhere to put this work\""
             return
         fi
 
         if [[ "$busyBranches" == *$'\n'"$branch"$'\n'* ]]; then
-            logTo claims "ticket=$ticketId branch=$branch reason=branch-busy unclaimed"
+            logTo claims "reason=branch-busy unclaimed"
             bd unclaim "$ticketId" >/dev/null 2>&1 || true
             skippedTicket["$ticketId"]=1
             continue
@@ -503,7 +536,7 @@ tick() {
         # which the parent chain already names. When the claim's parent is that topmost gate itself the
         # ticket sits right under the epic, and the only pull request above it goes into main.
         gateId="$(epicGateOf "$claimParent")" || {
-            logTo errors "ticket=$ticketId reason=epic-pr-failed step=walk msg=\"no epic gate above this ticket's parent\""
+            logTo errors "reason=epic-pr-failed step=walk msg=\"no epic gate above this ticket's parent\""
             return
         }
         if [[ "$gateId" == "$claimParent" ]]; then
@@ -511,16 +544,17 @@ tick() {
         else
             prTarget="$(readFieldOf "$gateId" branch)"
             [[ -n "$prTarget" ]] || {
-                logTo errors "ticket=$ticketId reason=epic-pr-failed step=gate-branch gate=$gateId msg=\"the epic gate carries no branch metadata, so nothing beneath it has a base branch\""
+                logTo errors "reason=epic-pr-failed step=gate-branch gate=$gateId msg=\"the epic gate carries no branch metadata, so nothing beneath it has a base branch\""
                 return
             }
         fi
+        boIdent target "$prTarget"
 
         # nothing beneath the epic branch can open a pull request until that branch exists on the
         # forge, and nothing but this loop ever puts it there
-        ensureEpicGatePr "$gateId" "$ticketId" || return
+        ensureEpicGatePr "$gateId" || return
 
-        dispatchWorker "$ticketId" "${AGENT["${matchedLabels[0]}"]}" "$branch" "$prTarget"
+        dispatchWorker "$ticketId" "${AGENT["${matchedLabels[0]}"]}" "$branch" "$prTarget" "${matchedLabels[0]}"
         return
     done
 
@@ -529,6 +563,7 @@ tick() {
 
 while true; do
     if (( maximumTicks > 0 && tickCount >= maximumTicks )); then
+        boClearIdentity
         logTo results "ticks=$tickCount claimed=$claimedThisRun note=\"hit BO_MAX_TICKS: this run was configured to end, the tower did not run out of work\""
         break
     fi

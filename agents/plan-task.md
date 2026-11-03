@@ -123,7 +123,7 @@ feature is a **single chain**, and it is the whole of your job with edges:
 
 - **Every task waits on exactly one ticket — the one immediately before it.** Not two, not "all of the
   above", not a phase's worth. One predecessor.
-- **The first task waits on nothing.** It is the only one `bd ready` can see when the feature starts.
+- **The first task waits on nothing.** It is the only one the frontier can see when the feature starts.
 - **A back-end implementation is immediately followed by its own `unit-tests` ticket.** Then the test ticket's
   one predecessor is the unit it tests, which is exactly what it should have been all along, and it never
   waits on UI it does not test.
@@ -153,7 +153,7 @@ Any "no" means fix the ticket, not the report.
 
 - [ ] Would a worker spawned with nothing but this ticket and its description know exactly what to build?
 - [ ] Type `task`, parented to the feature, priority inherited, and **exactly one** label from the three?
-- [ ] Did you read it back with `bd show --json` — this ticket, right after creating it, its labels and
+- [ ] Did you read it back — this ticket, right after creating it, its labels and
       `metadata` read back exactly as written (a wrong key reads `null` without erroring)?
 - [ ] Does **every** ticket carry the feature's `branch` metadata, copied verbatim from the
       gate, and carry **no** `pr` key of its own?

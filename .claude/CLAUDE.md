@@ -279,3 +279,8 @@ by grep alone.
   self-closed ticket is a bug. The Stop hook closes a *task* only on its done marker — a worker that
   touches that marker before the brief is complete has filed half a task onto a shared branch, which is
   the one failure this model cannot undo on its own.
+- No agent file hardcodes a beads command. Commands belong to the skills — `bead-read`, `bead-create`,
+  `bead-initialize`, `bead-heartbeat` — and an agent file carries only the descriptor plus the skill to
+  load, so the worker references the skills context instead of duplicating commands into the context
+  window. Where a command must be forbidden, the rule names the act (`never unclaim`, `never reopen`),
+  not the invocation. The loop and the hooks are not agents; they run the commands directly.

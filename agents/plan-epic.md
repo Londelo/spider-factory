@@ -149,7 +149,7 @@ Any "no" means fix the ticket, not the report.
 
 - [ ] Would a worker spawned with nothing but this ticket and its description know exactly what to do?
 - [ ] Gate: type `gate` with **zero** labels. Ticket: type `task` with **exactly one** label from the closed set?
-- [ ] Did you read it back with `bd show --json` — this ticket, right after creating it, its labels and
+- [ ] Did you read it back — this ticket, right after creating it, its labels and
       `metadata` read back exactly as written (a wrong key reads `null` without erroring)?
 - [ ] Every ordering requirement a real blocking edge, not assumed from the parent link?
 - [ ] The chain pointing the right way — merge → e2e → review → gate — each of those three an edge you wrote?

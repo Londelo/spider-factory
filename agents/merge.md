@@ -56,7 +56,7 @@ above you will look at what you say in chat.
 
 ## Before you touch anything
 
-**Step 1 — Read your ticket in full.** Follow the `bead-read` skill: `bd where` first (it resolves by
+**Step 1 — Read your ticket in full.** Follow the `bead-read` skill: the which-tower read first (it resolves by
 walking *up* from `$PWD` and ignores `BEADS_DIR`, so you may be reading a neighbouring tower), then the
 ticket. Its metadata carries `branch` — the branch you are standing on, the epic's own, copied verbatim from
 the epic gate; the loop read the same key to put you here. The epic gate's own `pr` (read it off the gate,
@@ -65,12 +65,7 @@ branch — you read it for context and never create one. Your description is you
 names the **order** the pieces go in. A ticket with no order in it is a ticket with an order in it that you
 did not read; finish reading first.
 
-**Step 2 — Pull the feature gates.** They are the tickets whose branches you are assembling.
-
-```bash
-bd show --children --json <epic-id>               # gates are hidden from a plain `bd list` — use this
-bd list --parent <epic-id> --json --include-gates
-```
+**Step 2 — Pull the feature gates.** They are the tickets whose branches you are assembling — the gates hide from a plain listing, so take the gate-inclusive read `bead-read` teaches.
 
 Read each gate's `id`, `title`, `description` and — the one you came for — its `metadata.branch`. That key
 IS the branch; you do not derive it from the title, and a branch whose name you invented is worse than
@@ -161,7 +156,7 @@ cat jest.config.* vitest.config.* 2>/dev/null
 ```
 
 - The runner is the project's, and only the project's, and you did not install it.
-- **`bd` is not a test runner** and there is no `test-runner` agent in this plugin — if a comment on a
+- **The beads database is not a test runner** and there is no `test-runner` agent in this plugin — if a comment on a
   ticket mentions one, that is a hint from another model, not a fact. Settle it with
   `ls node_modules/.bin | grep -iE 'jest|vitest|playwright'`.
 - Do not run e2e unless the unit suite is already green and the brief asks for it.
@@ -179,18 +174,14 @@ kept, why, and which test or page now proves your answer. **Name every conflict 
 resolve** — a clean auto-merge that broke the suite is exactly one of those, and the next reader is a
 human with no memory of this branch, not another agent.
 
-```bash
-bd note --json --severity high <ticket-id> "unresolved conflict: <file> — <what is still wrong, e.g.
-a page object pointing at markup that no longer exists; the markup's ticket is closed>"
-```
+Each conflict you did not fully resolve goes on the ticket as a high-severity beads comment: the file, and what is still wrong — e.g. a page object pointing at markup that no longer exists, whose ticket is closed.
 
 **Step 8 — Report and stop. Never close your own ticket.** Whatever the outcome — clean merge, stuck
 conflict, red suite — a human reads your final message, verifies the assembly, and closes the ticket;
-a ticket you close yourself closes unverified. Leave the ticket **open** and keep the lease alive with
-`bd heartbeat <ticket-id>` until a human or the dispatcher parks it. If a conflict stayed unresolved or
+a ticket you close yourself closes unverified. Leave the ticket **open** and keep the lease alive until a human or the dispatcher parks it. If a conflict stayed unresolved or
 the suite stayed red, that too goes in the report and the ticket note (Step 7) — a stuck ticket is how
 the tower stops and waits for a human, instead of walking past the hole.
-- **Never `bd reopen` a closed child** to "fix" its coverage. Only a human may reopen one: they wrote the
+- **Never reopen a closed child** to "fix" its coverage. Only a human may reopen one: they wrote the
   acceptance criteria it closed against, so they know what it asked for and you do not.
 - **Declare it only when the assembly is truly done.** As your very last action, and only when every
   feature in the ledger is `MERGED` or `INTEGRATED`, every conflict is settled and named, and the project's
@@ -216,10 +207,10 @@ the tower stops and waits for a human, instead of walking past the hole.
    branch and its pull request. You start on the epic's branch and stay on it.
 5. **Never touch a feature branch.** You merge *from* them; you never commit to one, rebase one, or reset
    one. Its gate is closed, which means a human already signed that branch.
-6. **Never `bd unclaim` / `reclaim` / `reclaim-stale`, and claim nothing else.** Those belong to
+6. **Never unclaim or reclaim a claim, and claim nothing else.** Those belong to
    `CLI/beads-loop.sh` and the operator. Your claim lease keeps your ticket parked while you work;
    releasing it does not help anyone and reads as abandonment to anything downstream that looks.
-7. **Keep the lease alive** — `bd heartbeat <ticket-id>` between long steps; a lapsed lease lets another
+7. **Keep the lease alive** between long steps (the contract skill carries the how); a lapsed lease lets another
    dispatcher take the ticket mid-merge.
 8. **Work only this ticket's children, and never merge one whose gate is still open.**
 9. **Where you are standing decides whether the tests can run at all.** Some projects sit at the git

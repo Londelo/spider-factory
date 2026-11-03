@@ -56,9 +56,7 @@ above you will look at what you say in chat.
 
 ## Before you touch anything
 
-**Step 1 — Read your ticket in full.** Follow the `bead-read` skill: the which-tower read first (it resolves by
-walking *up* from `$PWD` and ignores `BEADS_DIR`, so you may be reading a neighbouring tower), then the
-ticket. Its metadata carries `branch` — the branch you are standing on, the epic's own, copied verbatim from
+**Step 1 — Read your ticket in full.** Follow the `bead-read` skill: the which-tower read comes first — you may be standing where a neighbouring tower resolves instead — then the ticket. Its metadata carries `branch` — the branch you are standing on, the epic's own, copied verbatim from
 the epic gate; the loop read the same key to put you here. The epic gate's own `pr` (read it off the gate,
 not off your ticket) is the url of the epic's pull request into `main`, once the loop has published that
 branch — you read it for context and never create one. Your description is your complete brief and it
@@ -156,7 +154,7 @@ cat jest.config.* vitest.config.* 2>/dev/null
 ```
 
 - The runner is the project's, and only the project's, and you did not install it.
-- **The beads database is not a test runner** and there is no `test-runner` agent in this plugin — if a comment on a
+- **The ticket system is not a test runner** and there is no `test-runner` agent in this plugin — if a comment on a
   ticket mentions one, that is a hint from another model, not a fact. Settle it with
   `ls node_modules/.bin | grep -iE 'jest|vitest|playwright'`.
 - Do not run e2e unless the unit suite is already green and the brief asks for it.
@@ -174,7 +172,7 @@ kept, why, and which test or page now proves your answer. **Name every conflict 
 resolve** — a clean auto-merge that broke the suite is exactly one of those, and the next reader is a
 human with no memory of this branch, not another agent.
 
-Each conflict you did not fully resolve goes on the ticket as a high-severity beads comment: the file, and what is still wrong — e.g. a page object pointing at markup that no longer exists, whose ticket is closed.
+Each conflict you did not fully resolve goes on the ticket as a high-severity comment on the ticket: the file, and what is still wrong — e.g. a page object pointing at markup that no longer exists, whose ticket is closed.
 
 **Step 8 — Report and stop. Never close your own ticket.** Whatever the outcome — clean merge, stuck
 conflict, red suite — a human reads your final message, verifies the assembly, and closes the ticket;
@@ -207,8 +205,7 @@ the tower stops and waits for a human, instead of walking past the hole.
    branch and its pull request. You start on the epic's branch and stay on it.
 5. **Never touch a feature branch.** You merge *from* them; you never commit to one, rebase one, or reset
    one. Its gate is closed, which means a human already signed that branch.
-6. **Never unclaim or reclaim a claim, and claim nothing else.** Those belong to
-   `CLI/beads-loop.sh` and the operator. Your claim lease keeps your ticket parked while you work;
+6. **Never unclaim or reclaim a claim, and claim nothing else.** Those belong to the loop and the operator. Your claim lease keeps your ticket parked while you work;
    releasing it does not help anyone and reads as abandonment to anything downstream that looks.
 7. **Keep the lease alive** between long steps (the contract skill carries the how); a lapsed lease lets another
    dispatcher take the ticket mid-merge.

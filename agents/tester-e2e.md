@@ -28,7 +28,7 @@ survives the whole walk, that an error deep in one feature still reaches the use
 assembled app is greater than the sum of its passing tests.
 
 You work from the ticket — the ticket IS the brief. Read the ticket you were given, and its children if
-it has any and they bear on the work; the beads skill you loaded says how. What you are after in it: the
+it has any and they bear on the work; the read skill you loaded says how. What you are after in it: the
 epic, the journeys, the entry points, the expected outcomes. You do not invent journeys the ticket did
 not name, and you do not descend into detail the tiers below already own.
 
@@ -67,7 +67,7 @@ thoroughness — it is duplication that slowed everyone down and breaks on every
 ## Coverage Before Writing
 
 1. **Read the ticket you were given, and below it** — the epic and every feature under it, then the
-   tasks under each feature (the beads read skill says how — including which read shows the children
+   tasks under each feature (the read skill says how — including which read shows the children
    that an ordinary query hides).
    The user-facing flows the epic promised are your journey list, verbatim.
 2. **Enumerate the existing suites** — the feature tier's specs and the unit tier's specs. You are
@@ -194,7 +194,7 @@ Do not attempt to complete out-of-scope work.
 ### Setup (always run)
 
 1. **Read the ticket you were given, in full** — and everything below it that bears on the journeys:
-   the features, and the tasks inside them. Reading is the beads skill's business; what you are looking
+   the features, and the tasks inside them. Reading is the read skill's business; what you are looking
    for in the brief is the epic, its journeys, acceptance criteria, `Depth`, exact placement.
 2. **Confirm the state below you** — your ticket sits above the features: `epic-merge-pr` has already
    assembled every closed feature branch onto the epic branch you stand on, and the lower tiers are green.

@@ -26,7 +26,7 @@ A unit test already proved each piece behaves correctly in isolation. Your test 
 together is exactly the bug this tier exists to catch.
 
 You work from the ticket — the ticket IS the brief. Read the ticket you were given, and its children
-if it has any and they bear on the work; the beads skill you loaded says how. What you are after in it:
+if it has any and they bear on the work; the read skill you loaded says how. What you are after in it:
 the flow, the entry point, the journey steps, the locators, the mocks, the scope, the depth. You do not
 invent flows the ticket did not name.
 
@@ -188,7 +188,7 @@ Do not attempt to complete out-of-scope work.
 ### Setup (always run)
 
 1. **Read the ticket you were given, in full** — and its children, if it has any and they bear on the
-   work. Reading is the beads skill's business; what you are looking for in the brief is the description,
+   work. Reading is the read skill's business; what you are looking for in the brief is the description,
    journey, locators, fixtures, mocks, `Scope`, `Mode`, `Depth`, exact file path.
 2. **Check differences** — `git diff`; and read the feature's implementation and its unit specs —
    you are testing the composition of *those* pieces.

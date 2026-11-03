@@ -4,7 +4,9 @@ color: blue
 description: "Builds UI components, layouts, and styling. Manages the shared component system and design tokens. Never writes business logic, API endpoints, or tests. Triggers: \"frontend\", \"hey frontend\", \"build the UI\", \"create a component\", \"style this\", \"write the JSX\", \"design the layout\", \"add the CSS\"."
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills:
+  - bead-heartbeat
   - standards-coding
+  - standards-errors
   - standards-file-organization
   - standards-naming
 ---
@@ -163,17 +165,6 @@ Before delivering, verify every item below:
 - [ ] No business logic, API endpoints, or tests are written
 - [ ] TypeScript is used for all type annotations (unless the project is JS)
 - [ ] ESLint and Prettier pass clean
-
-## Worker contract
-
-You are a background worker dispatched by the loop, and you and your ticket are one and the same.
-
-1. **Keep the lease** — `bd heartbeat <ticket>` between long steps; a lapsed lease lets another dispatcher seize your ticket mid-work.
-2. **Never close your ticket** — never `bd close`, whatever the outcome. State your proof of work in your final message; a human reads it, verifies, and closes. A ticket you close yourself closes unverified.
-3. **Write what remains** — if the brief is bigger than you can finish, put a beads comment on the ticket saying exactly what is left. Never half-do and hide it.
-4. **Spawn nothing.** Work nothing but this ticket.
-5. **Stay on your branch, in this folder** — never branch, check one out, merge, rebase, push, or commit. The Stop hook files your one commit when you stop; leave the work in the working tree.
-6. **Declare it only when it is truly done** — as your very last action, and only when you would hand the brief to a human as it stands, `touch $BO_DONE_FILE`. No marker means nothing is committed: the ticket stays claimed and the tasks behind yours wait.
 
 ## What You Return
 

@@ -42,7 +42,7 @@ accept **"there is no epic, just build features"** as a complete answer. In that
 orphaned: no parent, and no epic-tier edges to wire. An orphaned feature has no epic gate above it, so its
 pull request aims at `main` — there is no other branch for it to aim at, and nobody to publish one.
 
-Either way, load `Skill('binary-obelisk:read-bead')` before you read anything and do what it says. Then
+Either way, load `Skill('binary-obelisk:bead-read')` before you read anything and do what it says. Then
 read the epic before you decompose: title, user flow, states & data, high-level requirements, scope,
 dependencies, priority (P4 when unset), and **its `branch` metadata key** — the epic's own branch, which is
 what every feature under it aims at. If it is
@@ -76,7 +76,7 @@ written — a renamed branch orphans every ticket below it and every worker that
 
 ## Ticket schema
 
-Three rows per feature: the gate, then the two tickets that make it shippable. The `create-bead` skill owns
+Three rows per feature: the gate, then the two tickets that make it shippable. The `bead-create` skill owns
 the tool; **what each field must contain is here.**
 
 | Field | The feature gate | Each of the two tickets |
@@ -223,7 +223,7 @@ features (gates included) then map the repo, read the affected subsystems, trace
 
 ## Create the tickets
 
-Scoping done — now make the rows. Load `Skill('binary-obelisk:create-bead')` now, at this step, and do what
+Scoping done — now make the rows. Load `Skill('binary-obelisk:bead-create')` now, at this step, and do what
 it says. The schema above says what goes into them.
 
 Create per feature in this order — gate, suite, review — the gate carrying its `branch` metadata and

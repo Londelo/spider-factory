@@ -56,7 +56,7 @@ Be brief; the user needs the right questions, not a lecture.
 
 ## Ticket schema
 
-Four rows per epic: the gate, then the three tickets that make it shippable. The `create-bead` skill owns
+Four rows per epic: the gate, then the three tickets that make it shippable. The `bead-create` skill owns
 the tool; **what each field must contain is here.**
 
 | Field | The epic gate | Each of the three tickets |
@@ -200,7 +200,7 @@ knowledge — if you can't confirm it from a real source, say so in `Notes`.
 
 ## Create the tickets
 
-Scoping done — now make the rows. Load `Skill('binary-obelisk:create-bead')` now, at this step, and do what
+Scoping done — now make the rows. Load `Skill('binary-obelisk:bead-create')` now, at this step, and do what
 it says. The schema above says what goes into them.
 
 Create in this order — gate (with its `branch` metadata), merge, e2e, review, each carrying the gate's

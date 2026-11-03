@@ -33,7 +33,7 @@ Report the three answers plainly before offering anything, e.g.:
 **Not in a git repo** → stop. binary-obelisk plans and runs a tower inside one repo. Ask the user
 to `cd` into the project they mean, and confirm that's the right repo before touching it.
 
-**In a repo, beads not initialized** → offer to initialize. **Use the `initialize-beads` skill for
+**In a repo, beads not initialized** → offer to initialize. **Use the `bead-initialize` skill for
 the full procedure** (`bd` install if missing, `bd init`, Claude Code hooks, git hooks). Do not
 re-implement it here — hand off to that skill and come back.
 
@@ -73,14 +73,14 @@ this is destructive to the tower:
 # confirm: echo "removing beads from $(pwd)"; then remove the DB and its CLAUDE.md section
 rm -rf .beads
 ```
-For removing `bd` itself from the machine, refer to the `initialize-beads` skill's install steps in
+For removing `bd` itself from the machine, refer to the `bead-initialize` skill's install steps in
 reverse (`brew uninstall beads` / `npm rm -g @beads/bd`).
 
 ## Reference
 
 | Need | Do |
 |---|---|
-| init beads / install `bd` / hooks | **`initialize-beads` skill** (defer to it) |
+| init beads / install `bd` / hooks | **`bead-initialize` skill** (defer to it) |
 | install the CLI | `bash "$(claude plugin details binary-obelisk --json \| jq -r '.root')/CLI/install-cli.sh"` |
 | uninstall the CLI | `rm -f ~/.local/bin/bo` |
 | uninstall beads (repo) | `rm -rf .beads` (destructive — confirm path) |

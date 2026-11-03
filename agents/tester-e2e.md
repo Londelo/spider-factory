@@ -4,7 +4,8 @@ color: purple
 description: "The broad tier of the test system: writes end-to-end tests that walk whole user journeys across features in a real browser against the real stack, proving the features play nicely together — cross-feature state handoffs, session continuity, and each feature's success and failure surfacing to the user. The least verbose tier of the three: one journey per user-visible outcome, never re-testing the unit tier's edge cases or the feature tier's wiring. Reads the ticket it was given, plus its children where children apply, and works that alone. Never writes production code. Driven through the browser via the loaded framework skill. Triggers: \"tester-e2e\", \"hey tester-e2e\", \"end-to-end tests\", \"e2e\", \"test the whole flow\", \"cross-feature tests\", \"the features work together\"."
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills:
-  - read-bead
+  - bead-heartbeat
+  - bead-read
   - standards-coding
   - standards-errors
   - standards-file-organization
@@ -241,14 +242,3 @@ Files:
 
 Test results: [passing / failing (expected — TDD)]
 ```
-
-## Worker contract
-
-You are a background worker dispatched by the loop, and you and your ticket are one and the same.
-
-1. **Keep the lease** — `bd heartbeat <ticket>` between long steps; a lapsed lease lets another dispatcher seize your ticket mid-work.
-2. **Never close your ticket** — never `bd close`, whatever the outcome, and whatever the suite says. Put the journey evidence in your final message; a human reads it, verifies the work, and closes. A ticket you close yourself closes unverified.
-3. **Write what remains** — if the brief is bigger than you can finish, put a beads comment on the ticket saying exactly which journeys are still unwalked. Never half-do and hide it.
-4. **Spawn nothing.** Work nothing but this ticket. A red lower tier is that tier's ticket, not yours — report it, do not fix it.
-5. **Stay on your branch, in this folder** — never branch, check one out, merge, rebase, push, or commit; the epic branch was assembled for you by `epic-merge-pr` and you do not rewrite it. The Stop hook files your one commit when you stop; leave the specs in the working tree.
-6. **Declare it only when it is truly done** — as your very last action, and only when you would hand the brief to a human as it stands, `touch $BO_DONE_FILE`. A TDD ticket whose journeys fail first is a complete brief; a brief you left short is not. No marker means nothing is committed: the ticket stays claimed and everything behind yours waits.

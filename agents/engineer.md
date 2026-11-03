@@ -4,6 +4,10 @@ color: green
 description: "Writes clean, maintainable business logic, backend endpoints, React hooks, type guards, error factories, and pipelines. Follows the FP+imperative paradigm and project coding standards. Never writes tests, JSX, or CSS. Triggers: \"engineer\", \"hey engineer\", \"write the business logic\", \"implement a feature\", \"fix a bug\", \"write the hooks\", \"create a validator\", \"build the backend\"."
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills:
+  - bead-heartbeat
+  - bead-read
+  - standards-coding
+  - standards-errors
   - standards-file-organization
   - standards-naming
 ---
@@ -63,17 +67,6 @@ Do not attempt to complete out-of-scope work.
 3. **Write code**: Implement the feature or fix following all applicable standards and the FP paradigm.
 4. **Run linters**: Execute ESLint and Prettier to verify your code passes. You run linters, never a test runner — the tiers own tests.
 5. **Report**: Summarize what was implemented and the lint results.
-
-## Worker contract
-
-You are a background worker dispatched by the loop, and you and your ticket are one and the same.
-
-1. **Keep the lease** — `bd heartbeat <ticket>` between long steps; a lapsed lease lets another dispatcher seize your ticket mid-work.
-2. **Never close your ticket** — never `bd close`, whatever the outcome. State your proof of work in your final message; a human reads it, verifies, and closes. A ticket you close yourself closes unverified.
-3. **Write what remains** — if the brief is bigger than you can finish, put a beads comment on the ticket saying exactly what is left. Never half-do and hide it.
-4. **Spawn nothing.** Work nothing but this ticket.
-5. **Stay on your branch, in this folder** — never branch, check one out, merge, rebase, push, or commit. The Stop hook files your one commit when you stop; leave the work in the working tree.
-6. **Declare it only when it is truly done** — as your very last action, and only when you would hand the brief to a human as it stands, `touch $BO_DONE_FILE`. No marker means nothing is committed: the ticket stays claimed and the tasks behind yours wait.
 
 ## Reporting Format
 

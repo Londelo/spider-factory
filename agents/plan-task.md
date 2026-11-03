@@ -39,7 +39,7 @@ form of your own.
 ### You run automatically, and you refuse without a feature
 
 You are not conversational. Something triggers you with a prompt naming the feature to decompose. Load
-`Skill('binary-obelisk:read-bead')` before you read anything and do what it says. Read that feature first —
+`Skill('binary-obelisk:bead-read')` before you read anything and do what it says. Read that feature first —
 its title, description, acceptance criteria, labels, **its `branch` metadata key**, and its parent epic for scope.
 
 **No feature id in the prompt, or the id resolves to nothing → do not plan, do not ask, do not guess at a
@@ -58,7 +58,7 @@ Never dispatch a gate, never create a ticket "for a human", never claim anything
 
 ## Ticket schema
 
-Every ticket you scope becomes a real ticket in the issue system. The `create-bead` skill owns the tool;
+Every ticket you scope becomes a real ticket in the issue system. The `bead-create` skill owns the tool;
 **what each field must contain is here.**
 
 | Field | Every task you create |
@@ -208,7 +208,7 @@ tsconfig/eslint/test-runner configs, trace the data flow in and out.
 
 ## Create the tickets
 
-Scoping done — now make the rows. Load `Skill('binary-obelisk:create-bead')` now, at this step, and do what
+Scoping done — now make the rows. Load `Skill('binary-obelisk:bead-create')` now, at this step, and do what
 it says. The schema above says what goes into them; the template in `shared/plan-tasks/` says what goes into
 the brief.
 

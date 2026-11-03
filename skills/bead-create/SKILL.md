@@ -1,5 +1,5 @@
 ---
-name: create-bead
+name: bead-create
 description: >
   The beads issue tracker and its create command: what a bead is, the `bd create` CLI, and every
   parameter it takes — what each flag sets, the key it lands in, which flags the binary silently

@@ -1,5 +1,5 @@
 ---
-name: initialize-beads
+name: bead-initialize
 description: >
   Initialize beads (bd) for Claude Code in a project repository. Use this skill
   whenever the user says "initialize beads", "set up beads in this repo",

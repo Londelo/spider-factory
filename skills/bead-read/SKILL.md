@@ -1,5 +1,5 @@
 ---
-name: read-bead
+name: bead-read
 description: >
   How to READ a beads (`bd`) system: that you are working inside a ticket database, what it is, and
   every command for reading a ticket's details, its parent, and its children. Reading a ticket means
@@ -11,7 +11,7 @@ description: >
   would otherwise guess a flag: a truncated read, a hidden gate child, or a skipped gate read
   silently becomes an agent building the thing nobody asked for. Reads
   only — the claim belongs to `CLI/beads-loop.sh`, no worker ever closes its own ticket (closing is
-  a human act), and authoring tickets lives in `create-bead`.
+  a human act), and authoring tickets lives in `bead-create`.
   Trigger: "read the ticket", "read the bead", "what does my ticket say", "read the epic", "what are
   my children", "find the parent", "which tasks does this feature have", "bd show", "bd list",
   "bd dep list".
@@ -48,7 +48,7 @@ totals. Everything below was verified against `bd` 1.3.0 by running it.
 
 **Reads are read-only.** Nothing on this page takes a lease, claims a ticket or changes a byte of state,
 so re-read as often as you like. Anything that *writes* is outside this skill: authoring a ticket is
-`skills/create-bead`, and no worker closes a ticket from anywhere — closing is a human act, done after
+`skills/bead-create`, and no worker closes a ticket from anywhere — closing is a human act, done after
 reading the worker's report. An unfamiliar flag is settled by `bd <command> --help`, never by a
 remembered one.
 

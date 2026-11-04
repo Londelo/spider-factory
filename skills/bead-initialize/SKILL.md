@@ -6,7 +6,6 @@ description: >
   "install beads here", "beads-init", or wants beads issue tracking + Claude Code
   hooks set up in a project. Triggers on any phrase mentioning beads initialization,
   beads setup, or beads installation for Claude Code.
-version: 0.1.0
 ---
 
 ## What this skill does

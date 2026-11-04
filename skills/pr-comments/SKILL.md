@@ -8,7 +8,6 @@ description: >
   from memory is usually the other forge's, and a comment posted on the wrong PR is worse than no comment.
   Trigger: "comment on the PR", "comment on the MR", "leave a review comment", "post this to the pull
   request", "inline comment", "gh pr comment", "glab mr note".
-version: 0.1.0
 ---
 
 # PR Comments

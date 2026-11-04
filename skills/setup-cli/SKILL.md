@@ -1,12 +1,11 @@
 ---
-name: setup
+name: setup-cli
 description: >
   Guided setup conversation for binary-obelisk in a repo. Use this whenever the user says
   "setup binary-obelisk", "set up the obelisk", "install the CLI", "uninstall the CLI",
   "is beads installed", "initialize this repo", or otherwise wants to install/uninstall the
   `bo` CLI or beads in a project. It checks the current state (repo? beads? CLI?) and walks
   the user through exactly what to install or remove — it does not blind-run anything.
-version: 0.1.0
 ---
 
 # Setup — binary-obelisk in a repo

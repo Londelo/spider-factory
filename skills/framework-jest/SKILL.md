@@ -9,7 +9,6 @@ description: >
   runner fails for a reason that has nothing to do with the code under test.
   Trigger: "jest", "vitest", "unit test syntax", "how do I mock", "it.each", "rejects.toThrow",
   "test runner", "jest.fn", "vi.mock", "fake timers", "test file naming".
-version: 0.1.0
 ---
 
 # Jest — the framework

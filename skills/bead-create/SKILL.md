@@ -6,7 +6,6 @@ description: >
   ignores, and the traps that never error. Use it whenever a bead is being CREATED: plan-epic,
   plan-feature, plan-task, any "make me a ticket/epic/feature" request, or a tower that came out with
   no dispatching labels, two dispatching labels, the wrong type, or no merge ticket.
-version: 0.2.0
 ---
 
 # Creating a bead

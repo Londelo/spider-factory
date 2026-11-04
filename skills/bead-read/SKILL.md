@@ -15,7 +15,6 @@ description: >
   Trigger: "read the ticket", "read the bead", "what does my ticket say", "read the epic", "what are
   my children", "find the parent", "which tasks does this feature have", "bd show", "bd list",
   "bd dep list".
-version: 0.1.0
 ---
 
 # Reading a bead

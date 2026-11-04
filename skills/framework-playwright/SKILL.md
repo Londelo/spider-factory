@@ -9,7 +9,6 @@ description: >
   invented locator or a hand-rolled sleep is the difference between a suite and a flake factory.
   Trigger: "playwright", "locator", "page.route", "getByRole", "storageState", "playwright.config",
   "trace viewer", "flaky test", "browser test", "how do I wait for".
-version: 0.1.0
 ---
 
 # Playwright — the framework

@@ -1,4 +1,4 @@
-# Binary Obelisk V1 — Design Model (editable source of truth)
+# Binary Obelisk — Design Model (editable source of truth)
 #
 # THREE NAMES, NEVER INTERCHANGEABLE — collapsing any two is how a tower silently
 # dispatches nothing:
@@ -62,15 +62,23 @@ databases:
 
 # ================================ SKILLS ===============================
 # Two kinds of skill, and the difference matters to the test tiers:
-#   standards-* / read-bead / create-bead = how the house works
+#   standards-* / bead-* = how the house works
 #   framework-*                 = how ONE TOOL works (syntax, config, run commands)
 # A test-tier AGENT owns the tier — what to cover and how deep. A framework SKILL owns the tool.
 # That split is why no test agent has a framework opinion of its own.
 # Note: the `standards` keys below are written short; the directories are standards-coding,
 # standards-errors, standards-file-organization, standards-naming. framework-* keys are literal.
 skills:
-  read-bead:
-    description: "The READ side of beads: declares that you are working inside a beads system and says what it is, then gives every command for reading — a ticket's details (`bd show --json --long`), its parent (`.parent`, `bd dep list`), its direct children (`bd show --children`), and the two reads that decide a tier's coverage: an epic reads ALL its features (gates are hidden from default queries, so an empty list is not an empty epic) and a feature reads ALL its tasks. Agents carry NO beads knowledge of their own: the agent text says only \"read the ticket you were given, and its children where children apply\", and this skill supplies the how. Reads are read-only; the claim belongs to the loop, no worker ever closes its own ticket (closing is a human act, done after reading the worker's report), and authoring tickets is create-bead."
+  bead-read:
+    description: "The READ side of the ticket system: declares that you are working inside one and says what it is, then gives every command for reading — a ticket's details (`bd show --json --long`), its parent (`.parent`, `bd dep list`), its direct children (`bd show --children`), and the two reads that decide a tier's coverage: an epic reads ALL its features (gates are hidden from default queries, so an empty list is not an empty epic) and a feature reads ALL its tasks. Agents carry NO ticket-system knowledge of their own: the agent text says only \"read the ticket you were given, and its children where children apply\", and this skill supplies the how. Reads are read-only; the claim belongs to the loop, no worker ever closes its own ticket (closing is a human act, done after reading the worker's report), and authoring tickets is bead-create."
+  bead-create:
+    description: "The CREATE side of the ticket system: authoring a ticket so it dispatches — the description as the worker's complete brief, the dispatching label written at create time (`bd create -l <label>`), the parent, the dependency edges, and the metadata keys. Belongs to the plan agents; a worker files no tickets."
+  bead-initialize:
+    description: "Standing the ticket system up in a repo: create the database, register the `gate` type the tower needs, set the config the dispatcher relies on. A utility outside the tower."
+  bead-heartbeat:
+    description: "The worker contract, loaded by every spawned worker first: keep the five-minute claim lease alive with `bd heartbeat <ticket>` between long steps (a lapsed lease reads as death to the supervisor-run reaper), never close your own ticket, put a comment on the ticket saying what remains when the brief outruns you, spawn nothing, stay on your branch in the folder you were given (the Stop hook files your one commit), and `touch $BO_DONE_FILE` as your very last action only when the brief is truly done."
+  setup-cli:
+    description: "Installing the `bo` dispatcher onto PATH with the real launcher, so it survives a plugin update. A utility outside the tower."
   errors:
     description: "Error factories, error taxonomies, and failure-mode handling standards."
   coding:
@@ -92,12 +100,12 @@ agents:
     description: "Business logic: domain functions, validators, transformers, API/service layer, hooks, types, error factories. Never tests, JSX or CSS."
     spawn: [s, b, w]
     certify: true
-    skills: [files, naming]
+    skills: [bead-heartbeat, bead-read, coding, files, naming, errors]
   frontend:
     description: "UI: components, layouts, styling, shared component system, design tokens. Never logic, endpoints or tests."
     spawn: [s, b, w]
     certify: true
-    skills: [coding, files, naming]
+    skills: [bead-heartbeat, coding, files, naming, errors]
   # The three test tiers are ONE agent each, and each owns exactly one depth of coverage.
   # Tier = what to cover and how deep; the framework skill = the tool. No agent has a framework
   # opinion of its own. A tier never oversteps the next: three tiers, one test per behavior.
@@ -106,29 +114,29 @@ agents:
     description: "Micro tier: ONE back-end function at a time, in isolation, and exhaustive within it — every branch, boundary, empty/null, error. The only tier allowed to enumerate an input matrix. Back-end only: it never touches components. Never wiring, renders, browser or journeys."
     spawn: [s, b, w]
     certify: true
-    skills: [read-bead, coding, files, naming, errors, framework-jest]
+    skills: [bead-heartbeat, bead-read, coding, files, naming, errors, framework-jest]
   tester-feature:
     tier: feature
     description: "Feature tier: proves one feature's unit-tested pieces are actually WIRED together and every error and success the feature encapsulates surfaces. Deliberately not exhaustive — one representative case per path, asserted at the seam; never re-runs the unit tier's matrix, never leaves the feature."
     spawn: [s, b, w]
     certify: true
-    skills: [read-bead, coding, files, naming, errors, framework-playwright]
+    skills: [bead-heartbeat, bead-read, coding, files, naming, errors, framework-playwright]
   tester-e2e:
     tier: epic
     description: "Epic tier: journeys ACROSS features in a real browser on the real stack — cross-feature state handoffs, session/persistence continuity, one success and one failure per feature seen from outside. The thinnest tier; mocks third parties only; duplicates nothing below it."
     spawn: [s, b, w]
     certify: true
-    skills: [read-bead, coding, files, naming, errors, framework-playwright]
+    skills: [bead-heartbeat, bead-read, coding, files, naming, errors, framework-playwright]
   review:
     description: "Reads its ticket and the tickets around it, reads the diff it is handed, maps the whole system the change touches, instruments that system with trace logs, runs the tests against the instrumented code, then answers three questions from first principles — does the code do what its source of truth demands, do the tests prove it, is it simple and readable. Posts findings as PR comments; files no tickets and commits or pushes nothing — the trace logs stay in the working tree."
     spawn: [s, b, w]
     certify: true
-    skills: [read-bead, pr-comments, coding, files, naming, errors]
+    skills: [bead-heartbeat]    # bead-read, the four standards and pr-comments load on demand at the step that uses them — never preloaded
   merge:
     description: "Epic tier only. Assembles the epic's finished feature branches onto its epic branch, in its own worktree: finds the pieces, resolves the conflicts between them, then runs the project's own test command and reports. Writes no code and no tests — tests are evidence, not a suspect. Does not merge into main and opens no pull request. Dispatched by the loop like any other label."
     spawn: [s, b, w]
     certify: true
-    skills: [read-bead]
+    skills: [bead-heartbeat, bead-read]
 
 # The three plan agents build the tower top-down and do no work in it, so they have
 # no task node here — they are described at the bottom of this file.

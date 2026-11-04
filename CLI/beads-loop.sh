@@ -3,7 +3,7 @@
 #   bo loop   (or ./beads-loop.sh) from inside the tower project; Ctrl-C stops dispatching.
 #   BO_MAX_PARALLEL (4) workers at once | BO_POLL_S (3) seconds per tick, must divide 60 | BO_MAX_TICKS (0 = never ends)
 #   BO_LOG_ROOT (~/.binary-obelisk/logs) one directory per run | BO_ALLOWED_LABELS unset or * = the whole AGENT set, a comma list narrows it
-#   Contract: .claude/CLAUDE.md §The dispatcher and §The log; .claude/binary-obelisk-v1-design.yaml.
+#   Contract: .claude/CLAUDE.md §The dispatcher and §The log; .claude/design.yaml.
 set -uo pipefail
 
 declare -A AGENT=(

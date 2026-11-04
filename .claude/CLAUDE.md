@@ -5,7 +5,7 @@ the work, the plan agents that build the ticket tower, the coding/review standar
 claim-beads dispatcher that turns tickets into background workers.
 
 ### Source of truth
-[`.claude/binary-obelisk-v1-design.yaml`](./binary-obelisk-v1-design.yaml) is the design model —
+[`.claude/design.yaml`](./design.yaml) is the design model —
 databases, skills, agents, tasks. `.claude/CLAUDE.md` (this file) is transcribed from it; when
 the two disagree, the YAML wins. The dispatcher's contract is now this section plus
 [`CLI/beads-loop.sh`](../CLI/beads-loop.sh) itself — `claim-beads-loop.md` was deleted in
@@ -16,7 +16,7 @@ input is the beads database.
 ```
 plugins/binary-obelisk/
 ├── .claude-plugin/plugin.json            # manifest
-├── .claude/binary-obelisk-v1-design.yaml # EDITABLE design model
+├── .claude/design.yaml                   # EDITABLE design model
 ├── agents/                               # engineer, frontend, tester-unit, tester-feature, tester-e2e, review, merge + 3 plan agents
 ├── skills/                               # bead-read, bead-create, bead-initialize, bead-heartbeat, setup-cli, pr-comments, standards-*, framework-jest, framework-playwright
 ├── standards/                            # coding/review standards

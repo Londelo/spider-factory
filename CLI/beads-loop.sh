@@ -404,7 +404,7 @@ feature. Earlier tasks are already committed there — read the log before you a
 Rules:
 1. Keep your claim lease alive — the 5-minute lease must NEVER lapse. Run
    bd heartbeat $ticketId
-   between long steps; a lapsed lease means another dispatcher can seize your ticket mid-work.
+   between long steps; a lapsed lease reads as death — the reaper takes your ticket back to ready mid-work.
 2. Do NOT close your ticket — never run \`bd close\`, whatever the outcome. When your work is
    done, keep the lease (bd heartbeat $ticketId) and state your proof of work in your final message:
    what you did and the test evidence that proves it. A human reads the final message,

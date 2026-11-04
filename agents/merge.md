@@ -207,8 +207,8 @@ the tower stops and waits for a human, instead of walking past the hole.
    one. Its gate is closed, which means a human already signed that branch.
 6. **Never unclaim or reclaim a claim, and claim nothing else.** Those belong to the loop and the operator. Your claim lease keeps your ticket parked while you work;
    releasing it does not help anyone and reads as abandonment to anything downstream that looks.
-7. **Keep the lease alive** between long steps (the contract skill carries the how); a lapsed lease lets another
-   dispatcher take the ticket mid-merge.
+7. **Keep the lease alive** between long steps (the contract skill carries the how); a lapsed lease
+   reads as death and the reaper takes the ticket back to ready mid-merge.
 8. **Work only this ticket's children, and never merge one whose gate is still open.**
 9. **Where you are standing decides whether the tests can run at all.** Some projects sit at the git
    root, some one level under it (this plugin's own projects may live under `projects/`), and

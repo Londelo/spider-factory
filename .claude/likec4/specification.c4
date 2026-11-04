@@ -1,0 +1,166 @@
+specification {
+
+  // ── the palette: one colour per KIND of thing, never per element ──────────────
+  color opBlue       #2563EB   // the dispatcher and the commands it is made of
+  color workerPurple #7C3AED   // a worker agent
+  color plannerTeal  #0891B2   // a plan agent, outside the tower
+  color hookCyan     #0E7490   // a hook the harness fires
+  color gateAmber    #D97706   // a gate only a human closes
+  color errorRed     #DC2626   // an alarm: something failed
+  color idleGray     #64748B   // a waiting line: nothing failed, nothing ran
+  color infraGray    #6B7280   // beads, the forge, the human, notes
+  color ticketSlate  #475569   // a ticket
+  color branchGreen  #16A34A   // a branch and the worktree that holds it
+  color knobIndigo   #4C1D95   // a parameter the run reads
+  color logOlive     #3F6212   // the log: its one line format, its dir, its files
+
+  element layer {
+    style { color muted shape rectangle }
+  }
+
+  // ── the machine ──────────────────────────────────────────────────────────────
+  element dispatcher {
+    style { color opBlue shape component icon bootstrap:terminal-fill }
+  }
+
+  element cliTool {
+    style { color opBlue shape component icon bootstrap:command }
+  }
+
+  element knobPanel {
+    style { color knobIndigo shape rectangle icon bootstrap:sliders }
+  }
+
+  element hook {
+    style { color hookCyan shape component icon bootstrap:gear-fill }
+  }
+
+  element worker {
+    style { color workerPurple shape agent icon bootstrap:robot }
+  }
+
+  element planner {
+    style { color plannerTeal shape agent icon bootstrap:compass }
+  }
+
+  // ── the tower ────────────────────────────────────────────────────────────────
+  element gate {
+    style { color gateAmber shape rectangle icon bootstrap:lock-fill }
+  }
+
+  element ticket {
+    style { color ticketSlate shape document icon bootstrap:file-earmark-text-fill }
+  }
+
+  // ── what it talks to ─────────────────────────────────────────────────────────
+  element beadsStore {
+    style { color infraGray shape storage icon bootstrap:journal-text }
+  }
+
+  element forge {
+    style { color infraGray shape cylinder icon bootstrap:cloud-fill }
+  }
+
+  element human {
+    style { color infraGray shape person icon bootstrap:person-fill }
+  }
+
+  // ── the log ──────────────────────────────────────────────────────────────────
+  element logFormat {
+    style { color logOlive shape component icon bootstrap:braces }
+  }
+
+  element logStore {
+    style { color logOlive shape storage icon bootstrap:files-alt }
+  }
+
+  element logFile {
+    style { color logOlive shape document icon bootstrap:card-list }
+  }
+
+  // ── what can go wrong, and what can just sit there ───────────────────────────
+  element alarm {
+    style { color errorRed shape rectangle border dashed icon bootstrap:exclamation-triangle-fill }
+  }
+
+  element waitingLine {
+    style { color idleGray shape rectangle border dashed icon bootstrap:hourglass-split }
+  }
+
+  element noteDoc {
+    style { color infraGray shape document icon bootstrap:clipboard-check }
+  }
+
+  // ── arrow meanings ───────────────────────────────────────────────────────────
+  relationship blocks {
+    description "depends-on — the chain reads left to right, oldest first"
+    color infraGray
+    line dashed
+  }
+
+  relationship dispatches {
+    description "the AGENT map: one edge per dispatching label, and that label alone picks the worker"
+    color opBlue
+  }
+
+  relationship works {
+    description "a worker against the ticket its label owns"
+    color workerPurple
+  }
+
+  relationship plans {
+    description "top-down tower build — each plan agent writes only its own tier's branch"
+    color plannerTeal
+    line dashed
+  }
+
+  relationship closes {
+    description "only a human closes a gate"
+    color gateAmber
+  }
+
+  relationship raises {
+    description "an alarm this code raises, into the errors file"
+    color errorRed
+    line dotted
+  }
+
+  relationship probes {
+    description "a waiting line this code writes when the tick dispatched nothing"
+    color idleGray
+    line dotted
+  }
+
+  relationship execs {
+    description "runs, in the foreground"
+    color opBlue
+  }
+
+  relationship calls {
+    description "shells out to"
+    color infraGray
+  }
+
+  relationship writesLog {
+    description "appends lines to this file"
+    color logOlive
+  }
+
+  relationship readsLog {
+    description "reads this file back"
+    color logOlive
+    line dotted
+  }
+
+  deploymentNode worktreeBox {
+    notation "Branch worktree"
+    style { color branchGreen }
+  }
+
+  // ── tags: what happens to the ticket when an alarm fires ─────────────────────
+  tag leftClaimed   // the claim stays put; its 5-minute lease parks the ticket off the frontier
+  tag unclaimed     // bd unclaim — the ticket goes straight back for the next tick
+  tag staysClaimed  // the Stop hook refused to land anything; the ticket is still in_progress
+  tag fatal         // the run refuses to start at all
+  tag idle          // not a failure: a tick that had nothing to dispatch
+}

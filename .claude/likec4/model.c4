@@ -1,0 +1,1160 @@
+model {
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // THE MACHINE — one command in, background workers out.
+  // Every value here was read off CLI/beads-loop.sh, CLI/loop-log.sh, CLI/bin/bo,
+  // hooks/worker-stop.sh, hooks/worker-fail.sh, hooks/hooks.json.
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  boCli = cliTool "bo — the front door" {
+    description '''
+**What it is:** `CLI/bin/bo` — one command, `bo loop`, and nothing else. It finds the engine
+next to itself (`../beads-loop.sh`), refuses to start where there is no beads DB
+(`bd list --limit 1 --json` must answer an array), prints `bo: dispatching $PWD — Ctrl-C to stop.`,
+then `bash`s the engine in the **foreground** so every tick is on screen.
+
+`CLI/install-cli.sh` writes a **real launcher** onto PATH rather than a symlink, so the command
+still reports a helpful error after the plugin is uninstalled.
+'''
+    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/bin/bo "Source — CLI/bin/bo"
+    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/install-cli.sh "Source — CLI/install-cli.sh"
+  }
+
+  knobs = knobPanel "The run's parameters (env, read once at startup)" {
+    description '''
+| Knob | Default | What it does |
+|---|---|---|
+| `BO_MAX_PARALLEL` | `4` | workers spawned at once; the cap is recounted from `claude agents --json` every tick |
+| `BO_POLL_S` | `3` | seconds between ticks; **must divide 60** or the run refuses to start, because the idle rate limit is `60 / BO_POLL_S` |
+| `BO_MAX_TICKS` | `0` | stop after N ticks — a test seam only; 0 = endless |
+| `BO_LOG_ROOT` | `~/.binary-obelisk/logs` | parent of the one timestamped dir this run writes |
+| `BO_ALLOWED_LABELS` | unset or `*` = the whole AGENT set | a comma list narrows which labels may dispatch; a name the map does not hold matches nothing and only starves the frontier |
+
+Validation before the first tick, each one fatal (`exit 1`): the four tools `bd jq claude git`
+are on PATH; the three numeric knobs are numbers; `BO_POLL_S` divides 60; a beads DB resolves from
+`$PWD` (`bd` walks **up**, so `BEADS_DIR` does not save you).
+'''
+    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh#L68-L138 "Source — beads-loop.sh lines 68–138"
+  }
+
+  dispatcher = dispatcher "beads-loop.sh — the dispatcher" {
+    description '''
+**What it is:** the engine `bo loop` runs. A `while true` loop: `tick`, `sleep $BO_POLL_S`, again.
+It is the only thing in the system that claims, dispatches, publishes the epic branch, or owns folders.
+
+One tick, in the order the code runs it (`tick()`, line 436):
+
+| # | Step | Reads | On failure |
+|---|---|---|---|
+| 0 | `branchesCurrentlyAtWork` — the set of branches already at work, read **before** claiming so the ticket in hand is never counted against itself | `bd list --status in_progress --limit 0 --json` → `.[] \| .metadata.branch \| sort -u` | — |
+| 1 | capacity check | `claude agents --json`, background sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled` |
+| 2 | **claim** | `bd ready --claim --json` — atomic: assignee + `in_progress` + a 5-minute lease | `bd-failure`; an empty answer is a waiting line, not an error |
+| 3 | match labels against the `AGENT` map — **exactly one** may match | `.[0].labels` | `label-ambiguous`, left claimed |
+| 4 | read the branch | `.[0].metadata.branch` | `metadata-missing`, left claimed |
+| 5 | one pair of hands per branch | is `branch` in the busy set? | `bd unclaim`, try the next claim, at most `BO_MAX_PARALLEL + 2` attempts a tick |
+| 6 | find the PR base | `.[0].parent` → `epicGateOf` (≤ 4 hops of `bd show --json` `parent`) → the gate's own `branch`; `main` when the claim's parent **is** that topmost gate | `epic-pr-failed step=walk` |
+| 7 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` | `epic-pr-failed step=…`, left claimed |
+| 8 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
+| 9 | spawn | `claude --bg --agent <agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
+| 10 | one log line, move on | `logTo claims "reason=dispatched"` | — |
+
+**What it never does:** it never polls a worker, never reads worker output, never reaps, never
+merges, never ends itself, never closes a ticket, and never derives an agent name from a label.
+'''
+    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh "Source — CLI/beads-loop.sh"
+    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/.claude/binary-obelisk-v1-design.yaml "Source — the design model"
+  }
+
+  agentMap = noteDoc "The AGENT map — the only label→worker binding" {
+    description '''
+```bash
+declare -A AGENT=(
+    [backend-logic]=engineer      [frontend-ui]=frontend
+    [unit-tests]=tester-unit      [feature-test]=tester-feature
+    [epic-e2e-test]=tester-e2e    [feature-review]=review
+    [epic-review]=review          [epic-merge-pr]=merge
+)
+```
+The keys **are** the closed label set: `isLabel` requires the label to be in this map *and* in the
+allowed set. Zero or two matches on a claim is the tower's bug, not the loop's — it never guesses a
+specialist. `review` answers two labels; the three test labels are three **tiers**, and the label —
+never `--agent` — is what carries the tier, so a mis-labelled ticket gets the wrong depth of
+coverage and no worker can tell you it did. There is no `feature-merge` label: a feature IS a branch,
+so there is nothing to assemble.
+'''
+    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh#L78-L107 "Source — beads-loop.sh lines 78–107"
+  }
+
+  spawnEnv = knobPanel "BO_* — the environment the spawn carries" {
+    description '''
+Set on the `claude --bg` line and nothing else: this is how the hooks know which ticket to finish
+and what to say about it. Without them the worker just stops and its ticket sits `in_progress`
+until the lease lapses.
+
+| Var | Value | Who reads it |
+|---|---|---|
+| `BO_TICKET` | `RECIPE-6` | both hooks — and it is the **only** test that tells a dispatched worker from any other session in any other project |
+| `BO_BRANCH` | `feature/add-recipe` | Stop hook: commit here, push here, refuse if `git branch --show-current` disagrees |
+| `BO_PR_TARGET` | `epic/recipe-box`, or `main` at the epic tier | Stop hook: the base of this branch's PR; never stored on the ticket |
+| `BO_AGENT` | `engineer` | both hooks, so an alarm names who was doing the work |
+| `BO_LABEL` | `backend-logic` | both hooks, so an alarm names the label that chose that worker |
+| `BO_PROJECT_DIR` | the tower root, where `.beads` lives | both hooks — **the worktree is not the tower** |
+| `BO_LOG_DIR` | this run's log dir | both hooks: alarms land in `$BO_LOG_DIR/errors` |
+| `BO_DONE_FILE` | `$BO_LOG_DIR/done-<ticket with / to +>` | the worker touches it; the Stop hook is fail-closed on it |
+
+`BO_LOG_QUIET=1` is set by the hooks before they source the line format: a hook must never print
+into a session. The dispatcher leaves it unset, so its own lines also go to the terminal.
+'''
+    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh#L396-L431 "Source — beads-loop.sh lines 396–431"
+  }
+
+  lineDef = logFormat "loop-log.sh — the one definition of a log line" {
+    description '''
+Sourced by the engine **and** by both hooks: one format for the whole system, or the files cannot be
+read against each other.
+
+```
+<TAG padded to 8> <ISO time>\trun=… repo=… ticket=… label=… agent=… branch=… target=… session=… worktree=… <detail>
+```
+
+The nine keys are the whole contract and they are on **every line of every file**, `"-"` for whatever
+is not known at that moment — an absent field would be indistinguishable from a field nobody set, and
+an error line is worth nothing if it cannot say what it happened to. That shared key set is what makes
+the files **JOIN**: an `errors` line names the ticket, label, agent, branch, PR target, repo and session,
+and the same keys lead from it into `claims`, `closes` or `failures` by `grep` alone.
+
+- `boIdent <key> <value>` carries a value on every following line; `boClearIdentity` wipes all but
+  `run` and `repo` at the top of every tick, so no line inherits a ticket from the tick before.
+- Anything outside the nine keys — a `step=`, a `gate=`, an exit code, `msg=` — is passed as **detail**
+  to `logTo`. The key set is closed, or the joining stops working.
+- The first argument of `logTo` is both the display tag and the file it appends to, so a line can never
+  land in a file nobody watches.
+- `session=` is the id `claude --bg` prints (`backgrounded · 287d3c4c`), read out of that worker's own
+  `spawn-<ticket>` file by `sessionFromSpawn` — the id a human needs to `claude attach`, read, or stop.
+'''
+    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/loop-log.sh "Source — CLI/loop-log.sh"
+  }
+
+  logRun = logStore "~/.binary-obelisk/logs/<date>_<time> — one dir per run" {
+    description '''
+**What it is:** the binary obelisk is the central home for everything a run leaves behind. The engine
+creates **every** file up front (`claims errors waiting results closes failures`), so a missing file and
+an empty file look the same and neither hides a silent failure — `closes` and `failures` are written by
+the hooks, possibly long after the run ended.
+
+A real line, all nine keys populated:
+
+```
+CLAIMS   2026-11-04T09:12:03	run=2026-11-04_09-12-01 repo=/home/dev/recipe-box ticket=RECIPE-6 label=backend-logic agent=engineer branch=feature/add-recipe target=epic/recipe-box session=287d3c4c worktree=/home/dev/recipe-box/.claude/worktrees/feature+add-recipe reason=dispatched
+```
+'''
+    fClaims = logFile "claims" {
+      description '''
+Every ticket taken, and every one put back. `reason=dispatched` on a spawn, `reason=branch-busy unclaimed`
+on a put-back, and `gate=… reason=epic-published gateBranch=… pr=…` when the loop publishes the epic branch —
+that one line names no ticket of its own, because the identity the tick already carries is on it.
+'''
+    }
+    fErrors = logFile "errors" {
+      description '''
+The alarm: every failure, whoever saw it. **Never rate-limited** — a waiting line is capped at one a minute
+per reason, an error never is.
+'''
+    }
+    fWaiting = logFile "waiting" {
+      description '''
+The quiet ticks, **one a minute per reason** (`60 / BO_POLL_S` ticks), each carrying
+`working=<busy sessions>` and `next=<the id a bare bd ready would name>`.
+'''
+    }
+    fCloses = logFile "closes" {
+      description '''
+The Stop hook's proof of work: one line per ticket that landed, `url=<the PR>`.
+'''
+    }
+    fFailures = logFile "failures" {
+      description '''
+The StopFailure hook's account of a session that died mid-turn: `from=<state> kind=<.error> msg="<last assistant message>"`.
+'''
+    }
+    fResults = logFile "results" {
+      description '''
+The run's tally — `ticks=N claimed=M` — at `BO_MAX_TICKS`, or on Ctrl-C (`onInterrupt`).
+'''
+    }
+    fSpawn = logFile "spawn-<ticket>" {
+      description '''
+That one worker's raw spawn output, which holds its session id. It used to be one shared `last-spawn`
+that every spawn overwrote, so the id survived only for the run's final worker — the one thing a human
+needs to attach to, read, or stop.
+'''
+    }
+    fDone = logFile "done-<ticket>" {
+      description '''
+The worker's own declaration that its brief is complete, created by `touch "$BO_DONE_FILE"` as its very
+last action. The engine `rm -f`s it before spawning; the Stop hook refuses to land anything without it.
+'''
+    }
+  }
+
+  stopHook = hook "worker-stop.sh — the Stop hook, fail-closed" {
+    description '''
+**What it is:** the closer. Registered in `hooks/hooks.json` (`timeout: 300`), so it fires in **every
+session of every project** the plugin is enabled in — `BO_TICKET` is what tells a dispatched worker
+apart from everything else, and a session the loop did not spawn leaves on the first line.
+
+```
+worker says it is done → commit onto its feature's branch → push → the branch's PR →
+write the PR url onto the ticket's pr metadata → close it
+```
+
+Refusals, in the order the code checks them, each one `exit 0` with the ticket untouched:
+`missing-tool` → `ticket-not-in-work` (a second Stop in a closed session leaves silently) →
+`no-branch` → `no-pr-target` → **`not-declared-done`** → `wrong-branch` → `ticket-has-no-title` →
+`commit-failed` → `push-failed` → `forge-unknown` / `missing-tool` → `pr-not-created` →
+`ticket-not-annotated` → `close-failed`.
+
+**One branch, one pull request, forever:** the branch's first task creates the PR, and every later task
+finds it by `gh pr list --head <branch> --base <target> --state open` and reuses it — which is why the
+branch, not the ticket, is the identity of the work.
+'''
+    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/hooks/worker-stop.sh "Source — hooks/worker-stop.sh"
+  }
+
+  failHook = hook "worker-fail.sh — the StopFailure hook" {
+    description '''
+**What it is:** what happens when a worker's session dies on an API error mid-turn (`timeout: 60`). A dead
+worker stops heartbeating, its lease lapses, and `bd reclaim` would silently sweep the ticket back to
+`open` for another attempt. This hook takes it out of that path **on purpose**: the ticket lands somewhere
+a human will see it, with the reason attached, and stays until they say otherwise.
+
+```bash
+bd update "$ticket" --append-notes "Worker session <id> failed: <kind>
+Last message: <last assistant message>"
+bd update "$ticket" --status failed-agent
+logTo failures "from=<state> kind=<kind> msg=\"…\""
+```
+
+The failure text is **never polled, parsed out of a log, or asked of the model**: the harness fires this
+hook itself and hands the reason on stdin — `.error` is its coarse label for the kind of death (often just
+`unknown`), `.last_assistant_message` is the last thing the session produced, which is where the real text
+is (for local inference, typically an `API Error:` line from the proxy). Every step is *attempted, never
+forced*: one that fails leaves the ticket exactly where it was and logs why.
+'''
+    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/hooks/worker-fail.sh "Source — hooks/worker-fail.sh"
+  }
+
+  hooksJson = noteDoc "hooks/hooks.json — the registration" {
+    description '''
+Two hook events, both plain commands:
+
+| Event | Command | Timeout |
+|---|---|---|
+| `Stop` | `${CLAUDE_PLUGIN_ROOT}/hooks/worker-stop.sh` | 300 s |
+| `StopFailure` | `${CLAUDE_PLUGIN_ROOT}/hooks/worker-fail.sh` | 60 s |
+
+Because the plugin registers them globally, both scripts start with `[[ -n "${BO_TICKET:-}" ]] || exit 0`.
+That one line is what keeps the obelisk from committing your everyday sessions.
+'''
+    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/hooks/hooks.json "Source — hooks/hooks.json"
+  }
+
+  beads = beadsStore "beads DB (bd) — the tower" {
+    description '''
+**What it is:** the loop's **only runtime input**. None of the design docs or CLAUDE.md files are read at
+runtime; the graph — every gate, ticket, `depends-on` edge, and the two metadata keys — lives here.
+
+The verbs the tower actually uses:
+
+| Command | Why this one |
+|---|---|
+| `bd ready --claim --json` | the **only** sanctioned claim: atomic assignee + `in_progress` + 5-minute lease. A bare `bd ready` is not atomic and would let two loops steal the same ticket |
+| `bd ready --json` (peek) | used once, inside `waiting()`, purely to name `next=` |
+| `bd unclaim <id>` | put a claim back — branch already at work, or the spawn died |
+| `bd heartbeat <id>` | the worker keeps its lease alive; it never closes its own ticket |
+| `bd list --status in_progress --limit 0 --json` | the branches currently at work |
+| `bd list --status open,blocked --limit 0 --json` | the probe that tells `frontier_empty` from `tower_stalled` |
+| `bd show --json <id>` | walk the parent chain; verify a plan round trip |
+| `bd update <id> --set-metadata k=v` | **merges** — which is why writing `pr` never disturbs the plan's `branch` |
+| `bd close <id> --session <id> --reason …` | only the Stop hook, only on the done marker |
+| `bd create -t gate -l <label> --parent <id>` | the plan agents' build |
+| `bd where` | which DB a directory resolves — `bd` walks **up** and ignores `BEADS_DIR` |
+
+Types are `gate` and `task`, and `gate` must be registered (`bd config set types.custom "gate"`):
+`bd` does not reject an unregistered type, it **accepts and hides it**, so a broken gate and a working
+one look identical. Check `bd types` before you trust one.
+'''
+    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/skills/initialize-beads/SKILL.md "Source — the initialize-beads skill"
+  }
+
+  forge = forge "origin — GitHub or GitLab" {
+    description '''
+**What it is:** the forge the tower publishes to. `main` at the bottom, one PR per branch above it:
+`feature/<slug>` → PR → the epic branch, `epic/<slug>` → PR → `main`.
+
+**Which forge it is, is settled three ways, in this order** (`detectForge`, and the same three steps in
+the Stop hook): an honest host name in the remote URL (`*gitlab*`, `*github*`); then the refs that host
+actually publishes, because only GitHub serves `refs/pull/` and only GitLab serves
+`refs/merge-requests|pipelines|environments/`; then a machine holding **exactly one** of `gh`/`glab`.
+Where all three are ambiguous the hook refuses to guess and logs `forge-unknown` — a wrong guess pushes
+a branch to the wrong forge.
+'''
+  }
+
+  claudeCli = cliTool "claude — background sessions" {
+    description '''
+Two uses, both by the dispatcher:
+
+- `claude --bg --agent <agent> --permission-mode bypassPermissions "<the six rules>"`, run with `cd`
+  **inside** the branch's worktree, and deliberately **no `-w`** — `claude --worktree` only ever
+  *creates* one, and this branch already owns its own.
+- `claude agents --json` — the capacity count, recounted fresh every tick: background sessions whose
+  `cwd` starts with `<tower>/.claude/worktrees` or equals the tower.
+
+Workers run `bypassPermissions` unattended, so this loop only ever belongs in a repo you fully trust.
+'''
+  }
+
+  gitCli = cliTool "git — worktrees, fetch, push" {
+    description '''
+The loop owns the folders now, because a worktree belongs to a **branch**, not to a ticket.
+
+- `branchAlreadyCheckedOut`: parse `git worktree list --porcelain` for `refs/heads/<branch>` — a branch
+  already checked out somewhere is reused, never re-added.
+- `ensureWorktree <branch> <prTarget>` → `git worktree add -B <branch> <path> <start>`, under
+  `<tower>/.claude/worktrees/`, where the folder name is the branch name with `/` → `+`
+  (`feature/add-recipe` → `feature+add-recipe`).
+- `<start>` is the **first** of `origin/<branch>`, `origin/<prTarget>`, `<prTarget>`, `HEAD` that resolves —
+  a feature branch starts where it is going to land.
+- `git -C <tower> fetch --quiet origin` before each lookup; `push -u origin <branch>` is the Stop hook's.
+'''
+  }
+
+  forgeCli = cliTool "gh / glab" {
+    description '''
+Whichever `detectForge` settled on. Both are used the same way: list the PR already on this branch pair,
+and create one only when there is none. Only a URL matching `/(pull|merge_requests)/[0-9]+` counts as a
+pull request — an error message quoting a docs URL is not one.
+'''
+  }
+
+  human = human "Human (Brodie)" {
+    description '''
+**What it is:** the only one who closes gates. Workers leave their tickets open and report in their final
+message; the human reads the report, verifies the branch, and closes. There is **no `human` agent** — the
+person enters through gates and closes them, and nothing is ever spawned for them. A claimable ticket
+assigned to a human is a model bug.
+'''
+  }
+
+  decisions = noteDoc "The judgments the machine never makes" {
+    description '''
+Everything else is mechanical. These are not:
+
+- **What the epic is** — one epic, one `epic/<slug>` of 2–4 lowercase words saying what the thing *is*.
+- **What counts as a feature** — a complete user-facing flow; phased foundations → core → dependent → polish.
+- **Order inside a feature's line** — the logic, then its tests, then the UI. Never a fan.
+- **The tier of a test ticket** — the label carries the tier, never `--agent`.
+- **Whether the work is done** — the human verifies and closes; nothing self-closes, and the Stop hook only
+  ever files a *task* on the worker's own declaration.
+- **Merge conflicts between feature branches** — the `merge` agent resolves them; it writes no code and
+  never merges into `main`.
+'''
+    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/.claude/binary-obelisk-v1-design.yaml "Source — the design model"
+  }
+
+  tiersNote = noteDoc "The three names — category, label, agent" {
+    description '''
+| Name | What it is | Examples |
+|---|---|---|
+| **category** | a display hint in `bd list`; names a plan-task template | `backend-logic`, `frontend-ux`, `unit-tests`, `feature-test`, `epic-e2e-test`, `review`, `merge` |
+| **label** | a string attached with `bd create -l`; a ticket may carry any number, but **exactly one** must be a key of the `AGENT` map | `backend-logic`, `frontend-ui`, `unit-tests`, `feature-test`, `epic-e2e-test`, `feature-review`, `epic-review`, `epic-merge-pr` |
+| **agent** | a real file in `agents/` | `engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`, `review`, `merge` |
+
+A task may list two categories; a ticket has exactly one **dispatching** label, and it alone decides the
+worker. For the three test tiers the label, the category and the node key deliberately collapse to one
+string, while the agent carries its own name — `unit-tests` → `tester-unit` (micro), `feature-test` →
+`tester-feature` (composition), `epic-e2e-test` → `tester-e2e` (broad). A tier is named for the **test**,
+never the tester and never the framework.
+
+**Tiers vs tools:** a test agent owns a tier (what to cover, how deep) and is deliberately agnostic about
+the framework; a `framework-*` skill owns the tool (syntax, config, run and debug). That is why no ticket
+description carries framework syntax, and why the feature and epic tiers load the *same* skill — they differ
+in scope, not in spelling.
+'''
+  }
+
+  branchRules = noteDoc "Branches and the two metadata keys" {
+    description '''
+One branch per epic, one per feature; **a task is a commit on its feature's branch**. No branch per ticket,
+no branch per worker.
+
+| Fact | Where it lives | Who reads it |
+|---|---|---|
+| `branch` | the ticket's `metadata`, written by the `plan-*` agents (the ticket copies its feature's value **verbatim**) | the loop reads `.[0].metadata.branch` off the claim and hands it down as `BO_BRANCH` — nothing re-derives it and nothing parses text |
+| `pr` | the same `metadata`, written by the loop (onto the epic gate) or the Stop hook (onto any ticket whose work landed) | a human, and the hook when it looks for the PR already on a branch |
+| the PR's **base** | **nowhere on a ticket** — it is the epic gate's own `branch`, named by the parent chain | `tick()` walks `.[0].parent` (`epicGateOf`, two hops at most) and reads it with `readFieldOf`, handing it down as `BO_PR_TARGET` |
+
+A copy of the base could drift from the gate it copies and nothing compared the two — the loop published
+one while the hook aimed at the other. So the copy is gone. A colliding sibling branch gets **different
+words**, never `-2`. The epic branch has **no other publisher**: nothing but the loop ever pushes
+`epic/<slug>` or opens its PR into `main`.
+'''
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // THE WORKERS — the spokes. Each is one agent file, dispatched by one label.
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  workers = layer "The workers" {
+    engineer = worker "engineer" {
+      description '''
+**Label `backend-logic` → `engineer`.** Business logic, endpoints, hooks, types, error factories.
+Never writes tests, JSX or CSS. Respawns: a fresh session of the same agent re-checks the work inside
+the one ticket before it may close.
+'''
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/engineer.md "Source — agents/engineer.md"
+    }
+    testerUnit = worker "tester-unit" {
+      description '''
+**Label `unit-tests` → `tester-unit` — the micro tier.** One back-end function alone; every branch, every
+boundary, empty/null, every error it throws. Never a component: the UI is proved by the composition tier.
+Waits on the back-end ticket it tests. Skill: `framework-jest`.
+'''
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/tester-unit.md "Source — agents/tester-unit.md"
+    }
+    frontend = worker "frontend" {
+      description '''
+**Label `frontend-ui` → `frontend`.** Components, layout, styling, the shared component system. Last in the
+line, built against functions already proved. Its landing is what unblocks `feature-test`.
+'''
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/frontend.md "Source — agents/frontend.md"
+    }
+    testerFeature = worker "tester-feature" {
+      description '''
+**Label `feature-test` → `tester-feature` — the composition tier.** One feature's pieces proved wired; its
+errors and successes surface. Never re-runs the micro tier's edge matrix, never walks cross-feature journeys.
+Skill: `framework-playwright`.
+'''
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/tester-feature.md "Source — agents/tester-feature.md"
+    }
+    testerE2e = worker "tester-e2e" {
+      description '''
+**Label `epic-e2e-test` → `tester-e2e` — the broad tier.** Journeys across features on the real stack:
+cross-feature state handoffs, session continuity, one success and one failure journey per feature. The least
+verbose tier. Skill: `framework-playwright`.
+'''
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/tester-e2e.md "Source — agents/tester-e2e.md"
+    }
+    reviewAgent = worker "review" {
+      description '''
+**Labels `feature-review` and `epic-review` → `review`.** Three questions from first principles: does the code
+do what its source of truth demands, do the tests prove it, is it simple and readable. Maps the system the
+change sits in (entry → exit, following imports), instruments it with trace logs, runs the tests against the
+instrumented code, posts findings as PR comments. Files no tickets and commits or pushes nothing.
+Skill: `pr-comments`.
+'''
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/review.md "Source — agents/review.md"
+    }
+    mergeAgent = worker "merge" {
+      description '''
+**Label `epic-merge-pr` → `merge`.** Epic tier only. Reads the epic's finished feature branches off the feature
+gates, assembles them onto the epic branch in its own worktree, resolves the conflicts between them, runs the
+tests, reports. Writes no code and no tests; **never merges into `main`, never opens a PR** — the thumbs-up on
+that PR is the human's.
+'''
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/merge.md "Source — agents/merge.md"
+    }
+  }
+
+  planAgents = layer "The plan agents (outside the tower)" {
+    planEpic = planner "plan-epic" {
+      description '''
+Vague idea → clarifying questions → research → **exactly one** epic gate plus its `epic-merge-pr`,
+`epic-e2e-test` and `epic-review` tickets. Writes one metadata key — `branch: epic/<slug>` — onto the gate and
+its three tickets. Builds the tower and does no work in it.
+'''
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/plan-epic.md "Source — agents/plan-epic.md"
+    }
+    planFeature = planner "plan-feature" {
+      description '''
+Epic → feature-sized features (complete user-facing flows), `parent-child` to the epic, phased foundations →
+core → dependent → polish; each gets its own `feature/<slug>`, its `feature-test` and its `feature-review`.
+An orphaned feature (no epic) aims its PR at `main`.
+'''
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/plan-feature.md "Source — agents/plan-feature.md"
+    }
+    planTask = planner "plan-task" {
+      description '''
+One feature → its tasks, each `parent-child` to the feature, **labelled at creation** with `bd create -l <label>`,
+the feature's `branch` copied **verbatim** (a plan agent never invents a branch below its own tier), the tasks
+chained onto their predecessor, and every ticket verified with a `bd show --json` round trip.
+'''
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/plan-task.md "Source — agents/plan-task.md"
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // THE TOWER — a worked example. The machine on the left is verified against
+  // source; this tower is an INVENTED example (a recipe box) used so the
+  // walkthroughs can name real ticket ids, branches and log lines.
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  tower = layer "The tower — worked example: a recipe box (invented ids, real shapes)" {
+    epic = gate "Epic gate — Recipe Box · RECIPE-1" {
+      description '''
+**What it is:** the epic gate — the *what*; the human closes it once, after `epic-review`.
+
+```
+type:     gate                       (custom type: bd config set types.custom "gate")
+branch:   epic/recipe-box            ← plan-epic's key, the only metadata it writes
+pr:       https://github.com/…/pull/1 ← written by the LOOP, by ensureEpicGatePr
+waits on: RECIPE-4 (epic-review)      — an explicit blocked-by edge onto the gate itself
+```
+
+A gate does **not** block its own children: they are claimable while it is open. What holds the next tier off
+the frontier is that explicit edge, and only a human closes it — so the tower stalls here until someone verifies.
+`bd ready` never shows a gate: it is structurally invisible, so there is nothing to exclude.
+'''
+      epicMergePr = ticket "epic-merge-pr · RECIPE-2" {
+        description '''
+```
+title:    assemble the feature branches onto epic/recipe-box
+label:    epic-merge-pr        → AGENT → merge
+parent:   RECIPE-1             (the epic gate)
+metadata: { "branch": "epic/recipe-box" }
+depends:  blocked-by RECIPE-5, RECIPE-11 — the two feature gates
+```
+**Brief:** read the feature branches off the feature gates, assemble them onto `epic/recipe-box` in your own
+worktree, resolve the conflicts between them, run the tests, report. No code, no tests, no merge into `main`,
+no PR.
+'''
+      }
+      epicE2e = ticket "epic-e2e-test · RECIPE-3" {
+        description '''
+```
+title:    journeys across the whole app in a real browser
+label:    epic-e2e-test        → AGENT → tester-e2e   (respawn: true)
+parent:   RECIPE-1
+metadata: { "branch": "epic/recipe-box" }
+depends:  blocked-by RECIPE-2
+skill:    framework-playwright
+```
+**Brief:** cross-feature state handoffs, session continuity, one success and one failure journey per feature.
+Never re-test the micro tier's edges or the composition tier's wiring.
+'''
+      }
+      epicReview = ticket "epic-review · RECIPE-4" {
+        description '''
+```
+title:    the three questions over the whole epic
+label:    epic-review          → AGENT → review        (respawn: true)
+parent:   RECIPE-1
+metadata: { "branch": "epic/recipe-box" }
+depends:  blocked-by RECIPE-3
+skill:    pr-comments
+```
+**Brief:** map entry → exit, instrument with trace logs, run the tests against the instrumented code, post
+findings as PR comments. Then the human verifies and closes RECIPE-1.
+'''
+      }
+    }
+
+    featA = gate "Feature gate — Add a Recipe · RECIPE-5" {
+      description '''
+```
+type:     gate
+branch:   feature/add-recipe           ← plan-feature's key
+pr:       https://github.com/…/pull/2  ← written by the Stop hook onto the ticket that first landed work
+waits on: RECIPE-10 (feature-review)
+PR base:  epic/recipe-box              ← read off the epic gate, never copied down
+```
+One complete user-facing flow: a user writes a recipe and sees it in the box. Its five tasks are **one linked
+line, never a fan**, so the frontier can only ever hand out one task per feature and this branch is never
+written by two workers at once.
+'''
+      backendA = ticket "backend-logic · RECIPE-6" {
+        description '''
+```
+title:    validateRecipe + saveRecipe — pure functions
+label:    backend-logic        → AGENT → engineer
+category: backend-logic
+parent:   RECIPE-5
+metadata: { "branch": "feature/add-recipe" }   ← copied VERBATIM from the feature gate
+depends:  none — the first task; with RECIPE-12 it IS the frontier, and both are claimable together
+```
+**Requirements**
+1. `validateRecipe(input): Either<RecipeValidationError, Recipe>` — pure, no mutation
+2. `saveRecipe(validated)` through the repository port only
+3. reject: empty title, title > 120 chars, duplicate slug, missing ingredients
+
+**Files:** `src/recipes/validate-recipe.ts`, `src/recipes/types.ts`, `src/recipes/ports.ts`
+**Done means:** report in the final message; the Stop hook files it, not you.
+'''
+      }
+      unitA = ticket "unit-tests · RECIPE-7" {
+        description '''
+```
+title:    exhaustive coverage for validateRecipe
+label:    unit-tests           → AGENT → tester-unit   (respawn: true)
+category: unit-tests
+parent:   RECIPE-5
+metadata: { "branch": "feature/add-recipe" }
+depends:  blocked-by RECIPE-6 — the back-end ticket it tests
+skill:    framework-jest
+```
+**Cover:** every branch, every boundary (120/121 chars), empty and null input, each error it throws, the empty
+ingredients list.
+**Owned elsewhere:** composition wiring (feature tier), components (never here), journeys (epic tier).
+'''
+      }
+      frontendA = ticket "frontend-ui · RECIPE-8" {
+        description '''
+```
+title:    RecipeForm + RecipeCard against proved functions
+label:    frontend-ui          → AGENT → frontend
+category: frontend-ux
+parent:   RECIPE-5
+metadata: { "branch": "feature/add-recipe" }
+depends:  blocked-by RECIPE-7
+```
+**Brief:** the form, validation feedback surfacing each `RecipeValidationError`, the card in the box. Layout and
+styling only — the logic is already proved by the micro tier. This ticket landing is what unblocks `feature-test`.
+'''
+      }
+      featureTestA = ticket "feature-test · RECIPE-9" {
+        description '''
+```
+title:    the add-recipe pieces are wired
+label:    feature-test         → AGENT → tester-feature (respawn: true)
+category: feature-test
+parent:   RECIPE-5
+metadata: { "branch": "feature/add-recipe" }
+depends:  blocked-by RECIPE-8 — the LAST task; nothing is proved against half a feature
+skill:    framework-playwright
+```
+**Cover:** the composed flow saves a recipe; each encapsulated error surfaces to the user.
+'''
+      }
+      featureReviewA = ticket "feature-review · RECIPE-10" {
+        description '''
+```
+title:    the three questions over feature/add-recipe
+label:    feature-review       → AGENT → review         (respawn: true)
+category: review
+parent:   RECIPE-5
+metadata: { "branch": "feature/add-recipe" }
+depends:  blocked-by RECIPE-9 — no review before the suite
+skill:    pr-comments
+```
+**Brief:** three questions from first principles, findings as PR comments. Then the human verifies and closes
+gate RECIPE-5, and that PR merges `feature/add-recipe` into `epic/recipe-box`.
+'''
+      }
+    }
+
+    featB = gate "Feature gate — Search the Box · RECIPE-11" {
+      description '''
+```
+type:     gate
+branch:   feature/search-recipes
+pr:       https://github.com/…/pull/3
+waits on: RECIPE-16 (feature-review)
+PR base:  epic/recipe-box
+```
+Runs **side by side** with Add a Recipe: two features in parallel, each alone on its own branch.
+'''
+      backendB = ticket "backend-logic · RECIPE-12" {
+        description '''
+```
+title:    searchRecipes — pure filter over the repository port
+label:    backend-logic        → AGENT → engineer
+category: backend-logic
+parent:   RECIPE-11
+metadata: { "branch": "feature/search-recipes" }
+depends:  none — with RECIPE-6 it is the frontier
+```
+**Requirements**
+1. `searchRecipes(query, records): Recipe[]` — pure, deterministic order
+2. empty query returns all, newest first; whitespace trimmed
+3. no match returns `[]`, never an error
+
+**Files:** `src/recipes/search-recipes.ts`, `src/recipes/ports.ts` (read side)
+'''
+      }
+      unitB = ticket "unit-tests · RECIPE-13" {
+        description '''
+```
+title:    exhaustive coverage for searchRecipes
+label:    unit-tests           → AGENT → tester-unit    (respawn: true)
+category: unit-tests
+parent:   RECIPE-11
+metadata: { "branch": "feature/search-recipes" }
+depends:  blocked-by RECIPE-12
+skill:    framework-jest
+```
+**Cover:** empty query, whitespace, unicode titles, an empty store, tie-break ordering, case folding.
+'''
+      }
+      frontendB = ticket "frontend-ui · RECIPE-14" {
+        description '''
+```
+title:    SearchBar + live results list
+label:    frontend-ui          → AGENT → frontend
+category: frontend-ux
+parent:   RECIPE-11
+metadata: { "branch": "feature/search-recipes" }
+depends:  blocked-by RECIPE-13
+```
+**Brief:** debounce, empty-state copy, highlighted matches, all from the shared component system.
+'''
+      }
+      featureTestB = ticket "feature-test · RECIPE-15" {
+        description '''
+```
+title:    the search pieces are wired
+label:    feature-test         → AGENT → tester-feature (respawn: true)
+category: feature-test
+parent:   RECIPE-11
+metadata: { "branch": "feature/search-recipes" }
+depends:  blocked-by RECIPE-14 — the LAST task
+skill:    framework-playwright
+```
+'''
+      }
+      featureReviewB = ticket "feature-review · RECIPE-16" {
+        description '''
+```
+title:    the three questions over feature/search-recipes
+label:    feature-review       → AGENT → review         (respawn: true)
+category: review
+parent:   RECIPE-11
+metadata: { "branch": "feature/search-recipes" }
+depends:  blocked-by RECIPE-15
+skill:    pr-comments
+```
+'''
+      }
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // THE ALARMS — every reason string in the engine and both hooks, and what
+  // happens to the ticket when it fires.
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  alarms = layer "Alarms — every reason= in the code" {
+
+    tickAlarms = layer "raised by the tick" {
+      startupAbort = alarm "startup: the run refuses to start" {
+        #fatal
+        description '''
+Before the first tick, each one prints to stderr and `exit 1`s:
+
+| Check | Message |
+|---|---|
+| `bd jq claude git` on PATH | `beads-loop: <tool> not found on PATH` |
+| the three numeric knobs | `BO_<VAR>=<x> is not a number` |
+| the poll interval | `BO_POLL_S=<x> is unusable — it must divide 60 (1 2 3 4 5 6 10 12 15 20 30 60)` |
+| a beads DB from `$PWD` | `no beads database found from $PWD — cd into the tower project and re-run` |
+| the log dir | `cannot create <dir>` |
+
+It is a real probe of "can we do anything here", not a check for a `.beads` folder — `bd` walks **up** from
+the cwd and ignores `BEADS_DIR`. `bo` runs the same DB probe before it even starts the engine.
+'''
+      }
+      bdFailure = alarm "ERROR reason=bd-failure exit=N" {
+        description '''
+`bd ready --claim` exited non-zero — the last line of `$logDir/bd-stderr` is quoted in `msg=`. Also raised
+when the claim exits 0 but hands back no `id`, with the first 60 characters of the payload in `msg=`. The tick
+returns; there is no claim to keep or return.
+'''
+      }
+      labelAmbiguous = alarm "ERROR reason=label-ambiguous" {
+        #leftClaimed
+        description '''
+Zero **or two** dispatching labels on a claim: `matched="…" labels="…"`. The dispatcher never guesses a
+specialist. The ticket is LEFT CLAIMED so its 5-minute lease parks it off the frontier — otherwise the loop
+would spin on the same unworkable ticket every tick — and the errors file is the alarm.
+'''
+      }
+      metadataMissing = alarm "ERROR reason=metadata-missing" {
+        #leftClaimed
+        description '''
+No `branch` in the claim's `metadata` — a plan agent skipped its one key. With no branch there is no folder to
+work in and nothing to push, so it is a plan bug and gets exactly the treatment of a mislabelled ticket: left
+claimed. The loop never invents a branch.
+'''
+      }
+      branchBusyAlarm = alarm "CLAIMS reason=branch-busy unclaimed" {
+        #unclaimed
+        description '''
+The branch this ticket wants is already checked out by a worker: `bd unclaim`, remember the ticket id in
+`skippedTicket`, try the next claim — at most `BO_MAX_PARALLEL + 2` attempts a tick, then the waiting line
+`branch_busy held=N`. One pair of hands per branch.
+'''
+      }
+      worktreeFailed = alarm "ERROR reason=worktree-failed" {
+        #leftClaimed
+        description '''
+`ensureWorktree` could not build the folder — none of `origin/<branch>`, `origin/<prTarget>`, `<prTarget>`,
+`HEAD` resolved, or `git worktree add` failed. Left claimed, like a mislabelled ticket: a worker spawned into a
+missing folder burns a slot on nothing.
+'''
+      }
+      workerNotDispatched = alarm "ERROR reason=worker-not-dispatched" {
+        #unclaimed
+        description '''
+`claude --bg` came back non-zero; the last line of that worker's `spawn-<ticket>` file is quoted in `msg=`.
+`bd unclaim` — unlike every other tick alarm, this one puts the ticket **straight back**, because nothing was
+ever spawned to work it and the next tick may well succeed.
+'''
+      }
+      epicPrFailed = alarm "ERROR reason=epic-pr-failed step=…" {
+        #leftClaimed
+        description '''
+The epic branch or its PR could not be published — and every feature PR below it aims at that branch, so nothing
+beneath the epic has a base until this succeeds. Seven steps name exactly where it died:
+
+| step | when |
+|---|---|
+| `walk` | `epicGateOf` could not reach a top of the parent chain in 4 hops |
+| `gate-branch` | the epic gate carries no `branch` metadata of its own |
+| `forge` | `detectForge` settled on nothing |
+| `missing-tool` | the settled forge's CLI (`gh`/`glab`) is not installed |
+| `push` | the epic branch could not be published off `main` |
+| `pr` | no URL matching `/(pull\|merge_requests)/[0-9]+` came back |
+| `annotate` | `bd update --set-metadata pr=` refused |
+
+Left claimed every time: a worker spawned under an epic branch that does not exist burns a slot and files a
+commit nobody can pull. The one place the epic gate's own branch appears is `gateBranch=` on the line — never
+`branch=`, which belongs to the claim, and the two differ.
+'''
+      }
+    }
+
+    stopAlarms = layer "raised by the Stop hook — fail-closed" {
+      missingToolHook = alarm "ERROR reason=missing-tool tool=<t>" {
+        #staysClaimed
+        description '''
+`bd`, `jq` or `git` missing (checked up front), or the settled forge CLI missing. Note this alarm fires
+**before** `BO_TICKET` is even checked for the tools case — a session the loop never spawned still exits on
+line one.
+'''
+      }
+      ticketNotInWork = alarm "ERROR reason=ticket-not-in-work state=<s>" {
+        #staysClaimed
+        description '''
+The ticket is not `in_progress`. Two readings: state `closed` means this is a second Stop in a session that
+already shipped, and the hook leaves **silently** rather than committing onto a shared branch a second time;
+anything else (`not-found`, `open`) is an alarm.
+'''
+      }
+      noBranchHook = alarm "ERROR reason=no-branch" {
+        #staysClaimed
+        description '''
+`BO_BRANCH` was not on the spawn line — so the loop never got as far as reading the claim's `branch` metadata.
+'''
+      }
+      noPrTarget = alarm "ERROR reason=no-pr-target" {
+        #staysClaimed
+        description '''
+`BO_PR_TARGET` was not on the spawn. Named for the target, since `pr` now means the url: the loop reads the
+base off the ticket's epic gate and says `main` when the ticket sits under the epic itself, so an absent target
+means the hook is aiming blind and refuses to.
+'''
+      }
+      notDeclaredDone = alarm "ERROR reason=not-declared-done" {
+        #staysClaimed
+        description '''
+**The gate.** `$BO_DONE_FILE` does not exist: the session ended without saying, out loud, in the one place both
+programs read, that its brief is finished. The session ending is not that statement — the marker is.
+
+No commit, no push, no PR, no close. The ticket stays claimed so its lease parks it off the frontier and every
+task chained behind it waits. That is the whole safety of a shared branch: a half-finished task cannot slide its
+neighbours sideways. And the converse is the one failure this model cannot undo on its own — a worker that touches
+the marker early files half a task onto a branch its siblings are queued behind.
+'''
+      }
+      wrongBranch = alarm "ERROR reason=wrong-branch want=<b> got=<d>" {
+        #staysClaimed
+        description '''
+The worker was told never to change branches; if it did anyway, this is the last place that can refuse to file
+its work under the wrong ticket's name. `git branch --show-current` must equal `BO_BRANCH` exactly — a detached
+tree reads as `got="detached"`.
+'''
+      }
+      noTitle = alarm "ERROR reason=ticket-has-no-title" {
+        #staysClaimed
+        description '''
+The commit message IS the ticket title (`bd show --json --long | .title`), so a ticket with no title cannot be
+filed — the commit would be anonymous on a shared branch.
+'''
+      }
+      commitFailed = alarm "ERROR reason=commit-failed" {
+        #staysClaimed
+        description '''
+`git add -A` then `git commit -F -`, message = the ticket title plus a `Ticket: <id>` trailer. A review or test
+ticket may legitimately land nothing (`diff --cached --quiet` skips the commit entirely), so this is a genuine
+commit failure, not an empty tree.
+'''
+      }
+      pushFailed = alarm "ERROR reason=push-failed" {
+        #staysClaimed
+        description '''
+`git push -u origin <BO_BRANCH>` failed; the first 160 characters of its stderr are the `msg=`.
+'''
+      }
+      forgeUnknown = alarm "ERROR reason=forge-unknown remote=<url>" {
+        #staysClaimed
+        description '''
+All three settle steps came up empty — the remote name lied, it publishes neither `refs/pull/` nor
+`refs/merge-requests/`, and the machine holds both `gh` and `glab`, or neither. The hook refuses to guess a forge.
+'''
+      }
+      prNotCreated = alarm "ERROR reason=pr-not-created forge=<f>" {
+        #staysClaimed
+        description '''
+Nothing came back that looks like a PR url. Either the list of the branch's existing PRs and the create both
+failed, or the CLI printed an error quoting some other URL — only `/(pull|merge_requests)/<digits>` counts.
+'''
+      }
+      ticketNotAnnotated = alarm "ERROR reason=ticket-not-annotated pr=<url>" {
+        #staysClaimed
+        description '''
+`bd update --set-metadata pr=<url>` failed. The work is pushed but the ticket cannot say where it went, so the
+hook stops rather than closing a ticket whose PR is unfindable. (`--set-metadata` **merges**, so this never
+disturbs the plan's `branch` key.)
+'''
+      }
+      closeFailed = alarm "ERROR reason=close-failed pr=<url>" {
+        #staysClaimed
+        description '''
+`bd close <ticket> --session <session_id> --reason "worker session … finished; PR …"` failed. The last step, and
+the only one where everything else already succeeded — the commit, the push and the PR are all out there with no
+record in the tower. `bd` refuses to close a ticket whose assignee is not the actor, and the dispatcher claimed
+this one, so the hook deliberately passes the real `session_id` rather than overriding the actor.
+'''
+      }
+    }
+
+    failAlarms = layer "raised by the StopFailure hook" {
+      ticketNotFoundFail = alarm "ERROR reason=ticket-not-found" {
+        description '''
+`bd show --json` for `BO_TICKET` returned no state at all. Anything not `in_progress` (already parked, already
+shipped) is somebody else's business and the hook leaves silently — a dead session must not rewrite a ticket
+another worker owns.
+'''
+      }
+      failNotAnnotated = alarm "ERROR reason=ticket-not-annotated kind=<k>" {
+        #staysClaimed
+        description '''
+The `--append-notes` writing the reason failed, so the hook stops: a ticket parked in failure with nothing said
+about why is worse than one left `in_progress`, so the reason goes on **first**.
+'''
+      }
+      statusNotSet = alarm "ERROR reason=status-not-set kind=<k> from=<state>" {
+        #staysClaimed
+        description '''
+`bd update --status failed-agent` refused, so the ticket did NOT get out of `bd reclaim`'s path and will be swept
+back to `open` when the lease lapses. The `failures` line never gets written, which is the tell.
+'''
+      }
+    }
+  }
+
+  waiting = layer "Waiting lines — nothing failed, nothing ran (one a minute per reason)" {
+    frontierEmpty = waitingLine "reason=frontier_empty" {
+      #idle
+      description '''
+The claim came back empty and the stall probe found **no** off-frontier work: the tower is finished, or nobody has
+planned anything yet. This is the calm one.
+'''
+    }
+    towerStalled = waitingLine "reason=tower_stalled waiting=N" {
+      #idle
+      description '''
+The other half of an empty frontier, and the two need different alarms: work tickets **do** exist
+(`bd list --status open,blocked --limit 0` counted N of them) but an active blocker holds them off `bd ready` —
+an open gate two levels below, most often, which **only a human** may close. `bd list` hides closed tickets and
+gates by default, so N counts work tickets only. A broken tower must never read as a calm one.
+'''
+    }
+    branchBusyWaiting = waitingLine "reason=branch_busy held=N" {
+      #idle
+      description '''
+Tickets were claimable and every one of them wanted a branch already at work: N were unclaimed and skipped this
+tick. The graph makes a feature sequential, so this is the fallback for a tower that was never chained.
+'''
+    }
+    maxParallel = waitingLine "reason=max_parallel in_progress=N" {
+      #idle
+      description '''
+`BO_MAX_PARALLEL` background sessions are already alive and N tickets are in progress — the workers are working,
+so the tick simply does not claim.
+'''
+    }
+    maxParallelStalled = waitingLine "reason=max_parallel_stalled in_progress=0" {
+      #idle
+      description '''
+At capacity with **nothing in progress**: the slots are ghosts — sessions counted busy whose tickets are gone. The
+count comes fresh from `claude agents --json` every tick precisely so this state is visible rather than silent.
+'''
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // THE EDGES
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  // the front door
+  human -> boCli "bo loop, from inside the tower"
+  boCli -[execs]-> dispatcher "bash, in the foreground"
+  boCli -> beads "refuses to start without a DB"
+  dispatcher -[calls]-> knobs "once, at startup"
+
+  // what the tick shells out to
+  dispatcher -[calls]-> beads "bd ready --claim --json, the only atomic claim"
+  dispatcher -[calls]-> beads "bd unclaim / bd list --status in_progress / bd show --json"
+  dispatcher -[calls]-> claudeCli "claude agents --json — the capacity count"
+  dispatcher -[calls]-> claudeCli "claude --bg --agent <agent> --permission-mode bypassPermissions"
+  dispatcher -[calls]-> gitCli "git worktree add -B <branch> <path> <start>"
+  dispatcher -[calls]-> forgeCli "ensureEpicGatePr: list the PR, else create it"
+  dispatcher -> forge "push epic/<slug> off main, open its PR into main"
+  dispatcher -> agentMap "one claim, exactly one matching key"
+
+  // the log
+  dispatcher -[writesLog]-> logRun "claims · waiting · results"
+  dispatcher -[writesLog]-> logRun.fClaims "reason=dispatched, and every unclaim"
+  dispatcher -[writesLog]-> logRun.fWaiting "one a minute per reason"
+  dispatcher -[writesLog]-> logRun.fErrors "the tick's own alarms, never rate-limited"
+  dispatcher -[writesLog]-> logRun.fResults "ticks=N claimed=M at the end of the run"
+  dispatcher -[writesLog]-> logRun.fSpawn "the spawn shell redirects >\"$spawnFile\" 2>&1"
+  dispatcher -[readsLog]-> logRun.fSpawn "sessionFromSpawn — the session id lives nowhere else"
+  dispatcher -> lineDef "sourced: one line format"
+  stopHook -[writesLog]-> logRun.fCloses "url=<pr>"
+  stopHook -[writesLog]-> logRun.fErrors "the hook's own alarms"
+  stopHook -> lineDef "sourced, with BO_LOG_QUIET=1"
+  failHook -[writesLog]-> logRun.fFailures "from=… kind=… msg=…"
+  failHook -[writesLog]-> logRun.fErrors "the hook's own alarms"
+  failHook -> lineDef "sourced, with BO_LOG_QUIET=1"
+
+  // the spawn contract
+  dispatcher -> spawnEnv "sets eight BO_* vars on the spawn line"
+  stopHook -> spawnEnv "reads them; BO_TICKET is the only test that this is a dispatched worker"
+  failHook -> spawnEnv "reads them"
+  hooksJson -> stopHook "registers Stop, timeout 300"
+  hooksJson -> failHook "registers StopFailure, timeout 60"
+
+  // the workers and their tools
+  workers.engineer -> beads "bd show --json <ticket> — the ticket IS the brief"
+  workers.engineer -> beads "bd heartbeat <ticket> — the 5-minute lease must never lapse"
+  workers.engineer -> logRun.fDone "touch $BO_DONE_FILE — last action, only if the brief is genuinely complete"
+  workers.engineer -> forge "commit + push happen via the Stop hook, never from the worker"
+  workers.engineer -> stopHook "the harness fires Stop when the session ends, declared or not"
+  workers.engineer -> failHook "the harness fires StopFailure when the session dies mid-turn"
+  human -> planAgents.planEpic "the vague idea, and the answers to its questions"
+  human -> planAgents.planFeature "the epic id, or 'there is no epic'"
+  human -> planAgents.planTask "the one feature to fragment"
+  human -> beads "bd show the ticket, its comments and the PR, before closing anything"
+  claudeCli -> workers.engineer "runs the background session, bypassPermissions, unattended"
+  planAgents.planEpic -> beads "bd create -t gate, bd config set types.custom"
+  planAgents.planFeature -> beads "bd create -t gate --parent <epic>"
+  planAgents.planTask -> beads "bd create -l <label> --parent <feature>, then the bd show --json round trip"
+
+  // the Stop and StopFailure hooks against the world
+  stopHook -[calls]-> beads "bd show --json --long, bd update --set-metadata pr=…, bd close --session <id>"
+  stopHook -[calls]-> gitCli "add -A, commit, push -u origin <branch>"
+  stopHook -[calls]-> forgeCli "the PR already on this branch, else create it"
+  stopHook -> forge "one PR per branch, forever"
+  failHook -[calls]-> beads "bd update --append-notes …, bd update --status failed-agent"
+  failHook -> beads "takes the dead ticket out of bd reclaim's path"
+
+  // the AGENT map: one edge per dispatching label — that label alone decides the worker
+  dispatcher -[dispatches]-> workers.engineer "backend-logic"
+  dispatcher -[dispatches]-> workers.testerUnit "unit-tests"
+  dispatcher -[dispatches]-> workers.frontend "frontend-ui"
+  dispatcher -[dispatches]-> workers.testerFeature "feature-test"
+  dispatcher -[dispatches]-> workers.testerE2e "epic-e2e-test"
+  dispatcher -[dispatches]-> workers.reviewAgent "feature-review"
+  dispatcher -[dispatches]-> workers.reviewAgent "epic-review"
+  dispatcher -[dispatches]-> workers.mergeAgent "epic-merge-pr"
+
+  // each worker points at the tickets its label owns
+  workers.engineer -[works]-> tower.featA.backendA
+  workers.engineer -[works]-> tower.featB.backendB
+  workers.testerUnit -[works]-> tower.featA.unitA
+  workers.testerUnit -[works]-> tower.featB.unitB
+  workers.frontend -[works]-> tower.featA.frontendA
+  workers.frontend -[works]-> tower.featB.frontendB
+  workers.testerFeature -[works]-> tower.featA.featureTestA
+  workers.testerFeature -[works]-> tower.featB.featureTestB
+  workers.testerE2e -[works]-> tower.epic.epicE2e
+  workers.reviewAgent -[works]-> tower.featA.featureReviewA
+  workers.reviewAgent -[works]-> tower.featB.featureReviewB
+  workers.reviewAgent -[works]-> tower.epic.epicReview
+  workers.mergeAgent -[works]-> tower.epic.epicMergePr
+
+  // the plan agents build the tower top-down, each writing only its own tier's branch
+  planAgents.planEpic -[plans]-> tower.epic "one epic gate + merge / e2e / review, branch epic/recipe-box"
+  planAgents.planFeature -[plans]-> tower.featA "flow-sized features, branch feature/add-recipe"
+  planAgents.planFeature -[plans]-> tower.featB "flow-sized features, branch feature/search-recipes"
+  planAgents.planTask -[plans]-> tower.featA.backendA "the tasks of ONE feature, chained one to the next"
+  planAgents.planTask -[plans]-> tower.featB.backendB "the tasks of ONE feature, chained one to the next"
+
+  // only a human closes a gate
+  human -[closes]-> tower.epic "after epic-review, thumbs-up on the PR into main"
+  human -[closes]-> tower.featA "after feature-review; its PR merges into epic/recipe-box"
+  human -[closes]-> tower.featB "after feature-review"
+
+  // the depends-on chain — inside each feature it is ONE linked line, never a fan
+  tower.featA.backendA -[blocks]-> tower.featA.unitA
+  tower.featA.unitA -[blocks]-> tower.featA.frontendA
+  tower.featA.frontendA -[blocks]-> tower.featA.featureTestA
+  tower.featA.featureTestA -[blocks]-> tower.featA.featureReviewA
+
+  tower.featB.backendB -[blocks]-> tower.featB.unitB
+  tower.featB.unitB -[blocks]-> tower.featB.frontendB
+  tower.featB.frontendB -[blocks]-> tower.featB.featureTestB
+  tower.featB.featureTestB -[blocks]-> tower.featB.featureReviewB
+
+  tower.featA -[blocks]-> tower.epic.epicMergePr
+  tower.featB -[blocks]-> tower.epic.epicMergePr
+  tower.epic.epicMergePr -[blocks]-> tower.epic.epicE2e
+  tower.epic.epicE2e -[blocks]-> tower.epic.epicReview
+
+  // who raises what
+  dispatcher -[raises]-> alarms.tickAlarms.startupAbort
+  dispatcher -[raises]-> alarms.tickAlarms.bdFailure
+  dispatcher -[raises]-> alarms.tickAlarms.labelAmbiguous
+  dispatcher -[raises]-> alarms.tickAlarms.metadataMissing
+  dispatcher -[raises]-> alarms.tickAlarms.branchBusyAlarm
+  dispatcher -[raises]-> alarms.tickAlarms.worktreeFailed
+  dispatcher -[raises]-> alarms.tickAlarms.workerNotDispatched
+  dispatcher -[raises]-> alarms.tickAlarms.epicPrFailed
+
+  stopHook -[raises]-> alarms.stopAlarms.missingToolHook
+  stopHook -[raises]-> alarms.stopAlarms.ticketNotInWork
+  stopHook -[raises]-> alarms.stopAlarms.noBranchHook
+  stopHook -[raises]-> alarms.stopAlarms.noPrTarget
+  stopHook -[raises]-> alarms.stopAlarms.notDeclaredDone
+  stopHook -[raises]-> alarms.stopAlarms.wrongBranch
+  stopHook -[raises]-> alarms.stopAlarms.noTitle
+  stopHook -[raises]-> alarms.stopAlarms.commitFailed
+  stopHook -[raises]-> alarms.stopAlarms.pushFailed
+  stopHook -[raises]-> alarms.stopAlarms.forgeUnknown
+  stopHook -[raises]-> alarms.stopAlarms.prNotCreated
+  stopHook -[raises]-> alarms.stopAlarms.ticketNotAnnotated
+  stopHook -[raises]-> alarms.stopAlarms.closeFailed
+
+  failHook -[raises]-> alarms.failAlarms.ticketNotFoundFail
+  failHook -[raises]-> alarms.failAlarms.failNotAnnotated
+  failHook -[raises]-> alarms.failAlarms.statusNotSet
+
+  // who writes which waiting line
+  dispatcher -[probes]-> waiting.frontierEmpty
+  dispatcher -[probes]-> waiting.towerStalled
+  dispatcher -[probes]-> waiting.branchBusyWaiting
+  dispatcher -[probes]-> waiting.maxParallel
+  dispatcher -[probes]-> waiting.maxParallelStalled
+}

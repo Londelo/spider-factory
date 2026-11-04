@@ -18,15 +18,16 @@ plugins/binary-obelisk/
 ├── .claude-plugin/plugin.json            # manifest
 ├── .claude/binary-obelisk-v1-design.yaml # EDITABLE design model
 ├── agents/                               # engineer, frontend, tester-unit, tester-feature, tester-e2e, review, merge + 3 plan agents
-├── skills/                               # setup, initialize-beads, pr-comments, standards-*, read-bead, create-bead, framework-jest, framework-playwright, …
+├── skills/                               # bead-read, bead-create, bead-initialize, bead-heartbeat, setup-cli, pr-comments, standards-*, framework-jest, framework-playwright
 ├── standards/                            # coding/review standards
 ├── CLI/                                  # the `bo` command — a bin package, no node, installed by a launcher script
 │   ├── bin/bo                            # the entrypoint `bo` — one command, `bo loop`, foreground
 │   ├── beads-loop.sh                     # the claim-beads dispatcher engine
+│   ├── forge.sh                          # detects GitHub vs GitLab and names the right tool; sourced by the engine and the Stop hook
 │   ├── loop-log.sh                       # the one log-line definition, sourced by the engine AND both hooks
 │   └── install-cli.sh                    # writes a real launcher onto PATH (not a symlink, so it survives uninstall)
 ├── scripts/tower-walk.sh                 # experiment harness — builds a tower and walks the frontier by hand
-└── shared/                               # plan-task and review templates/formats — the three test-tier templates are tester-unit.md, tester-feature.md, tester-e2e.md
+└── shared/plan-tasks/                    # the three task templates plan-task fills: engineer.md, frontend.md, tester-unit.md
 ```
 
 ### The three names — never interchangeable
@@ -50,11 +51,11 @@ mis-labeled one tier up or down gets the wrong depth of coverage, and no worker 
 |---|---|---|---|---|
 | `engineer` | business logic, endpoints, hooks, types, error factories | s b w | ✓ | files, naming |
 | `frontend` | components, layout, styling, component system | s b w | ✓ | coding, files, naming |
-| `tester-unit` | **micro tier** — one back-end function alone; every branch, boundary, empty/null, error; never a component (the UI is proved by the composition tier) | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-jest** |
-| `tester-feature` | **composition tier** — one feature's pieces proved wired; its errors/successes surface | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-playwright** |
-| `tester-e2e` | **broad tier** — journeys across features on the real stack; cross-feature state, one success+failure per feature | s b w | ✓ | **read-bead**, coding, files, naming, errors, **framework-playwright** |
-| `review` | **three questions, from first principles** — does the code do what its source of truth demands, do the tests prove it, is it simple and readable. Maps the system the change sits in (entry → exit, following imports), instruments it with trace logs, runs the tests against the instrumented code, posts findings as PR comments — files no tickets, and commits or pushes nothing | s b w | ✓ | **read-bead**, coding, files, naming, errors, **pr-comments** |
-| `merge` | **epic tier only** — assembles the epic's finished feature branches onto the epic branch, resolves the conflicts between them, runs the tests and reports — writes no code, no tests; never merges into `main`, never opens a PR | s b w | ✓ | **read-bead** |
+| `tester-unit` | **micro tier** — one back-end function alone; every branch, boundary, empty/null, error; never a component (the UI is proved by the composition tier) | s b w | ✓ | **bead-heartbeat**, **bead-read**, coding, files, naming, errors, **framework-jest** |
+| `tester-feature` | **composition tier** — one feature's pieces proved wired; its errors/successes surface | s b w | ✓ | **bead-heartbeat**, **bead-read**, coding, files, naming, errors, **framework-playwright** |
+| `tester-e2e` | **broad tier** — journeys across features on the real stack; cross-feature state, one success+failure per feature | s b w | ✓ | **bead-heartbeat**, **bead-read**, coding, files, naming, errors, **framework-playwright** |
+| `review` | **three questions, from first principles** — does the code do what its source of truth demands, do the tests prove it, is it simple and readable. Maps the system the change sits in (entry → exit, following imports), instruments it with trace logs, runs the tests against the instrumented code, posts findings as PR comments — files no tickets, and commits or pushes nothing | s b w | ✓ | **bead-heartbeat**, **bead-read**, coding, files, naming, errors, **pr-comments** |
+| `merge` | **epic tier only** — assembles the epic's finished feature branches onto the epic branch, resolves the conflicts between them, runs the tests and reports — writes no code, no tests; never merges into `main`, never opens a PR | s b w | ✓ | **bead-heartbeat**, **bead-read** |
 
 **Tiers vs. tools.** A test agent owns a **tier** — what to cover and how deep — and is deliberately
 agnostic about the framework. A `framework-*` skill owns the **tool**: syntax, config, run and debug
@@ -65,7 +66,7 @@ depth; each test template's `Owned Elsewhere` field is how the boundary survives
 
 **There is no `human` agent.** The person enters through **gates** and closes them; nothing is
 spawned for them. `plan-epic`/`plan-feature`/`plan-task` build the tower and do no work in it;
-`initialize-beads` and `stand` are utilities outside the tower.
+`bead-initialize` and `setup-cli` are utilities outside the tower.
 
 ### Tower — beads issue hierarchy
 Every node is a real beads issue; types are `gate` and `task`. bd does **not** reject an
@@ -262,7 +263,7 @@ by grep alone.
 | `bd dep tree <id>` | show the dependency tree |
 | `bd ready --claim` | atomically claim the next unblocked ticket |
 | `bd unclaim <id>` | put a claim back — the loop does this when the branch it just claimed is already working |
-| `bd heartbeat <id>` | the worker keeps its lease alive — it never closes its own ticket |
+| `bd heartbeat <id>` | the worker keeps its five-minute lease alive (verified: claim stamps `lease_expires_at` +5 min, heartbeat pushes it out another five) — it never closes its own ticket; the reaper (`bd reclaim`, supervisor-run) is what recycles a lapsed one |
 
 ### Rules
 - Always `bd ready --claim`, never a bare `bd ready` (not atomic — two loops would steal the ticket).

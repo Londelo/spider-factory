@@ -30,88 +30,111 @@ It creates **exactly four** tickets and writes **one** metadata key:
 '''
     }
 
-    planAgents.planEpic -> beads "RECIPE-1 gate · RECIPE-2 merge · RECIPE-3 e2e · RECIPE-4 review" {
-      title "bd create -t gate, and the branch key it alone owns"
+    planAgents.planEpic -> beads "the epic gate, and the three tickets that make it shippable" {
+      title "four tickets, one branch key, in this order"
       notes '''
-```bash
-bd create -t gate "Recipe Box" --metadata '{"branch":"epic/recipe-box"}'        # RECIPE-1
-bd create "assemble the feature branches onto epic/recipe-box" \
-  -l epic-merge-pr --parent RECIPE-1 --metadata '{"branch":"epic/recipe-box"}'  # RECIPE-2
-bd create "journeys across the whole app in a real browser" \
-  -l epic-e2e-test --parent RECIPE-1 --metadata '{"branch":"epic/recipe-box"}' \
-  --deps blocked-by:RECIPE-2                                                     # RECIPE-3
-bd create "the three questions over the whole epic" \
-  -l epic-review --parent RECIPE-1 --metadata '{"branch":"epic/recipe-box"}' \
-  --deps blocked-by:RECIPE-3                                                     # RECIPE-4
-```
+| Ticket | Why it exists | Who does it | Waits on |
+|---|---|---|---|
+| RECIPE-1 | **the epic itself** — the highest-level statement of what is being built, and the only place `epic/recipe-box` is ever written. A gate: no label, so it dispatches nobody, and the ticket list hides it. Only a human closes it. | — | its three tickets below |
+| RECIPE-2 | **assemble the two finished feature branches onto `epic/recipe-box`**, so the journeys and the review are both proved against the assembled result and not against two scattered branches. Writes no code and no tests, opens no pull request, never merges into `main`. | merge | both feature gates |
+| RECIPE-3 | **journeys across the whole app** in a real browser on the real stack — state handed between the two features, one success and one failure per feature seen from outside. The thinnest tier; repeats nothing below it. | tester-e2e | RECIPE-2 |
+| RECIPE-4 | **the three questions over the whole epic** — does it do what its source of truth demands, do the tests prove it, is it simple and readable. Findings go onto the pull request as comments; it files no tickets and commits nothing. | review | RECIPE-3 |
 
-Two things are easy to get wrong here and both are silent. The `gate` type is a **custom type**: `bd`
-does not reject an unregistered one, it accepts it and **hides** it, so a broken gate and a working one
-look identical until the tower stalls — check `bd types`. And `pr` is never written by a plan agent: the
-epic gate's `pr` belongs to the loop, and every ticket's PR **base** belongs to nobody — it is the epic
-gate's own `branch`, read off the gate when the loop walks up the parent chain.
+One key is written here and it is the epic's own branch, copied down verbatim by every row beneath —
+never recomputed. No pull-request url: that belongs to the loop. No PR base either: a ticket aims at the
+epic's branch *because* it hangs under that epic, and the loop reads the branch off the gate.
+
+Two mistakes here are silent. A gate is a **custom type**: the ticket system accepts an unregistered type
+without complaint and simply **hides** it, so a broken gate and a working one look identical until the
+tower stalls — the registered types are worth checking before planning. And a ticket carrying zero labels
+or two dispatches nothing: the loop never guesses a specialist.
 '''
     }
 
     human -> planAgents.planFeature "break the epic into features" {
-      title "each one a complete user-facing flow"
+      title "one epic in, two features out"
       notes '''
-Two features come out of it, and neither is a layer of the app:
+A feature is a complete user-facing flow, never a layer of the app — "the API layer" is not a feature,
+"writes a recipe and sees it in the box" is. The agent reads the epic's gates' metadata first (gates are
+hidden from the default queries, so a plain child listing answers *"nothing there"* while they all sit
+there), maps the repo, then phases the work **foundations → core → dependent → polish**. Here both
+features land in core, so nothing orders them and both run side by side.
 
-| Gate | The thing the user gets | Branch |
+| Gate | The thing the user gets | Its own branch |
 |---|---|---|
 | RECIPE-5 | writes a recipe and sees it in the box | `feature/add-recipe` |
 | RECIPE-11 | finds a recipe they already saved | `feature/search-recipes` |
-
-Phased foundations → core → dependent → polish; each gate gets its own `feature/<slug>`, plus a
-`feature-test` and a `feature-review`. `parent-child` to the epic — and a parent-child edge **never
-blocks**, only `blocked-by` does.
 '''
     }
 
-    human -> planAgents.planTask "break each feature into tasks" {
-      title "one per feature — a feature ticket is required"
+    planAgents.planFeature -> beads "per feature: the gate, the suite, the review" {
+      title "six tickets written here, and the three edges only this agent can write"
       notes '''
-`plan-task` takes **one** feature and refuses without one. Ten tickets, each labelled at create time
-with `bd create -l <label>`, each copying the gate's `branch` **verbatim**, and — the part that decides
-whether the tower is safe — **chained**, each waiting on the single ticket before it.
+This agent **writes to the database** — three rows per feature, and a tower without them builds and never
+ships.
+
+| Ticket | Why it exists | Label → who | Waits on |
+|---|---|---|---|
+| RECIPE-5 / RECIPE-11 | **the gates.** What the user gets, in the user's words, and the only row that carries `branch: feature/<slug>` — the rows beneath copy it verbatim. No label: a gate dispatches nobody and only a human closes it, and closing it *is* merging the feature branch onto the epic branch. | — | their own three tickets below |
+| RECIPE-9 / RECIPE-15 | **the suite.** Proves this feature's pieces are actually wired together in a browser, and that every error and success the feature encapsulates surfaces. One representative case per path, asserted at the seam — never a re-run of the unit tier's matrix, never leaves the feature. | `feature-test` → tester-feature | the last task of the chain — `plan-task` writes that edge |
+| RECIPE-10 / RECIPE-16 | **the review.** Reads the branch it is handed, maps the system the change touches, traces it, runs the suites against the instrumented code, answers the three questions, posts findings on the pull request. | `feature-review` → review | the suite |
+
+**Three `blocked-by` edges per feature**, and these are this agent's alone — the tickets either side of
+them already existed, and it is the only one standing at both ids:
+
+- the review waits on the suite — nobody certifies a flow that was never run
+- the gate waits on the review — a human only ever closes a feature that has been run and certified
+- **the epic's merge ticket RECIPE-2 waits on this feature's gate** — one edge per feature
+
+That last edge is the one that gets missed, and it is the reason this agent exists as a step of its own:
+`plan-epic` wrote RECIPE-2 long before any feature existed and never sees the pair together. Skip it and
+the merge is held by nothing, runs against half-built features, and reports green.
+
+The tickets hang under the epic by a parent-child edge — hierarchy and reading only. A parent-child edge
+**never blocks**; only `blocked-by` does, and everything above that blocks because someone standing at both
+ids wrote the edge.
 '''
     }
 
-    planAgents.planTask -> beads "RECIPE-6→7→8→9→10 and RECIPE-12→13→14→15→16" {
+    human -> planAgents.planTask "break this one feature into tasks" {
+      title "one feature in, its chain out — it refuses without a feature"
+      notes '''
+Run **once per feature**, and it takes one feature ticket in the prompt or it refuses. It owns exactly
+three kinds of ticket: the logic, that logic's micro tests, the UI. The gate, the suite and the review
+above them were already written by `plan-feature` — re-creating them would double the tower, and a ticket
+that needs two labels is two tickets, not one.
+'''
+    }
+
+    planAgents.planTask -> beads "RECIPE-6→7→8 and RECIPE-12→13→14 — six tickets, two chains" {
       title "one chain per feature: one branch, one pair of hands"
       notes '''
-```bash
-# RECIPE-6 — the head of the chain, waiting on nothing
-bd create "validateRecipe + saveRecipe — pure functions" \
-  -l backend-logic --parent RECIPE-5 --metadata '{"branch":"feature/add-recipe"}'
-# RECIPE-7 — the chain: its one predecessor is the unit it tests
-bd create "exhaustive coverage for validateRecipe" \
-  -l unit-tests --parent RECIPE-5 --metadata '{"branch":"feature/add-recipe"}' \
-  --deps blocked-by:RECIPE-6
-```
-
-| # | label | → agent | waits on |
+| Ticket | Why it exists | Label → who | Waits on |
 |---|---|---|---|
-| RECIPE-6 | `backend-logic` | engineer | — |
-| RECIPE-7 | `unit-tests` | tester-unit | RECIPE-6 |
-| RECIPE-8 | `frontend-ui` | frontend | RECIPE-7 |
-| RECIPE-9 | `feature-test` | tester-feature | RECIPE-8 |
-| RECIPE-10 | `feature-review` | review | RECIPE-9 |
+| RECIPE-6 / RECIPE-12 | **the feature's logic** — domain functions, validators, transformers, the service layer, error factories: inputs, outputs, return shapes, every edge case, the file it lives in, the existing code to follow. The head of the chain, waiting on nothing, so it is claimed first. | `backend-logic` → engineer | — |
+| RECIPE-7 / RECIPE-13 | **that one unit's micro tests**, written immediately after the unit it tests and wired to that one alone: every branch, boundary, empty or null input and error, one scenario per behaviour with concrete input→output pairs and the exact test file. The input matrix is enumerated HERE so no tier above repeats it. Back-end only — a component has no ticket on this tier, the suite proves the UI. | `unit-tests` → tester-unit | RECIPE-6 / 12 |
+| RECIPE-8 / RECIPE-14 | **the feature's UI** — the whole component: props, state, events, styling, tokens, responsive variants, accessibility, its file path. Built last, so nothing renders against an unproved function. Its ticket stands alone: no micro ticket, no separate styling ticket. | `frontend-ui` → frontend | RECIPE-7 / 13 |
 
-The label is written **at create time**, and it is the label — never `--agent` — that carries the tier.
-The chain is what keeps one branch owned by one worker: `bd ready` can only ever hand out the single
-unblocked task of a feature. The two features run side by side because **nothing joins them** — that
-absence of an edge is the parallelism. Every ticket is verified with a `bd show --json` round trip,
-because a task created without its label is dispatched by nothing and reports nothing.
+**The chain is the whole of this agent's edge work.** Each ticket waits on the single ticket before it and
+nothing else, so the frontier can only ever hand out one ticket of a feature at a time — one branch, one
+pair of hands, and the chain cannot run past a broken commit. Its **last** ticket then blocks the suite
+ticket `plan-feature` already wrote: the suite proves nothing until every commit of the chain exists.
+
+Three things it gets right or the tower lies:
+
+- **the label is written as the ticket is created**, and the label — never an agent flag — carries the tier; each ticket is read back once before the next is made, because a ticket created without its label is dispatched by nothing and reports nothing
+- **the feature's branch is copied verbatim** from its gate onto every row; below its own tier no plan agent ever invents a branch name, and nothing ever recomputes one
+- **the two features run side by side because nothing joins them** — that absence of an edge is the parallelism, and an edge written for tidiness is a feature sitting idle while a worker waits
 '''
     }
 
     human -> beads "bd list — all sixteen are in the tower" {
       title "the payment into the database, and the frontier it makes"
       notes '''
-Sixteen tickets: 2 gates, 3 epic tickets, 10 feature tasks. `bd list` **hides closed tickets and gates
-by default**, so the work tickets are what you see — and of those, exactly two are claimable:
+Sixteen tickets, sorted by the hand that wrote them: **plan-epic 4** (RECIPE-1…4), **plan-feature 6** (the
+two gates, and each gate's suite and review), **plan-task 6** (the two chains of logic, its tests, UI).
+`bd list` **hides closed tickets and gates by default**, so the work tickets are what you see — and of
+those, exactly two are claimable:
 
 | Claimable | Why |
 |---|---|

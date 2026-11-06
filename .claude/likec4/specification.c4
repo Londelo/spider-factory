@@ -1,18 +1,18 @@
 specification {
 
   // ── the palette: one colour per KIND of thing, never per element ──────────────
-  color opBlue       #2563EB   // the dispatcher and the commands it is made of
+  color opBlue #2563EB   // the dispatcher and the commands it is made of
   color workerPurple #7C3AED   // a worker agent
-  color plannerTeal  #0891B2   // a plan agent, outside the tower
-  color hookCyan     #0E7490   // a hook the harness fires
-  color gateAmber    #D97706   // a gate only a human closes
-  color errorRed     #DC2626   // an alarm: something failed
-  color idleGray     #64748B   // a waiting line: nothing failed, nothing ran
-  color infraGray    #6B7280   // beads, the forge, the human, notes
-  color ticketSlate  #475569   // a ticket
-  color branchGreen  #16A34A   // a branch and the worktree that holds it
-  color knobIndigo   #4C1D95   // a parameter the run reads
-  color logOlive     #3F6212   // the log: its one line format, its dir, its files
+  color plannerTeal #0891B2   // a plan agent, outside the tower
+  color hookCyan #0E7490   // a hook the harness fires
+  color gateAmber #D97706   // a gate only a human closes
+  color errorRed #DC2626   // an alarm: something failed
+  color idleGray #64748B   // a waiting line: nothing failed, nothing ran
+  color infraGray #6B7280   // beads, the forge, the human, notes
+  color ticketSlate #475569   // a ticket
+  color branchGreen #16A34A   // a branch and the worktree that holds it
+  color knobIndigo #4C1D95   // a parameter the run reads
+  color logOlive #3F6212   // the log: its one line format, its dir, its files
 
   element layer {
     style { color muted shape rectangle }
@@ -50,6 +50,10 @@ specification {
 
   element ticket {
     style { color ticketSlate shape document icon bootstrap:file-earmark-text-fill }
+  }
+
+  element branchBox {
+    style { color branchGreen shape rectangle icon bootstrap:git }
   }
 
   // ── what it talks to ─────────────────────────────────────────────────────────

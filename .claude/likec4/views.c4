@@ -1,21 +1,19 @@
 views {
 
   // ═════════════════════════════════════════════════════════════════════════════
-  // Four walkthroughs and nothing else. Each one is a cast of the boxes it walks
-  // through, and every node on the page is either pointed at by a step or sitting
-  // inside a box that a step points at.
-  //   1 · the plan     — a person turns a vague idea into sixteen tickets
+  // Four walkthroughs and nothing else. Every node on a page is either pointed at
+  // by a step or sits inside a box a step points at.
+  //   1 · the plan     — a person turns an idea into sixteen tickets
   //   2 · the run      — the CLI on PATH, the loop started, ticket after ticket
-  //   3 · the log      — what a run writes, who writes it, how to read a stuck tower
-  //   4 · the failures — the same run with every alarm firing, one step each
-  // Anything a node says about itself lives in its own description in model.c4,
-  // never repeated here.
+  //   3 · the log      — what a run writes and how to read a stuck tower
+  //   4 · the failures — the same run with every alarm firing
+  // A step here says only what happens at that moment. What a thing *is*, and
+  // every rule and table behind it, lives in that node's own description in
+  // model.c4 — click the node, not the step.
   // ═════════════════════════════════════════════════════════════════════════════
 
   // ────────────────────────────────────────────────────────────────────────────
   // 1 · THE PLANNING PHASE
-  // Cast: the person, the box of plan agents, the database, the three branch
-  // containers with every ticket inside the one it belongs to.
   // ────────────────────────────────────────────────────────────────────────────
 
   dynamic view index {
@@ -26,135 +24,75 @@ views {
     // ═ ACT I — a person plans it, and the tower appears in the database
 
     human -> planAgents.planEpic "a vague idea: I want somewhere to keep my recipes" {
-      title "the judgments the machine never makes"
+      title "You describe the idea; the planner asks questions and settles it"
       notes """
-Nothing dispatches from here yet. `plan-epic` asks what it actually is, researches, and commits to
-**one** `epic/<slug>` — the name of the *thing*, two or three lowercase words, no ids and no dates,
-because a person reads a branch name and knows which feature it is.
-
-It creates **exactly four** tickets and writes **one** metadata key:
+It agrees one name for the epic — `epic/recipe-box` — and then writes four tickets. Nothing runs yet.
 """
     }
 
-    planAgents.planEpic -> beads "the epic gate, and the three tickets that make it shippable" {
-      title "four tickets, one branch key, in this order"
+    planAgents.planEpic -> beads "four tickets paid into the database" {
+      title "The epic gate, plus the merge, the end-to-end tests, and the review"
       notes """
-| Ticket | Why it exists | Who does it | Waits on |
-|---|---|---|---|
-| RECIPE-1 | **the epic itself** — the highest-level statement of what is being built, and the only place `epic/recipe-box` is ever written. A gate: no label, so it dispatches nobody, and the ticket list hides it. Only a human closes it. | — | its three tickets below |
-| RECIPE-2 | **assemble the two finished feature branches onto `epic/recipe-box`**, so the journeys and the review are both proved against the assembled result and not against two scattered branches. Writes no code and no tests, opens no pull request, never merges into `main`. | merge | both feature gates |
-| RECIPE-3 | **journeys across the whole app** in a real browser on the real stack — state handed between the two features, one success and one failure per feature seen from outside. The thinnest tier; repeats nothing below it. | tester-e2e | RECIPE-2 |
-| RECIPE-4 | **the three questions over the whole epic** — does it do what its source of truth demands, do the tests prove it, is it simple and readable. Findings go onto the pull request as comments; it files no tickets and commits nothing. | review | RECIPE-3 |
-
-One key is written here and it is the epic's own branch, copied down verbatim by every row beneath —
-never recomputed. No pull-request url: that belongs to the loop. No PR base either: a ticket aims at the
-epic's branch *because* it hangs under that epic, and the loop reads the branch off the gate.
-
-Two mistakes here are silent. A gate is a **custom type**: the ticket system accepts an unregistered type
-without complaint and simply **hides** it, so a broken gate and a working one look identical until the
-tower stalls — the registered types are worth checking before planning. And a ticket carrying zero labels
-or two dispatches nothing: the loop never guesses a specialist.
+| Ticket | What it is for | Who does it |
+|---|---|---|
+| RECIPE-1 | the epic itself, and its gate — you close this one at the end | nobody |
+| RECIPE-2 | joins the two finished feature branches onto the epic branch | merge |
+| RECIPE-3 | tests the whole flow in a real browser | tester-e2e |
+| RECIPE-4 | reviews the whole epic and posts findings on the pull request | review |
 """
     }
 
     human -> planAgents.planFeature "break the epic into features" {
-      title "one epic in, two features out"
+      title "One epic in, two features out"
       notes """
-A feature is a complete user-facing flow, never a layer of the app — \"the API layer\" is not a feature,
-\"writes a recipe and sees it in the box\" is. The agent reads the epic's gates' metadata first (gates are
-hidden from the default queries, so a plain child listing answers *\"nothing there\"* while they all sit
-there), maps the repo, then phases the work **foundations → core → dependent → polish**. Here both
-features land in core, so nothing orders them and both run side by side.
-
-| Gate | The thing the user gets | Its own branch |
-|---|---|---|
-| RECIPE-5 | writes a recipe and sees it in the box | `feature/add-recipe` |
-| RECIPE-11 | finds a recipe they already saved | `feature/search-recipes` |
+A feature is one complete thing a user can do, not a layer of the app: add a recipe, search the box. Each
+feature gets its own branch and its own pull request, and the two run side by side.
 """
     }
 
-    planAgents.planFeature -> beads "per feature: the gate, the suite, the review" {
-      title "six tickets written here, and the three edges only this agent can write"
+    planAgents.planFeature -> beads "six more tickets: two gates, two suites, two reviews" {
+      title "Each feature gets its gate, its test suite, and its review"
       notes """
-This agent **writes to the database** — three rows per feature, and a tower without them builds and never
-ships.
+| Ticket | What it is for | Who does it |
+|---|---|---|
+| RECIPE-5 / RECIPE-11 | the feature's gate, and the only row that carries its branch name — you close it | nobody |
+| RECIPE-9 / RECIPE-15 | proves the feature's pieces are wired together | tester-feature |
+| RECIPE-10 / RECIPE-16 | reviews the feature branch and posts findings on its pull request | review |
 
-| Ticket | Why it exists | Label → who | Waits on |
-|---|---|---|---|
-| RECIPE-5 / RECIPE-11 | **the gates.** What the user gets, in the user's words, and the only row that carries `branch: feature/<slug>` — the rows beneath copy it verbatim. No label: a gate dispatches nobody and only a human closes it, and closing it *is* merging the feature branch onto the epic branch. | — | their own three tickets below |
-| RECIPE-9 / RECIPE-15 | **the suite.** Proves this feature's pieces are actually wired together in a browser, and that every error and success the feature encapsulates surfaces. One representative case per path, asserted at the seam — never a re-run of the unit tier's matrix, never leaves the feature. | `feature-test` → tester-feature | the last task of the chain — `plan-task` writes that edge |
-| RECIPE-10 / RECIPE-16 | **the review.** Reads the branch it is handed, maps the system the change touches, traces it, runs the suites against the instrumented code, answers the three questions, posts findings on the pull request. | `feature-review` → review | the suite |
-
-**Three `blocked-by` edges per feature**, and these are this agent's alone — the tickets either side of
-them already existed, and it is the only one standing at both ids:
-
-- the review waits on the suite — nobody certifies a flow that was never run
-- the gate waits on the review — a human only ever closes a feature that has been run and certified
-- **the epic's merge ticket RECIPE-2 waits on this feature's gate** — one edge per feature
-
-That last edge is the one that gets missed, and it is the reason this agent exists as a step of its own:
-`plan-epic` wrote RECIPE-2 long before any feature existed and never sees the pair together. Skip it and
-the merge is held by nothing, runs against half-built features, and reports green.
-
-The tickets hang under the epic by a parent-child edge — hierarchy and reading only. A parent-child edge
-**never blocks**; only `blocked-by` does, and everything above that blocks because someone standing at both
-ids wrote the edge.
+Three blocking edges are written here, and only this agent can write them: the review waits on the suite,
+the gate waits on the review, and the epic's merge ticket waits on this gate. Miss that last one and the
+merge runs against half-built features and still reports green.
 """
     }
 
     human -> planAgents.planTask "break this one feature into tasks" {
-      title "one feature in, its chain out — it refuses without a feature"
+      title "One feature in, its chain of tasks out"
       notes """
-Run **once per feature**, and it takes one feature ticket in the prompt or it refuses. It owns exactly
-three kinds of ticket: the logic, that logic's micro tests, the UI. The gate, the suite and the review
-above them were already written by `plan-feature` — re-creating them would double the tower, and a ticket
-that needs two labels is two tickets, not one.
+Run once per feature, and it takes one feature ticket or it refuses. It writes only the logic, that logic's
+tests, and the interface — everything above was written already.
 """
     }
 
-    planAgents.planTask -> beads "RECIPE-6→7→8 and RECIPE-12→13→14 — six tickets, two chains" {
-      title "one chain per feature: one branch, one pair of hands"
+    planAgents.planTask -> beads "RECIPE-6 then 7 then 8, and RECIPE-12 then 13 then 14" {
+      title "Six tickets, one chain per feature"
       notes """
-| Ticket | Why it exists | Label → who | Waits on |
+| Ticket | What it is for | Who does it | Waits on |
 |---|---|---|---|
-| RECIPE-6 / RECIPE-12 | **the feature's logic** — domain functions, validators, transformers, the service layer, error factories: inputs, outputs, return shapes, every edge case, the file it lives in, the existing code to follow. The head of the chain, waiting on nothing, so it is claimed first. | `backend-logic` → engineer | — |
-| RECIPE-7 / RECIPE-13 | **that one unit's micro tests**, written immediately after the unit it tests and wired to that one alone: every branch, boundary, empty or null input and error, one scenario per behaviour with concrete input→output pairs and the exact test file. The input matrix is enumerated HERE so no tier above repeats it. Back-end only — a component has no ticket on this tier, the suite proves the UI. | `unit-tests` → tester-unit | RECIPE-6 / 12 |
-| RECIPE-8 / RECIPE-14 | **the feature's UI** — the whole component: props, state, events, styling, tokens, responsive variants, accessibility, its file path. Built last, so nothing renders against an unproved function. Its ticket stands alone: no micro ticket, no separate styling ticket. | `frontend-ui` → frontend | RECIPE-7 / 13 |
+| RECIPE-6 / RECIPE-12 | the feature's logic | engineer | nothing |
+| RECIPE-7 / RECIPE-13 | that logic's tests, every case | tester-unit | the logic |
+| RECIPE-8 / RECIPE-14 | the feature's interface, styling included | frontend | its tests |
 
-**The chain is the whole of this agent's edge work.** Each ticket waits on the single ticket before it and
-nothing else, so the frontier can only ever hand out one ticket of a feature at a time — one branch, one
-pair of hands, and the chain cannot run past a broken commit. Its **last** ticket then blocks the suite
-ticket `plan-feature` already wrote: the suite proves nothing until every commit of the chain exists.
-
-Three things it gets right or the tower lies:
-
-- **the label is written as the ticket is created**, and the label — never an agent flag — carries the tier; each ticket is read back once before the next is made, because a ticket created without its label is dispatched by nothing and reports nothing
-- **the feature's branch is copied verbatim** from its gate onto every row; below its own tier no plan agent ever invents a branch name, and nothing ever recomputes one
-- **the two features run side by side because nothing joins them** — that absence of an edge is the parallelism, and an edge written for tidiness is a feature sitting idle while a worker waits
+Each ticket waits only on the one before it. That is why one worker at a time ever touches a feature branch,
+and the last task is what unblocks that feature's test suite.
 """
     }
 
     human -> beads "bd list — all sixteen are in the tower" {
-      title "the payment into the database, and the frontier it makes"
+      title "Sixteen tickets in the database, and only two can be claimed"
       notes """
-Sixteen tickets, sorted by the hand that wrote them: **plan-epic 4** (RECIPE-1…4), **plan-feature 6** (the
-two gates, and each gate's suite and review), **plan-task 6** (the two chains of logic, its tests, UI).
-`bd list` **hides closed tickets and gates by default**, so the work tickets are what you see — and of
-those, exactly two are claimable:
-
-| Claimable | Why |
-|---|---|
-| RECIPE-6 | head of the Add-a-Recipe chain |
-| RECIPE-12 | head of the Search-the-Box chain |
-
-Everything else is held by one `blocked-by` edge, or by an open gate two levels below. Nothing here is
-read at runtime by the loop: **the database is the loop's only input** — no design doc, no CLAUDE.md.
-
-| Tier | Tickets |
-|---|---|
-| planned, invisible to `bd ready` | RECIPE-1 and RECIPE-5 / RECIPE-11 (gates) |
-| frontier | RECIPE-6, RECIPE-12 |
-| behind one edge | RECIPE-7, 13 → 8, 14 → 9, 15 → 10, 16 → RECIPE-2 → 3 → 4 |
+Four from the epic plan, six from the feature plan, six from the task plans. The two heads of the chains —
+RECIPE-6 and RECIPE-12 — are ready; everything else is behind a blocker or an open gate. The database is all
+the loop ever reads.
 """
       navigateTo theLoop
     }
@@ -164,10 +102,6 @@ read at runtime by the loop: **the database is the loop's only input** — no de
 
   // ────────────────────────────────────────────────────────────────────────────
   // 2 · INSTALLING THE CLI AND RUNNING THE LOOP
-  // Cast: the person; the machine box (front door, parameters, checks, the
-  // dispatcher, the claim); the database; the three branch containers; the command
-  // box; the worker box; the Stop hook; one waiting line. No log nodes — the log
-  // has its own walkthrough.
   // ────────────────────────────────────────────────────────────────────────────
 
   dynamic view theLoop {
@@ -204,552 +138,357 @@ read at runtime by the loop: **the database is the loop's only input** — no de
       waiting,
       waiting.towerStalled
 
-    // ═ ACT I — the dispatcher goes on PATH once, then one command starts the run
+    // ═ ACT I — put the dispatcher on PATH once, then start the run
 
     human -> machine.boCli "install the CLI once" {
-      title "a real file at ~/.local/bin/bo — never a symlink, no node"
+      title "One command puts `bo` on your path"
       notes """
-The dispatcher lives inside the plugin. Its installer writes one small **real file** at `~/.local/bin/bo`
-that execs the plugin's own `CLI/bin/bo`. A real file and not a symlink, and no node and no package
-manager: it outlives an uninstalled plugin, and when the plugin has gone it names its own problem — the
-path it cannot find, plus both ways out (remove the launcher, or reinstall and run the installer again) —
-instead of a bare `command not found`.
-
-- **Re-run it to repoint it** after a move or an update; it overwrites the launcher and nothing else.
-- **If it warns about PATH**, the fix is the `export PATH=…` line it prints, into the shell profile.
-- **Uninstall is one file:** remove that launcher, and the plugin's own files stay put.
-- **Nothing is installed blind.** The guided setup reads the state first — is `bo` there and working, is a
-  ticket database there from this directory — reports it in one line, and asks before it applies anything.
-
-What is *not* here: the ticket system itself is its own question, per repo, and `bo` refuses to run where
-no database answers.
+It copies a small real file to `~/.local/bin/bo` that runs the plugin's own command. Run it again after an
+update or a move. If it warns about PATH, add the export line it prints to your shell profile.
 """
     }
 
-    human -> machine.boCli "bo loop, from inside the tower" {
-      title "one subcommand, in the foreground"
+    human -> machine.boCli "bo loop, from inside the project" {
+      title "You start the loop, and it runs until you stop it"
       notes """
-The front door probes the directory, prints `bo: dispatching $PWD — Ctrl-C to stop.`, then hands the engine
-to `bash` in the **foreground** so every tick is on the terminal. Ctrl-C is the only thing that ends a run:
-the loop never ends itself, never counts down to a finish, never decides it is done.
-
-Nothing is planned here and nothing is merged here. One command, one tower, one foreground terminal, and
-four sessions underneath it.
+One command, in this terminal, printing every tick. Ctrl-C is the only thing that ends it. It plans nothing
+and merges nothing.
 """
       navigateTo everyFailure
     }
 
-    machine.knobs -> machine.dispatcher "4 parallel · 3 s · 0 ticks · logs under ~/.binary-obelisk · labels *" {
-      title "read once, at startup, and never re-read"
+    machine.knobs -> machine.dispatcher "4 parallel · 3 s · logs under ~/.binary-obelisk · labels *" {
+      title "The settings are read once, at startup"
       notes """
-The poll interval must divide 60 **because** of the waiting lines: they are rate-limited at one a minute
-(`60 / BO_POLL_S` ticks), and a poll that does not divide the minute makes that cadence a lie.
-`BO_MAX_TICKS` is a test seam; a real run is endless. A knob typed wrong is never defaulted silently,
-because these three govern how many unattended sessions run with `bypassPermissions`.
+How many workers at once, how often it checks, where the logs go, which labels it may dispatch. A value
+typed wrong stops the run rather than being quietly replaced.
 """
     }
 
-    machine.dispatcher -> machine.preflight "before the first tick: six checks, five of them fatal" {
-      title "no defaults, no partial run"
+    machine.dispatcher -> machine.preflight "before the first tick: six checks" {
+      title "Six checks, and five of them stop the run"
       notes """
-Walked one by one in walkthrough 4. The one that is **not** fatal is the likeliest to bite: a typo'd
-`BO_ALLOWED_LABELS` lets the run start, tick politely, and dispatch nothing forever.
-
-Each check names itself on stderr and `exit 1`s — including the log directory, fatal on purpose, because a
-run that cannot write its logs cannot raise an alarm, and a silent dispatcher is the one thing this design
-refuses to be.
+The tools it needs, the settings, a ticket database here, a log folder it can write. The sixth — the label
+list — starts anyway and dispatches nothing, which is the one that bites.
 """
       navigateTo everyFailure
     }
 
-    // ═ ACT II — one ticket, end to end, with every parameter named
+    // ═ ACT II — one ticket, end to end
 
-    machine.dispatcher -> beads "the loop's only input: the sixteen tickets walkthrough 1 paid in" {
-      title "no design doc, no CLAUDE.md, nothing read from the repo"
+    machine.dispatcher -> beads "what is ready?" {
+      title "The loop asks the database what is ready"
       notes """
-The graph — every gate, ticket, `depends-on` edge and the two metadata keys — is all the dispatcher knows
-about the project. It holds no plan of its own and keeps no state of its own between ticks; restart it and
-it picks the same frontier, because the frontier is in the database and not in the process.
+The ticket graph is the only thing it knows about the project. It keeps no state of its own, so restart it
+and it picks the same place.
 """
     }
 
-    machine.dispatcher -> toolbelt.bdCmds "nine commands, and only the loop is allowed to run them" {
-      title "the whole conversation the loop has with the tower"
+    machine.dispatcher -> toolbelt.bdCmds "the ticket commands the loop runs" {
+      title "Nine ticket commands, and only the loop runs them"
       notes """
-An agent file never hardcodes one of these; the loop and the hooks run them directly. Two of them decide
-the whole tick: the claim that takes a ticket, and `bd update --set-metadata`, which **merges** — which is
-why writing a `pr` onto a ticket never disturbs the `branch` the plan put there.
+Two of them matter here: the one that takes a ticket, and the one that writes a pull request url onto one.
 """
     }
 
     machine.dispatcher -> machine.claim "round 1 — take one ticket" {
-      title "step 0 read the branches already at work, step 1 counted the live sessions, then the claim"
+      title "Count what is already running, then take one ticket"
       notes """
-The capacity count comes fresh from `claude agents --json` every tick — never from a counter the loop keeps
-— so a session that died without anyone noticing cannot hold a slot forever. At four, the tick does not
-claim at all.
-
-The answer, for the ticket this round is about:
-
-```json
-[{ \"id\": \"RECIPE-6\", \"title\": \"validateRecipe + saveRecipe — pure functions\",
-   \"status\": \"in_progress\", \"assignee\": \"brodie\", \"issue_type\": \"task\",
-   \"labels\": [\"backend-logic\"], \"parent\": \"RECIPE-5\",
-   \"metadata\": { \"branch\": \"feature/add-recipe\" }, \"lease_expires_at\": \"…+5 min\" }]
-```
-
-Two facts come out of that payload and **nothing reads the ticket's text**: the label that picks the
-specialist, and the branch the work lands on.
+Four workers already running means no claim this tick. Otherwise the ticket comes back with its label, its
+branch, and its parent already on it — that is enough to route it with no further reading.
 """
     }
 
-    machine.claim -> tower.featA.backendA "RECIPE-6 — and it is already inside its feature" {
-      title "no lookup needed: the ticket arrived with its feature, its branch and its label"
+    machine.claim -> tower.featA.backendA "RECIPE-6" {
+      title "The ticket already knows its feature, its branch, and its worker"
       notes """
-The claim's `parent` is RECIPE-5, so this ticket belongs to the Add-a-Recipe feature, on
-`feature/add-recipe`, and the loop already knew that from the one query — it never opens the ticket to find
-out where it belongs.
-
-**Why exactly this ticket came up, and not another:** nothing else in the tower is unblocked. RECIPE-7 waits
-on this one, RECIPE-8 waits on 7, the suite waits on 8, the review waits on the suite, the gate waits on the
-review, and the epic tier waits on both gates. The plan agents wrote those edges; the loop only asks what
-has no open blocker.
-
-The ticket is claimed for five minutes and nobody has told it to expect that: the lease is what keeps two
-loops, or a second terminal, from working the same row twice.
+Label `backend-logic`, so the engineer; branch `feature/add-recipe`, from its feature RECIPE-5. Nothing else
+in the tower is unblocked, which is the only reason this ticket came up.
 """
     }
 
-    machine.dispatcher -> tower.epic "the PR base is read off the gate, never stored on the ticket" {
-      title "RECIPE-6 → RECIPE-5 → RECIPE-1; the base is that gate's own branch"
+    machine.dispatcher -> tower.epic "where does this land?" {
+      title "The pull request's target comes from the epic gate"
       notes """
-`.[0].parent` → `epicGateOf` (a few hops of `bd show --json` `parent`) → the gate's own `branch` =
-`epic/recipe-box`. **The base is not stored on the ticket** — a copy could drift from the gate it copied and
-nothing compares the two, so the loop once published one branch while the hook aimed at the other. The tower
-already says which epic a ticket belongs to; the chain names the gate and the gate is read there.
-`main` when the claim's parent **is** that topmost gate.
+Ticket → feature → epic, and the epic's own branch is where the work lands. It is read there every time and
+never copied onto tickets, so it cannot drift from the gate it came from.
 """
     }
 
-    machine.dispatcher -> toolbelt.forgeCli "the epic gate has no pr yet: publish its branch, once, before any worker" {
-      title "ensureEpicGatePr RECIPE-1"
+    machine.dispatcher -> toolbelt.forgeCli "publish the epic branch and its pull request, once" {
+      title "The epic's branch exists before any worker starts"
       notes """
-`push -u origin epic/recipe-box` off `main`, `gh pr create --base main --head epic/recipe-box`, then
-`bd update RECIPE-1 --set-metadata pr=<url>`. Only a URL matching `/(pull|merge_requests)/[0-9]+` counts —
-an error message quoting a docs URL is not a pull request.
-
-Every feature PR below aims at that branch, so if any of it fails nothing beneath the epic has a base:
-`ERROR reason=epic-pr-failed step=…`, left claimed, seven steps name where it died.
+Push `epic/recipe-box`, open its pull request, write the url on the epic gate. Everything below aims at that
+branch, so if this fails nothing has anywhere to land: the ticket stays claimed and the run says why.
 """
     }
 
-    toolbelt.forgeCli -> forge "PR 1 — epic/recipe-box → main" {
-      title "the epic's pull request, published by the loop and nobody else"
+    toolbelt.forgeCli -> forge "PR 1 — epic/recipe-box into main" {
+      title "Pull request 1: the epic branch into main"
       notes """
-Which forge this is, `detectForge` settles three ways in order: an honest host name in the remote URL; then
-the refs the host actually publishes (only GitHub serves `refs/pull/`, only GitLab `refs/merge-requests/`);
-then a machine holding **exactly one** of `gh`/`glab`. Where all three are ambiguous the hook refuses to
-guess — a wrong guess pushes a branch to the wrong forge.
+The loop publishes this one and nobody else. It also decides whether the forge is GitHub or GitLab, and
+refuses to guess when the evidence is ambiguous.
 """
     }
 
-    machine.dispatcher -> toolbelt.worktree "the branch's folder, made the first time that branch is claimed" {
-      title "git worktree add -B feature/add-recipe …/feature+add-recipe origin/epic/recipe-box"
+    machine.dispatcher -> toolbelt.worktree "make the branch's folder" {
+      title "The branch gets its own folder"
       notes """
-`<start>` is the first of `origin/<branch>`, `origin/<prTarget>`, `<prTarget>`, `HEAD` that resolves — **a
-feature branch starts where it is going to land**. A branch already checked out somewhere is reused, never
-re-added (`git worktree list --porcelain` scanned for `refs/heads/<branch>`), which is the same rule the loop
-applies to workers: one pair of hands per branch.
+Made the first time that branch is claimed, reused by every later ticket on it. A branch already checked out
+somewhere is reused and never re-added.
 """
     }
 
-    machine.dispatcher -> machine.agentMap "RECIPE-6 is labeled backend-logic, so the worker is engineer" {
-      title "eight keys, one label per ticket, and no other way to name a specialist"
+    machine.dispatcher -> machine.agentMap "backend-logic means engineer" {
+      title "One label picks one worker"
       notes """
-Nothing derives an agent name from anything else: the ticket carries exactly one dispatching label and the
-map answers with a worker. Zero labels or two → `label-ambiguous`, and the ticket is left claimed.
+Eight labels, eight workers, and nothing else can name a specialist. A ticket with no label or two labels
+dispatches nobody and stays claimed.
 """
     }
 
-    machine.dispatcher -> toolbelt.claudeCli "claude --bg --agent engineer --permission-mode bypassPermissions" {
-      title "`cd` inside the worktree; deliberately no -w"
+    machine.dispatcher -> toolbelt.claudeCli "start the worker in that folder" {
+      title "A worker session is started in the background"
       notes """
-`claude --worktree` only ever **creates** a worktree, and this branch already owns its own — hence cwd
-inside the folder and no `-w`. The session id is read back out of that worker's own spawn output
-(`backgrounded · 287d3c4c`): one shared file used to be overwritten by every spawn, so the id survived only
-for the run's last worker, the one thing a person needs in order to attach to a worker, read it, or stop it.
+In that folder, on that branch. Its session id is read from that worker's own spawn output, so you can still
+attach to it, read it, or stop it later.
 """
     }
 
-    machine.dispatcher -> machine.spawnEnv "eight BO_* ride on that same spawn line" {
-      title "the worker and both hooks read the run through these, and nothing else"
+    machine.dispatcher -> machine.spawnEnv "pass it which ticket this is" {
+      title "Eight settings tell the worker and the hooks what they are working on"
       notes """
-`BO_TICKET`, `BO_BRANCH`, `BO_PR_TARGET`, `BO_AGENT`, `BO_LABEL`, `BO_PROJECT_DIR`, `BO_LOG_DIR`,
-`BO_DONE_FILE`. A worker spawned without them stops on its own, and its ticket sits `in_progress`: the hooks
-cannot finish what they cannot identify.
+Ticket, branch, pull request target, worker, label, folders, log place, done marker. A worker started without
+them stops itself, and its ticket sits in progress — the hooks cannot finish what they cannot identify.
 """
     }
 
-    toolbelt.claudeCli -> workers.engineer "the six rules are the prompt itself" {
-      title "buildWorkerPrompt — not a file the worker has to go looking for"
+    toolbelt.claudeCli -> workers.engineer "the rules arrive with the brief" {
+      title "The worker's prompt is the five rules it must follow"
       notes """
-The dispatcher's own prompt carries the contract, and the same contract is the `bead-heartbeat` skill every
-worker loads first: heartbeating your ticket between long steps, never closing your own ticket, putting a
-comment on the ticket saying what remains when the brief outruns you, spawning nothing, staying on your
-branch in the folder you were given, and `touch $BO_DONE_FILE` as your very last action **only when the brief
-is truly done**. Rule 5 has one branch for `merge`, which is granted `git merge`.
-
-```bash
-bd heartbeat RECIPE-6          # between long steps — the lease is five minutes
-```
-
-The lease lapsing does not hand the ticket to anyone: nothing in this plugin runs `bd reclaim`. A lapsed
-lease leaves the ticket parked `in_progress`, off the frontier, until a person moves it.
+Keep your ticket alive, never close your own ticket, say what is left if you run out of room, start no other
+workers, stay on your branch and never commit or push — and touch the done marker only when the work is
+genuinely finished.
 """
     }
 
-    workers.engineer -> tower.featA.backendA "works it · heartbeats · reports · closes nothing" {
-      title "the worker's only writes to the tower are a heartbeat and a note"
+    workers.engineer -> tower.featA.backendA "write the code" {
+      title "The engineer writes the code and leaves the ticket open"
       notes """
-The engineer writes `validate-recipe.ts`, `types.ts`, `ports.ts`, heartbeats around the long steps, and
-reports in its final message. It leaves the ticket **open** — closing is a human act done after reading the
-report, and a ticket a worker closes itself closes unverified. The code is written into the branch's folder
-and not committed: the worker was told never to commit, branch, merge or push.
+Files land in the branch's folder, uncommitted; it heartbeats so its claim holds, and reports in its final
+message. Closing is somebody else's job.
 """
     }
 
-    workers.engineer -> stopHook "touch $BO_DONE_FILE as the very last action, then the session ends" {
-      title "the session ending is not the statement; the marker is"
+    workers.engineer -> stopHook "touch the done marker, then stop" {
+      title "The worker's last act is to say it is finished"
       notes """
-The engine `rm -f`s that marker **before** spawning, so a marker can only mean *this* session — a file left
-behind by an older run can never certify work it did not do. Everything the next four steps do depends on
-this file existing.
-
-Registered on `Stop`, so the hook fires for every session of every project the plugin is enabled in —
-`BO_TICKET` is what tells a dispatched worker apart from everything else, and a session the loop did not
-spawn leaves on the first line:
-
-```bash
-[[ -n \"${BO_TICKET:-}\" ]] || exit 0
-```
+It creates a marker file. The loop deletes it before each start, so only this session could have made it. The
+session ending alone proves nothing — that file is the statement.
 """
     }
 
-    stopHook -> toolbelt.gitCli "commit onto its branch, then push — but only on the marker" {
-      title "the commit message IS the ticket title"
+    stopHook -> toolbelt.gitCli "commit and push, only on that marker" {
+      title "The hook commits and pushes — after checking, not assuming"
       notes """
-Before any of it the hook verifies the state rather than assuming it: the ticket must be `in_progress`
-(`closed` means a second Stop in a session that already shipped, and it leaves **silently** rather than
-committing onto a shared branch twice), `BO_BRANCH` and `BO_PR_TARGET` must have arrived, and
-`git branch --show-current` must equal `BO_BRANCH` exactly — the last place that can refuse to file work
-under the wrong ticket's name.
-
-```
-validateRecipe + saveRecipe — pure functions
-
-Ticket: RECIPE-6
-```
-
-`git add -A` then `git commit -F -`, then `git push -u origin feature/add-recipe`. One commit per task, onto
-one branch — the tasks under a feature are **commits**, never branches. A review or test ticket may
-legitimately land nothing: `git diff --cached --quiet` skips the commit and the hook carries on.
+The ticket must still be in progress, the branch settings must have arrived, and the folder must be on the
+branch it thinks it is. Then the ticket's title becomes the commit message. A test or review ticket may land
+nothing, and that is fine.
 """
     }
 
-    stopHook -> toolbelt.forgeCli "the PR already on this branch, or the one this branch will always have" {
-      title "one branch, one pull request, forever"
+    stopHook -> toolbelt.forgeCli "the pull request for this branch" {
+      title "One branch, one pull request, forever"
       notes """
-`gh pr list --head feature/add-recipe --base epic/recipe-box --state open`; none yet, so
-`gh pr create --base epic/recipe-box --head feature/add-recipe --title \"<ticket title>\"`. The next task on
-this branch finds **this** PR and reuses it — which is why the branch, not the ticket, is the identity of the
-work, and why the whole line had to be chained onto one branch. The base came down as `BO_PR_TARGET`, which
-the loop read off the epic gate: nothing on the ticket says it, so nothing can disagree with the gate.
+It looks for an open pull request on this branch first; only if there is none does it make one. The next
+ticket on this branch reuses it, because the branch — not the ticket — is the unit of work.
 """
     }
 
-    toolbelt.forgeCli -> forge "PR 2 — feature/add-recipe → epic/recipe-box" {
-      title "aimed at the epic's branch, not at main"
+    toolbelt.forgeCli -> forge "PR 2 — feature/add-recipe into epic/recipe-box" {
+      title "Pull request 2: the feature branch into the epic branch"
       notes """
-Three pull requests for this tower, and one of them per branch: PR 1 the epic, PR 2 this feature, PR 3 the
-other feature. Nothing on earth but the loop publishes PR 1's branch, and the hook files onto it once and
-reuses it.
+It aims at the epic's branch, not at main. This tower has three pull requests in all: one epic, one per
+feature.
 """
     }
 
-    stopHook -> beads "write the url on the ticket, then close it as its claimant" {
-      title "written before closed"
+    stopHook -> beads "write the url, then close" {
+      title "The url goes on the ticket, then the hook closes it"
       notes """
-```
-bd update RECIPE-6 --set-metadata pr=https://github.com/…/pull/2
-bd close  RECIPE-6 --session 287d3c4c --reason \"worker session … finished; PR …\"
-```
-
-`--set-metadata` **merges**, so the hook's `pr` never disturbs the plan's `branch`. Then the close: `bd`
-refuses to close a ticket whose assignee is not the actor, and the **dispatcher** claimed this one, so the
-hook deliberately passes the real `session_id` rather than overriding the actor. If the annotation fails the
-hook stops rather than closing a ticket whose pull request is unfindable.
-
-**And that close is what moves the frontier:** with RECIPE-6 closed, RECIPE-7 has no open blocker, and the
-next tick can hand out the micro tests of the function the engineer just wrote. Fifteen refusals are walked
-one by one in walkthrough 4; this is the honest path.
+Written first, closed second — if the url cannot be written the hook stops rather than close a ticket whose
+pull request is unfindable. That close is what unblocks the next ticket in the chain.
 """
       navigateTo everyFailure
     }
 
-    // ═ ACT III — the rounds: the same five steps, thirteen times, in the order the graph releases them
+    // ═ ACT III — the same five steps, thirteen times, in the order the graph releases them
 
-    machine.dispatcher -> machine.claim "the rounds — 13 tickets the loop dispatches, 3 gates it cannot" {
-      title "the loop has no order in it — the graph does"
+    machine.dispatcher -> machine.claim "the rounds — 13 tickets the loop dispatches" {
+      title "One ticket at a time, in the order the graph releases them"
       notes """
-| # | Ticket | Label → who | Branch | What lands |
-|---|---|---|---|---|
-| 1 | RECIPE-6 | `backend-logic` → **engineer** | `feature/add-recipe` | the feature's functions |
-| 2 | RECIPE-12 | `backend-logic` → **engineer** | `feature/search-recipes` | the search functions |
-| 3 | RECIPE-7 | `unit-tests` → **tester-unit** | `feature/add-recipe` | that unit's whole input matrix |
-| 4 | RECIPE-13 | `unit-tests` → **tester-unit** | `feature/search-recipes` | that unit's whole input matrix |
-| 5 | RECIPE-8 | `frontend-ui` → **frontend** | `feature/add-recipe` | the components |
-| 6 | RECIPE-14 | `frontend-ui` → **frontend** | `feature/search-recipes` | the search UI |
-| 7 | RECIPE-9 | `feature-test` → **tester-feature** | `feature/add-recipe` | the wiring proof, one case per path |
-| 8 | RECIPE-15 | `feature-test` → **tester-feature** | `feature/search-recipes` | the wiring proof |
-| 9 | RECIPE-10 | `feature-review` → **review** | `feature/add-recipe` | findings as PR comments |
-| 10 | RECIPE-16 | `feature-review` → **review** | `feature/search-recipes` | findings as PR comments |
-| — | RECIPE-5, RECIPE-11 | **the gates — a human, no agent** | both merge into `epic/recipe-box` | nothing — they hold |
-| 11 | RECIPE-2 | `epic-merge-pr` → **merge** | `epic/recipe-box` | the assembled epic branch |
-| 12 | RECIPE-3 | `epic-e2e-test` → **tester-e2e** | `epic/recipe-box` | journeys across both features |
-| 13 | RECIPE-4 | `epic-review` → **review** | `epic/recipe-box` | findings on the epic PR |
-| — | RECIPE-1 | **the epic gate — a human** | the epic PR into `main` is your call | nothing |
-
-Read the numbering as the order **inside** a feature: fixed, because each ticket waits on exactly one
-predecessor. Across features the loop simply takes whoever is unblocked, so the pairs 1/2, 3/4, 5/6, 7/8 and
-9/10 interleave or swap freely — nothing joins the two features, and that absence is the parallelism.
-**Never two tickets of the same feature**: one branch, one pair of hands, and a second pair of hands on the
-same branch is the accident the chain exists to prevent.
-
-Each round below is the five steps above repeated: claim it, read the gate for the base, take or reuse the
-branch's folder, spawn its worker, and let the hook land it. The rounds name what that worker builds and
-which ticket its close releases.
+Each round is the five steps above again. Within a feature the order is fixed — logic, its tests, the
+interface, the suite, the review — because each ticket waits on the one before. Across features the order can
+interleave, because nothing joins the two. The three gates are never dispatched: a person closes those.
 """
     }
 
-    machine.dispatcher -> workers.engineer "RECIPE-12 · backend-logic → engineer — the second chain starts" {
-      title "claimed on the very same tick as RECIPE-6"
+    machine.dispatcher -> workers.engineer "RECIPE-12 — the other feature's logic" {
+      title "The engineer takes the second feature"
       notes """
-The search side: the query normaliser, the matcher over the saved recipes, the port that reads the box —
-inputs, outputs, return shapes, every edge case, the file each one lives in. Its own folder
-(`.claude/worktrees/feature+search-recipes`), its own branch, and its **own pull request — PR 3** onto
-`epic/recipe-box`, because the branch, not the ticket, is the identity of the work.
-
-Nothing shares a branch with anything here, which is the whole point of one chain per feature. Closing this
-releases RECIPE-13.
+Claimed in the same round, its own branch, its own folder, its own pull request. Closing this releases its
+tests.
 """
     }
 
-    machine.dispatcher -> workers.testerUnit "RECIPE-7 · unit-tests → tester-unit — the micro tier, feature A" {
-      title "commit 2 onto feature/add-recipe, into the same PR"
+    machine.dispatcher -> workers.testerUnit "RECIPE-7 — the tests for that logic" {
+      title "The unit tester covers one function completely"
       notes """
-One function alone, and exhaustive inside it: every branch, every boundary (120 **and** 121 characters),
-empty and null, each error `validateRecipe` throws, one scenario per behaviour with concrete input→output
-pairs — the input matrix, enumerated here so no tier above repeats it. Tool syntax comes from the
-`framework-jest` skill: the agent owns the **tier**, the skill owns the **tool**, so no test agent has a
-framework opinion of its own. Back-end only — a component gets no ticket on this tier.
-
-Its commit is filed by the same Stop hook, and it **reuses PR 2** rather than opening a second one.
-Closing it releases RECIPE-8.
+Every branch, every boundary, every error that function can throw, in its own test file. Second commit on the
+same branch, same pull request. Releases the interface ticket.
 """
     }
 
-    machine.dispatcher -> workers.testerUnit "RECIPE-13 · unit-tests → tester-unit — the micro tier, feature B" {
-      title "the same depth on the other branch"
+    machine.dispatcher -> workers.testerUnit "RECIPE-13 — the other feature's tests" {
+      title "The same depth on the other feature"
       notes """
-The matcher's branches, the empty query, the query that matches nothing, the malformed one. Different
-function, different branch, different PR — same discipline. Releases RECIPE-14.
+The search side's functions, its own branch and pull request. Releases that feature's interface.
 """
     }
 
-    machine.dispatcher -> workers.frontend "RECIPE-8 · frontend-ui → frontend — the UI, feature A" {
-      title "built last, so nothing renders against an unproved function"
+    machine.dispatcher -> workers.frontend "RECIPE-8 — the interface" {
+      title "The interface is built last, against proved functions"
       notes """
-The whole component: the recipe form's props, state and events, the list that shows the saved recipe, the
-styling and design tokens, the responsive variants, accessibility, its file path — following the named
-component-system pattern. No separate styling ticket, and no micro ticket: CSS belongs to its component.
-It lands as commit 3 on `feature/add-recipe`, in PR 2. Releases RECIPE-9.
+The whole component including its styling — one ticket, no separate styling task. Releases that feature's test
+suite.
 """
     }
 
-    machine.dispatcher -> workers.frontend "RECIPE-14 · frontend-ui → frontend — the UI, feature B" {
-      title "commit 3 on feature/search-recipes, in PR 3"
+    machine.dispatcher -> workers.frontend "RECIPE-14 — the other feature's interface" {
+      title "The search interface, on its own branch"
       notes """
-The search box, the results list, the empty-result state, the error surface when the box is unreadable. Same
-tier, same rules, other branch. Releases RECIPE-15.
-
-At four live sessions a tick **stops claiming** and writes a waiting line instead — the capacity count is
-what caps it, not a queue. That line is not an error and it appears at most once a minute per reason.
+The box, the results, the empty state, the error state. When four workers are already running a tick claims
+nothing and writes a waiting line instead — that is not a failure.
 """
     }
 
-    machine.dispatcher -> workers.testerFeature "RECIPE-9 · feature-test → tester-feature — the wiring, feature A" {
-      title "the pieces are proved wired, against the finished UI"
+    machine.dispatcher -> workers.testerFeature "RECIPE-9 — is it wired together?" {
+      title "The feature tester proves the pieces are wired together"
       notes """
-Proves RECIPE-6's functions and RECIPE-8's components are actually **composed** — one representative case per
-path, asserted at the seam, and every error and success the feature encapsulates surfacing to the user.
-Deliberately not exhaustive: never a re-run of RECIPE-7's matrix, never leaves the feature, never walks a
-journey across features (the epic tier owns those). Nothing is assembled and nothing is merged — it is proved
-on the feature branch, because the branch **is** the feature. Driven through the browser by the
-`framework-playwright` skill. Releases RECIPE-10.
+One case per path, in a real browser, on the finished feature branch — and every error and success the feature
+has actually reaches the user. It does not repeat the unit tests and it does not leave the feature. Releases
+the review.
 """
     }
 
     workers.testerFeature -> tower.featA "everything it proves is inside one feature" {
-      title "the suite never leaves the branch, and never assembles anything"
+      title "Nothing is tested against half a feature"
       notes """
-The three test tiers are three **scopes**, and each ticket's label is what carries the scope: micro inside
-one function, this tier one feature's pieces, the epic tier journeys across features. Nothing is proved
-against half a feature — which is exactly why the chain had to finish before this ticket was claimable at
-all.
+The three test tiers differ only in scope: one function, one feature, the whole epic. The ticket's label is
+what says which, and that is why the chain had to finish before this ticket existed to claim.
 """
     }
 
-    machine.dispatcher -> workers.testerFeature "RECIPE-15 · feature-test → tester-feature — the wiring, feature B" {
-      title "one case per path on the search side"
+    machine.dispatcher -> workers.testerFeature "RECIPE-15 — the other feature's wiring" {
+      title "The search side's wiring"
       notes """
-Type a query, results render; a query that matches nothing renders the empty state, not a crash; a failing
-read surfaces its error to the user. Releases RECIPE-16.
+Type a query, results appear; a query with no matches shows an empty state, not a crash. Releases that
+feature's review.
 """
     }
 
-    machine.dispatcher -> workers.reviewAgent "RECIPE-10 · feature-review → review — the three questions, feature A" {
-      title "the only worker whose skills are one contract deep"
+    machine.dispatcher -> workers.reviewAgent "RECIPE-10 — review the feature" {
+      title "The reviewer answers three questions about the branch"
       notes """
-Does the code do what its source of truth demands; do the tests prove it; is it simple and readable —
-answered from first principles, not from a checklist. It reads its ticket and the tickets around it, reads
-the diff, maps the whole system the change touches (entry → exit, following imports), instruments that
-system with trace logs, runs the suites **against the instrumented code**, then posts findings as comments on
-the pull request, each naming where it lives and how it was found.
-
-It files no tickets and lands nothing: the trace logs stay in the working tree, `git diff --cached --quiet`
-means no commit, and the hook carries straight on to push, PR and close. Only `bead-heartbeat` is preloaded —
-`bead-read`, the four standards and `pr-comments` load on demand at the step that uses them. With RECIPE-16
-closed, both feature chains are done, and **the tower stops here for a person.**
+Does the code do what it is supposed to, do the tests prove it, is it readable. It reads the diff, follows the
+code, adds trace logs, runs the tests against that, then posts findings as comments on the pull request. It
+files nothing and commits nothing. With the other review closed, the tower waits for a person.
 """
       navigateTo theLogs
     }
 
-    workers.reviewAgent -> tower.featA "the three questions, asked of one feature's branch" {
-      title "a review lands nothing, so its commit is empty by design"
+    workers.reviewAgent -> tower.featA "the findings go on the pull request" {
+      title "What the reviewer writes is what you read before closing"
       notes """
-Same agent answers two labels — `feature-review` here and `epic-review` at the top — and the ticket's label
-is what tells it how wide to cast the map. Findings go as PR comments; the certification a review produces
-is what a human reads before closing a gate, which is the only reason the gate is worth having.
+The same agent covers a feature here and the whole epic later — the ticket's label says how wide to look. That
+report is the only reason the gate is worth having.
 """
     }
 
-    machine.dispatcher -> workers.reviewAgent "RECIPE-16 · feature-review → review — the three questions, feature B" {
-      title "same agent, same three questions, its own diff on the other branch"
+    machine.dispatcher -> workers.reviewAgent "RECIPE-16 — review the other feature" {
+      title "The same review on the other feature"
       notes """
-Findings on PR 3. The two reviews were live at the same time — four sessions at once was the ceiling this
-run ran against.
+Findings on pull request 3. Both reviews ran at the same time, which is the four-worker ceiling in practice.
 """
     }
 
     // ═ ACT IV — the tower stops, and only a person can start it again
 
-    machine.dispatcher -> waiting.towerStalled "WAITING … reason=tower_stalled waiting=2" {
-      title "the loop is finished and cannot know it"
+    machine.dispatcher -> waiting.towerStalled "nothing left to claim" {
+      title "The loop is finished and does not know it"
       notes """
-Both feature chains are closed; the gates RECIPE-5 and RECIPE-11 are still open, and they hold the whole epic
-tier off the frontier. The claim came back empty — which is **not** an error — so the tick probed
-`bd list --status open,blocked --limit 0 --json`, found two work tickets that exist but are blocked, and
-wrote this line instead of the calm one:
-
-| Line | Means |
-|---|---|
-| `frontier_empty` | nothing to do — the tower is finished or unplanned |
-| `tower_stalled waiting=N` | work **does** exist and something is holding it — usually an open gate |
-
-A broken tower must never read as a calm one. The loop does not end, does not retry, and does not nag: one
-line a minute per reason, forever, until a human acts.
+Both features are closed, the two feature gates are still open, and those gates hold everything above them. So
+the claim came back empty, the loop checked, found work that exists but is blocked, and wrote a waiting line
+instead. It writes that line once a minute and waits for you.
 """
       navigateTo everyFailure
     }
 
-    human -> tower.featA "read PR 2, verify the flow, close RECIPE-5" {
-      title "closing the gate IS merging the branch"
+    human -> tower.featA "read PR 2, close RECIPE-5" {
+      title "You read pull request 2 and close the first gate"
       notes """
-There is **no `human` agent**: the person enters through gates, and nothing is ever spawned for them; a
-claimable ticket assigned to a human is a model bug. The gate's PR is the feature branch, so closing
-RECIPE-5 is the merge of `feature/add-recipe` into `epic/recipe-box`. Workers report, humans close — this is
-the only place a claim loop cannot fake understanding, which is why the tower is *supposed* to stall here.
+Closing the gate is how the feature branch gets merged into the epic branch. No worker can do this, so the
+tower is meant to stop here.
 """
     }
 
     human -> tower.featB "read PR 3, close RECIPE-11" {
-      title "the second gate, and now the epic tier is unblocked"
+      title "You close the second gate"
       notes """
-Both feature gates closed → RECIPE-2's two `blocked-by` edges are gone, and the merge ticket is the frontier.
+Now nothing blocks the merge ticket, and it becomes the frontier.
 """
     }
 
-    machine.dispatcher -> workers.mergeAgent "RECIPE-2 · epic-merge-pr → merge — 11th claimed" {
-      title "the epic is the only place two branches ever meet"
+    machine.dispatcher -> workers.mergeAgent "RECIPE-2 — join the branches" {
+      title "The merge worker joins the two feature branches"
       notes """
-The feature tier assembled nothing — one branch, the tasks were commits on it. The **epic** is where joining
-happens: this agent reads the two feature branches off the **feature gates' own `branch` keys** (never derived
-from a title), assembles them onto `epic/recipe-box` in its own worktree one at a time in the order its brief
-gives, resolves what collides between them from the `diff3` base — never from one side — then runs the project's
-own test command and **reads the count**, because exit 0 while the runner printed `no tests` is the suite saying
-*I am configured wrong and cannot tell you*.
-
-It is the one worker granted `git merge`, and it still writes no code and no tests, merges into no `main`, and
-opens no pull request of its own: the evidence is evidence, not a suspect. Closing it releases RECIPE-3.
+It reads both branch names off the feature gates, merges them onto `epic/recipe-box` one at a time in its own
+folder, fixes what collides, then runs the tests and reads the count rather than trusting the exit code. It
+writes no code and opens no pull request of its own. Releases the end-to-end tests.
 """
     }
 
-    workers.mergeAgent -> tower.epic "the two feature branches, assembled onto epic/recipe-box" {
-      title "assembled where the journeys will be proved"
+    workers.mergeAgent -> tower.epic "both features, on the epic branch" {
+      title "The epic branch now holds both features together"
       notes """
-This is why the merge ticket exists as a ticket at all: the epic tier's tests and review are only honest
-against the assembled result, and assembling is work with a branch, a brief and a reviewer — so it is
-dispatched and worked like any other stamp, through the same claim and the same fail-closed hook.
+The epic's tests and review are only honest against the assembled result — so assembly is a ticket, dispatched
+and landed exactly like any other.
 """
     }
 
-    machine.dispatcher -> workers.testerE2e "RECIPE-3 · epic-e2e-test → tester-e2e — 12th claimed" {
-      title "journeys across both features, on the assembled branch"
+    machine.dispatcher -> workers.testerE2e "RECIPE-3 — the whole flow" {
+      title "The end-to-end tester walks the whole flow"
       notes """
-The thinnest tier, and it only runs **after** the merge — proved against the assembled result, not against two
-branches that were never together. Real browser, real stack: a recipe saved in the Add-a-Recipe flow is found
-by the Search-the-Box flow (the state handoff between features, which nothing below this tier can see), one
-success and one failure per feature from the outside, session and persistence continuity. Third parties are
-mocked, nothing else; it duplicates nothing the unit or feature tiers proved.
-
-This ticket carries `respawn-agent: true`: a fresh session of the same agent re-checks the work before the
-ticket may close — a step inside the one ticket, never a second ticket.
+A recipe saved by one feature is found by the other, in a real browser, on the assembled branch. One journey
+per outcome, and nothing repeated from the lower tiers.
 """
     }
 
-    machine.dispatcher -> workers.reviewAgent "RECIPE-4 · epic-review → review — 13th claimed, the last one" {
-      title "the three questions, this time of the whole epic"
+    machine.dispatcher -> workers.reviewAgent "RECIPE-4 — review the epic" {
+      title "The reviewer looks at the whole epic"
       notes """
-Same agent, wider map: the flow **across** the features, instrumented, run against the instrumented code, and
-the three questions answered at epic scale. Findings land as comments on the epic's pull request. Nothing
-dispatches after this — the frontier goes empty and the waiting line starts saying `tower_stalled waiting=1`,
-which is the signal to come here and read it.
+The same three questions across both features, with findings on the epic's pull request. Nothing dispatches
+after this.
 """
     }
 
-    human -> tower.epic "close RECIPE-1 — the thumbs-up on PR 1 into main is yours" {
-      title "the epic gate: closed once, by you, after epic-review"
+    human -> tower.epic "close RECIPE-1" {
+      title "You close the epic gate, and the tower is finished"
       notes """
-The tower is complete. Nothing in the system ever deleted a branch, unclaimed a closed ticket, or closed a
-gate.
-
-| What the loop did | What the human did |
+| Who | What they did |
 |---|---|
-| installed once, then ran: published `epic/recipe-box` and its PR, made **3 worktrees** (one per branch), spawned **13 workers**, wrote the epic gate's `pr` key | planned all 16 tickets, read the 3 pull requests, closed the **3 gates** |
-| closed all **13** work tickets through one fail-closed hook | closed the 3 gates no worker can reach — that is the verification, not a formality |
-
-The arithmetic to keep in your head: **16 tickets = 13 dispatched + 3 gates; 3 pull requests = 1 epic + 1 per
-feature; 3 worktrees = 1 per branch**, not per ticket, because a worktree belongs to a branch.
+| the loop | published the epic branch and its pull request, made 3 folders (one per branch), started 13 workers, closed 13 tickets |
+| you | planned all 16 tickets, read the 3 pull requests, closed the 3 gates |
 """
       navigateTo theLogs
     }
@@ -759,8 +498,6 @@ feature; 3 worktrees = 1 per branch**, not per ticket, because a worktree belong
 
   // ────────────────────────────────────────────────────────────────────────────
   // 3 · THE RUN LOG
-  // Cast: the log box with all ten files, and only the five writers anyone points
-  // at in this story.
   // ────────────────────────────────────────────────────────────────────────────
 
   dynamic view theLogs {
@@ -770,225 +507,129 @@ feature; 3 worktrees = 1 per branch**, not per ticket, because a worktree belong
 
     // ═ ACT I — one directory per run, and one line format that never varies
 
-    machine.dispatcher -> logRun "one directory per run, seeded before the first tick" {
-      title "~/.binary-obelisk/logs/2026-11-06_09-12-01 — six files, created empty, up front"
+    machine.dispatcher -> logRun "one directory per run, made before the first tick" {
+      title "One folder per run, with every file made up front"
       notes """
-`claims errors waiting results closes failures` are all created **before anything happens**, so a
-**missing** file and an **empty** file look identical and neither can hide a silent failure. Two of them
-(`closes`, `failures`) are written by the hooks — possibly long after this run ended, into the directory
-this run made, which is why the directory is named by its start time and not by anything else.
-
-Every line of every file is built by **one function**, in one file, sourced by the engine *and* by both
-hooks (`CLI/loop-log.sh`):
-
-```
-<TAG padded to 8> <ISO time>\trun=… repo=… ticket=… label=… agent=… branch=… target=… session=… worktree=… <detail>
-```
-
-- The **tag is the file** the line appends to, so a line says where it belongs even once pasted into a bug report.
-- The **nine keys are on every line**, with `\"-\"` for whatever is not known at that moment — an *absent*
-  field would be indistinguishable from a field nobody set, and an error line is worth nothing if it
-  cannot say what it happened to.
-- The key set is **closed**. Anything outside the nine — a `step=`, a `gate=`, an `exit=`, a `msg=` — goes
-  on as **detail**, trailing and free-form. That rule is what keeps the files JOINable by `grep`.
-- The engine **tees** each line to the terminal as it writes it; the hooks set `BO_LOG_QUIET=1` and write
-  only to the file, because a hook's stdout belongs to the session, not to a person watching the loop.
-- Identity is carried in a table: seeded with `run` and `repo` at startup, then set as the tick learns
-  each thing (`boIdent ticket …`, `branch …`, `session …`), and **cleared between ticks** — everything
-  except `run` and `repo` back to `\"-\"`, so a line can never inherit the previous ticket's identity.
-
-```
-CLAIMS   2026-11-04T09:12:03\trun=2026-11-04_09-12-01 repo=/home/dev/recipe-box ticket=RECIPE-6
-         label=backend-logic agent=engineer branch=feature/add-recipe target=epic/recipe-box
-         session=287d3c4c worktree=/home/dev/recipe-box/.claude/worktrees/feature+add-recipe reason=dispatched
-```
+The files are created empty before anything happens, so a missing file and an empty file look alike and
+neither can hide a silent failure. The folder is named for when the run started, and every line of every file
+has one shape, built by one function that the loop and both hooks share.
 """
       navigateTo theLoop
     }
 
     // ═ ACT II — the writers, one file each
 
-    machine.dispatcher -> logRun.fClaims "CLAIMS — every ticket taken, and every one put back" {
-      title "three kinds of line, and one of them names no ticket"
+    machine.dispatcher -> logRun.fClaims "CLAIMS" {
+      title "Every ticket taken, and every one put back"
       notes """
-| Line | Means |
-|---|---|
-| `reason=dispatched` | the claim was taken and a worker was spawned — this is the run's heartbeat |
-| `reason=branch-busy unclaimed` | the ticket was taken off the frontier and **put straight back**: another session already holds that branch |
-| `gate=RECIPE-1 reason=epic-published gateBranch=… pr=…` | the loop published the epic branch and its PR — **no ticket of its own** on the line, because the identity the tick already carries is on it |
-
-Both put-backs are here and not in `errors`, because neither is a failure — one is the chain doing its
-job, the other is the capacity cap. If a ticket you expected never appears in `claims` at all, it was
-never claimable: go read its `blocked-by` edges, not the loop.
+A dispatched line is the run's heartbeat. A put-back means another worker already holds that branch. Neither is
+a failure. A ticket you expected that never appears here was never unblocked — go look at its blockers.
 """
     }
 
-    machine.dispatcher -> logRun.fWaiting "WAITING — the quiet ticks, one a minute per reason" {
-      title "the file that proves the loop is alive and idle, not dead"
+    machine.dispatcher -> logRun.fWaiting "WAITING" {
+      title "The quiet ticks: alive, with nothing to do"
       notes """
-Written only when a tick claimed nothing, and **rate-limited at one line per minute per reason**
-(`60 / BO_POLL_S` ticks), so a tower stalled for an hour leaves sixty lines and not seventy-two hundred.
-Two fields make the line actionable:
-
-| Field | Answers |
-|---|---|
-| `working=<n>` | how many sessions are live right now — if this is at `BO_MAX_PARALLEL`, the loop is not stuck, it is full |
-| `next=<id>` | the id a bare claim **would** name — if it is empty, nothing is unblocked |
-
-The five reasons, and only two of them mean **a person must act**:
-
-| `reason=` | Means |
-|---|---|
-| `frontier_empty` | nothing to do — the tower is finished or unplanned **(a person)** |
-| `tower_stalled waiting=N` | work **exists** and something holds it — usually an open gate **(a person)** |
-| `max_parallel in_progress=N` | the machine is full; it will claim again the moment a session ends |
-| `max_parallel_stalled in_progress=0` | at the cap with zero live sessions — the counter disagrees with the machine |
-| `branch_busy held=N` | the frontier is holding tickets whose branches other sessions own — patience, unless it never clears |
+Written only when a tick claimed nothing, and at most once a minute per reason. Two of the five reasons need a
+person — nothing left to do, or work exists and something is holding it. The rest just mean full.
 """
       navigateTo everyFailure
     }
 
-    machine.dispatcher -> logRun.fErrors "ERRORS — every alarm the engine saw" {
-      title "never rate-limited, because an error is not noise"
+    machine.dispatcher -> logRun.fErrors "ERRORS" {
+      title "Every alarm the loop saw, never capped"
       notes """
-The waiting lines are capped; **this file is not**. One line per alarm, `reason=` naming which of them,
-and the detail after the nine keys carrying what only that alarm knows — `step=`, `gate=`, `exit=`,
-`matched=`, `msg=`.
-
-The reason set is exactly the inventory of walkthrough 4: `bd-failure`, `label-ambiguous`,
-`metadata-missing`, `branch-busy`, `epic-pr-failed`, `worktree-failed`, `worker-not-dispatched`. If the
-tower is not moving and this file is empty, nothing is *failing* — read `waiting` instead, because the
-answer is a hold, not a fault.
+One line per alarm, naming what failed. If the tower is stuck and this file is empty, nothing is failing — read
+the waiting lines instead.
 """
       navigateTo everyFailure
     }
 
-    machine.dispatcher -> logRun.fBdStderr "bd-stderr — the claim's own complaint" {
-      title "captured on the claim itself, quoted into the alarm"
+    machine.dispatcher -> logRun.fBdStderr "bd-stderr" {
+      title "The ticket tool's own complaint, kept separate"
       notes """
-Stderr of the last `bd ready --claim --json`, redirected to its own file rather than thrown away. When a
-claim fails, the alarm line's `msg=` is the **last line of this file** — so the alarm stays one greppable
-line and the raw complaint is still there, one file away, with the same identity keys around it.
+Whatever the claim command printed on its way out. When a claim fails, the alarm quotes this file's last line.
 """
     }
 
-    machine.dispatcher -> logRun.fClaudeStderr "claude-stderr — the capacity count's own complaint" {
-      title "how full the machine is, and what the counter said when it failed"
+    machine.dispatcher -> logRun.fClaudeStderr "claude-stderr" {
+      title "What the session counter said when it failed"
       notes """
-Stderr of the last `claude agents --json`, which is how `BO_MAX_PARALLEL` is counted. It fails quietly
-and the tick carries on, so without this file a broken capacity count would look exactly like a full
-machine — the waiting line would say `max_parallel` forever and nothing would be wrong with the tower.
+The counter is how the loop knows it is full. It fails quietly, so without this file a broken counter looks
+exactly like a full machine — forever.
 """
     }
 
-    machine.dispatcher -> logRun.fSpawn "spawn-<ticket> — one file per worker, never one shared file" {
-      title "where the session id is born, and why it must survive the run"
+    machine.dispatcher -> logRun.fSpawn "spawn-<ticket>" {
+      title "One file per worker, holding its session id"
       notes """
-The raw output of that one worker's spawn, which holds its session id (`backgrounded · 287d3c4c`). The
-engine reads it back (`sessionFromSpawn`) to put `session=` on the claim line and to hand `bd close
---session` the right actor — without it the close is refused, because `bd` will not close a ticket whose
-assignee is not the actor.
-
-It used to be **one shared `last-spawn`** that every spawn overwrote, so the id survived only for the
-run's final worker — and the session id is the one thing a person needs in order to attach to a worker,
-read it, or stop it. Now there is one file per ticket, named by the ticket, so it is findable hours later.
+The loop reads that id back out to name the worker on the log line and to close the ticket as the right actor.
+One file per ticket instead of one shared file, so it is still findable hours later.
 """
     }
 
-    workers.engineer -> logRun.fDone "done-<ticket> — the worker's own word that it is finished" {
-      title "the file the Stop hook is fail-closed on"
+    workers.engineer -> logRun.fDone "done-<ticket>" {
+      title "The worker's own word that it finished"
       notes """
-Created by the worker as its **very last action**: `touch \"$BO_DONE_FILE\"`, and only when the brief is
-truly done. The engine `rm -f`s it *before* spawning, so a marker can only mean **this** session — a file
-left behind by a previous run can never certify work it did not do. The session ending is not the
-statement; this file is. No marker, no commit, no push, no PR, no close: the hook refuses and the ticket
-stays claimed.
+Made by the worker as its very last action, and deleted by the loop before the worker starts. The hook commits
+nothing without it.
 """
     }
 
     machine.dispatcher -> logRun "one tick, the four files it touches" {
-      title "the same nine keys on every line of all four, or they are four piles of text"
+      title "One ticket's whole life is four files"
       notes """
-In order, for RECIPE-6: `spawn-RECIPE-6` appears the moment the session is backgrounded → `done-RECIPE-6`
-appears when the worker declares itself done → `claims` gains its `reason=dispatched` line → `closes`
-gains its line when the hook finishes. Four files, one ticket, and `grep RECIPE-6` across the directory
-reads the whole life in one screen.
+The spawn file appears when the worker starts, the done file when it declares itself finished, then a claims
+line and a closes line. Search the ticket id across the folder and the whole life reads in one screen.
 """
     }
 
-    stopHook -> logRun.fCloses "CLOSES … url=<the pull request>" {
-      title "proof of work, written by the hook that earned it"
+    stopHook -> logRun.fCloses "CLOSES" {
+      title "Proof of work, written last"
       notes """
-One line per ticket that actually landed, carrying `url=`. It is written **last**, after commit, push, PR,
-annotation and close — so a line in this file is not a claim of intent, it is a receipt. A tick that
-spawned eight workers and closed six tickets shows six lines here and two alarms in `errors`, which is the
-difference between a tower that shipped and a tower that tried.
-
-The hooks seed their own identity at startup (`run`, `repo`) and fill the rest from the eight `BO_*`
-variables the loop exported into the session — which is precisely why those variables exist: the hook
-runs in a session three hours later with no memory of the tick that spawned it, and it still has to
-produce a line joinable with that tick's.
+One line per ticket that really landed, with its pull request url, written after the commit, the push, the pull
+request, and the close. So a line here is a receipt, not an intention.
 """
     }
 
-    failHook -> logRun.fFailures "FAILURES … from=<state> kind=<.error> msg=…" {
-      title "the account of a session that died mid-turn"
+    failHook -> logRun.fFailures "FAILURES" {
+      title "What a session that died mid-turn left behind"
       notes """
-Written by the `StopFailure` hook: what state the ticket was in, what kind of failure the session reported,
-and the **last assistant message** as prose — the closest thing to a witness statement of why a worker
-stopped without declaring anything. This is the only file that records it: the loop never sees inside a
-session, and the worker is not around to write it.
+Which state the ticket was in, what kind of failure the session reported, and the worker's last message. This is
+the only place any of that is recorded.
 """
     }
 
-    machine.dispatcher -> logRun.fResults "RESULTS … ticks=N claimed=M" {
-      title "the tally, and the difference between finished and stopped"
+    machine.dispatcher -> logRun.fResults "RESULTS" {
+      title "The tally, written once at the end"
       notes """
-Written once, at the end of a run — on `BO_MAX_TICKS` or on Ctrl-C. On the test seam it carries a `note=`
-saying *this run was configured to end, the tower did not run out of work*, because those two endings must
-never be confused by whoever reads it afterwards. `claimed=M` against the frontier is the number that says
-whether the run did anything at all.
+Written when the run hits its tick limit or you press Ctrl-C, and the line says which of those ended it. How
+many tickets it claimed is the number that says whether the run did anything at all.
 """
     }
 
     // ═ ACT III — reading a tower that is not moving
 
     human -> logRun "the four files, in this order" {
-      title "the whole method: no parser, just the keys"
+      title "How to read a tower that is not moving"
       notes """
 | Ask | Read |
 |---|---|
-| Is the loop alive? | the newest directory under `$BO_LOG_DIR` — its name is when the run started; `results` only exists if the run ended |
-| Is it failing? | `errors` — empty means nothing is failing, whatever the tower looks like |
-| Why is nothing claimed? | `waiting` — `working=` against the cap, `next=` for what it would have taken |
-| Did this ticket ship? | `claims` for the take, `closes` for the receipt, `spawn-<ticket>` for the session id |
-| Why did this worker die? | `failures`, then `done-<ticket>` — no marker means it never claimed to be finished |
-
-Because every line carries the same nine keys, one line leads to the next with nothing but `grep`:
-
-```bash
-cd ~/.binary-obelisk/logs/2026-11-06_09-12-01
-grep RECIPE-6 claims closes errors failures spawn-RECIPE-6   # one ticket's whole life
-grep 'reason=dispatched' claims                              # what the loop actually took
-grep -c . waiting                                            # how long it sat, in minutes
-grep 'ticket=RECIPE-6' errors claims                         # the same keys join the files
-```
-
-Nothing here needs a dashboard, a database or a server — and that is deliberate. A tower you cannot read
-is a tower you cannot trust, and the loop is allowed to be silent while it works, but never to be
-**unauditable**.
+| Is the loop alive? | the newest folder; `results` only exists if the run ended |
+| Is it failing? | `errors` — empty means nothing is failing |
+| Why nothing claimed? | `waiting` — the reason, and how many workers are live |
+| Did this ticket ship? | `claims`, then `closes`, then its `spawn-<ticket>` |
+| Why did this worker die? | `failures`, then `done-<ticket>` — no marker means it never said it was done |
 """
       navigateTo everyFailure
     }
 
     beads -> logRun "and the log is not the state" {
-      title "one rule: the database is the truth, the log is the testimony"
+      title "The database is the truth; the log is the testimony"
       notes """
-The log **never** decides anything. The loop reads no log line, the hooks act on no log line, and a
-deleted log directory changes not one tick — the ticket database is the loop's only input. So a log can be
-lossy, rotated, or thrown away with no risk to the tower; what it can never be is *contradictory*, because
-it is written from the same identity the tick acted on. When the log and the database disagree, the
-database wins, and the disagreement is itself a bug worth reading.
+Nothing decides anything from a log line — delete the folder and no tick changes. So a log can be rotated or
+thrown away safely; what it can never be is contradictory, because it is written from the same facts the tick
+acted on.
 """
       navigateTo index
     }
@@ -998,8 +639,6 @@ database wins, and the disagreement is itself a bug worth reading.
 
   // ────────────────────────────────────────────────────────────────────────────
   // 4 · EVERY FAILURE
-  // Cast: four alarm boxes (one family each), the waiting-line box, and the four
-  // writers. One step per alarm, in code order.
   // ────────────────────────────────────────────────────────────────────────────
 
   dynamic view everyFailure {
@@ -1025,134 +664,124 @@ database wins, and the disagreement is itself a bug worth reading.
       waiting,
       waiting.*
 
-    // ═ PART A — the run never starts (five of these, then one that lies to you)
+    // ═ PART A — the run never starts
 
-    machine.dispatcher -> alarms.startupAlarms.toolsMissing "bd jq claude git — <tool> not found on PATH · exit 1" {
+    machine.dispatcher -> alarms.startupAlarms.toolsMissing "bd jq claude git — <tool> not found · exit 1" {
+      title "A tool is missing, and the run will not start"
       notes """
-No defaults, no partial run. Note the Stop hook carries its **own, shorter** list — `bd jq git` — because it
-never spawns a session; a machine with `claude` missing runs a tower that can never spawn and never says so at startup.
+It checks the tools before doing anything, and quits rather than start half-ready. The Stop hook checks a
+shorter list of its own, because it never starts a session.
 """
     }
 
     machine.dispatcher -> alarms.startupAlarms.knobNotNumeric "BO_MAX_PARALLEL=four is not a number · exit 1" {
+      title "A setting is not a number, and the run will not start"
       notes """
-Digit-checked on all three knobs. A knob typed wrong would otherwise change how many unattended sessions run with
-`bypassPermissions`, so it is not defaulted silently.
+These settings decide how many unattended sessions run, so none of them is quietly replaced with a default.
 """
     }
 
-    machine.dispatcher -> alarms.startupAlarms.pollUnusable "BO_POLL_S=7 is unusable — it must divide 60 · exit 1" {
+    machine.dispatcher -> alarms.startupAlarms.pollUnusable "BO_POLL_S=7 is unusable · exit 1" {
+      title "The poll interval cannot work, and the run will not start"
       notes """
-`1 2 3 4 5 6 10 12 15 20 30 60`. The waiting lines are one a minute per reason, which is `60 / BO_POLL_S` ticks;
-a poll of 7 makes that promise false, so the run refuses rather than lie about its own cadence.
+Only 1 2 3 4 5 6 10 12 15 20 30 60 are usable: the waiting lines are one a minute, and that promise only holds
+if the interval divides the minute.
 """
     }
 
-    machine.dispatcher -> alarms.startupAlarms.noBeadsDb "no beads database found from $PWD · exit 1" {
+    machine.dispatcher -> alarms.startupAlarms.noBeadsDb "no ticket database found from here · exit 1" {
+      title "No ticket database here, and the run will not start"
       notes """
-`bd list --limit 1 --json` must answer an array — a real probe of \"can anything be done here\", not a look for a
-`.beads` folder. `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the environment does not
-save a wrong directory, and a tower two levels up silently becomes the tower.
+It asks the ticket tool whether a database answers from this directory, rather than looking for a folder — the
+tool searches upward, so a database nearby is not the same as one here.
 """
     }
 
-    machine.dispatcher -> alarms.startupAlarms.logDirUnwritable "cannot create ~/.binary-obelisk/logs/… · exit 1" {
+    machine.dispatcher -> alarms.startupAlarms.logDirUnwritable "cannot write the log folder · exit 1" {
+      title "The log folder cannot be written, and the run will not start"
       notes """
-Fatal on purpose: a run that cannot write its logs cannot raise an alarm, and a silent dispatcher is the one thing
-this design refuses to be.
+Fatal on purpose: a run that cannot write its logs cannot raise an alarm, and a silent dispatcher is the one
+thing this design refuses to be.
 """
     }
 
-    machine.dispatcher -> alarms.startupAlarms.labelsStarved "BO_ALLOWED_LABELS=frontend-ux — the run starts and does nothing" {
-      title "the startup mistake that is NOT fatal"
+    machine.dispatcher -> alarms.startupAlarms.labelsStarved "BO_ALLOWED_LABELS=<typo> — the run starts and does nothing" {
+      title "The one startup mistake that does NOT stop the run"
       notes """
-A typo'd label narrows the allowed set to something no ticket carries, so every claim matches zero keys, every claim
-becomes `label-ambiguous`, and the tower sits still while the waiting lines keep arriving on schedule. Diagnosis is
-by hand: compare `bd list --json`'s labels against the eight keys of the `AGENT` map.
+Then no ticket ever matches a label, nothing is ever dispatched, and the waiting lines keep arriving on
+schedule. Check the tickets' labels against the eight the loop knows.
 """
     }
 
-    // ═ PART B — the tick fails: and the ticket's fate is the interesting part
+    // ═ PART B — the tick fails, and the ticket's fate is the interesting part
 
-    machine.dispatcher -> alarms.tickAlarms.bdFailure "ERROR reason=bd-failure exit=2 msg=\"…\"" {
-      title "the ticket's fate: nothing — there was no claim"
+    machine.dispatcher -> alarms.tickAlarms.bdFailure "ERROR reason=bd-failure exit=2" {
+      title "The claim command itself failed"
       notes """
-Two forms, one reason: `bd ready --claim` exited non-zero (last line of `bd-stderr` quoted), or exited `0` and handed
-back no `id` (first 60 characters of the payload quoted). The tick returns and the next tick tries again. An **empty**
-answer is not this alarm — that is a waiting line, and confusing the two turns every idle minute into a false fire.
+Either it exited badly — its last line is quoted in the alarm — or it came back with nothing usable in it. The
+next tick tries again. An empty answer is not this one: that is a waiting line.
 """
     }
 
-    machine.dispatcher -> beads "the claim came back empty — bd list --status open,blocked tells which line to write" {
-      title "the fork that decides whether a broken tower looks calm"
+    machine.dispatcher -> beads "empty claim — check whether blocked work exists" {
+      title "An empty claim is two opposite situations"
       notes """
-No off-frontier work → `frontier_empty`. Work exists but is blocked → `tower_stalled waiting=N`. Two alarms, not one,
-because they mean opposite things.
+Nothing left to do, or work that exists and is blocked. The loop probes the database to write the right line,
+because those two must never look alike.
 """
       navigateTo index
     }
 
-    machine.dispatcher -> alarms.tickAlarms.labelAmbiguous "ERROR reason=label-ambiguous matched=\"\" labels=\"frontend-ux\" · LEFT CLAIMED" {
+    machine.dispatcher -> alarms.tickAlarms.labelAmbiguous "ERROR reason=label-ambiguous · LEFT CLAIMED" {
+      title "The label names no worker, or two"
       notes """
-Zero **or two** dispatching labels. The ticket is left claimed so its five-minute lease parks it off the frontier —
-otherwise the loop spins on the same unworkable ticket every tick — and the errors file is the alarm. The commonest
-cause is a ticket labelled with its **category** instead of its label, which is indistinguishable from having none.
+The ticket is left claimed so its five-minute lease parks it off the queue, instead of the loop spinning on an
+unworkable ticket every tick. Usual cause: a ticket labelled with the wrong word, which looks identical to
+having none.
 """
       navigateTo index
     }
 
     machine.dispatcher -> alarms.tickAlarms.metadataMissing "ERROR reason=metadata-missing · LEFT CLAIMED" {
+      title "The ticket has no branch on it"
       notes """
-The claim's `metadata` has no `branch` — a plan agent skipped its one key. There is no folder to work in and nothing
-to push, so the loop never invents a branch: a plan bug stays a plan bug.
+Its plan step skipped that one key. The loop never invents a branch — a planning mistake stays a planning
+mistake, where you can see it.
 """
     }
 
-    machine.dispatcher -> beads "reason=branch-busy → bd unclaim RECIPE-7 and try the next claim" {
-      title "one pair of hands per branch · PUT BACK"
+    machine.dispatcher -> beads "reason=branch-busy — put the claim back and try the next" {
+      title "The branch it just claimed was already working"
       notes """
-The branch was already at work, so the claim goes straight back and its id joins `skippedTicket`; at most
-`BO_MAX_PARALLEL + 2` = six attempts a tick, then the waiting line `branch_busy held=N`.
-
-This is the **fallback**, not the mechanism: the graph makes a feature one linked line, so the frontier can only hand
-out one task per feature. This alarm is how you discover a tower that was never chained.
+The claim goes straight back and the next ticket is tried, up to six attempts a tick. On a properly chained
+tower this never happens — the chain already keeps two workers off one branch, so this alarm is how you find a
+tower that was never chained.
 """
     }
 
-    machine.dispatcher -> alarms.tickAlarms.epicPrFailed "ERROR reason=epic-pr-failed step=push gate=RECIPE-1 gateBranch=epic/recipe-box · LEFT CLAIMED" {
-      title "seven steps name where it died"
+    machine.dispatcher -> alarms.tickAlarms.epicPrFailed "ERROR reason=epic-pr-failed step=push · LEFT CLAIMED" {
+      title "The epic's branch or pull request could not be published"
       notes """
-| step | when |
-|---|---|
-| `walk` | `epicGateOf` reached no top of the parent chain within 4 hops |
-| `gate-branch` | the epic gate carries no `branch` of its own |
-| `forge` | `detectForge` settled on nothing |
-| `missing-tool` | the settled forge's CLI is not installed |
-| `push` | the epic branch could not be published off `main` |
-| `pr` | no URL matching `/(pull\|merge_requests)/<digits>` came back |
-| `annotate` | `bd update --set-metadata pr=` refused |
-
-Left claimed every time, and correctly: a worker spawned under an epic branch that does not exist burns a slot and
-files a commit nobody can pull. The epic branch appears only as `gateBranch=` — never `branch=`, which belongs to the
-claim, and the two differ.
+The `step=` names where it died: walking up to the gate, the gate's own branch, the forge, its command line
+tool, the push, the pull request, or writing the url back on the gate. Left claimed every time — a worker under
+a branch that does not exist burns a slot and files a commit nobody can pull.
 """
     }
 
-    machine.dispatcher -> alarms.tickAlarms.worktreeFailed "ERROR reason=worktree-failed branch=feature/add-recipe · LEFT CLAIMED" {
+    machine.dispatcher -> alarms.tickAlarms.worktreeFailed "ERROR reason=worktree-failed · LEFT CLAIMED" {
+      title "The branch's folder could not be made"
       notes """
-None of `origin/<branch>`, `origin/<prTarget>`, `<prTarget>`, `HEAD` resolved, or `git worktree add` refused (a folder
-already there for another branch). Same treatment as a mislabelled ticket: a worker spawned into a missing folder burns
-a slot on nothing.
+Nothing it could start the branch from existed, or the folder was already in use by another branch. Same
+treatment as a mislabelled ticket: a worker started into a missing folder wastes a slot on nothing.
 """
     }
 
-    machine.dispatcher -> alarms.tickAlarms.workerNotDispatched "ERROR reason=worker-not-dispatched msg=\"…\" · bd unclaim" {
-      title "the one tick alarm that puts the ticket straight back"
+    machine.dispatcher -> alarms.tickAlarms.workerNotDispatched "ERROR reason=worker-not-dispatched · put it back" {
+      title "The worker never started, so the ticket goes straight back"
       notes """
-`claude --bg` exited non-zero and the last line of that worker's `spawn-<ticket>` file is quoted. Nothing was ever
-spawned to work this ticket, so unlike every other tick alarm it is returned at once — the next tick may well succeed.
-This is also the shape of a model that has run out of agents: `claude` refuses an `--agent` name that is not a file in
-`agents/`, and the reason is in that file.
+The start command failed and the reason is in that worker's own spawn file — this is also what an agent name
+with no file behind it looks like. Nothing was ever started to work this ticket, so unlike every other tick
+failure it is returned at once, and the next tick may well succeed.
 """
     }
 
@@ -1161,257 +790,214 @@ This is also the shape of a model that has run out of agents: `claude` refuses a
     stopHook -> alarms.stopAlarms.missingToolHook "ERROR reason=missing-tool tool=git" {
       title "1 of 15 · the ticket stays claimed"
       notes """
-Checked before anything the hook does — but after the `BO_TICKET` guard, so a session the loop never spawned still
-exits on line one rather than alarming about someone else's project.
+Checked before anything else the hook does, but after the check that this is a dispatched worker at all — a
+session the loop never started exits quietly instead of alarming about somebody else's project.
 """
     }
 
     stopHook -> alarms.stopAlarms.noWorktreeHook "ERROR reason=no-worktree" {
       title "2 of 15"
       notes """
-No `.cwd` on stdin, or that directory does not exist. The hook will not guess the worktree from its own directory:
-guessing here means committing whatever happens to be in some other project's tree.
+The hook was not told which folder the work is in, and it will not guess from its own location — guessing here
+means committing whatever happens to be lying around.
 """
     }
 
     stopHook -> alarms.stopAlarms.ticketNotInWork "ERROR reason=ticket-not-in-work state=open" {
-      title "3 of 15 · and silent when state=closed"
+      title "3 of 15 · and silent when the ticket is already closed"
       notes """
-`closed` means this is a second Stop in a session that already shipped — the hook leaves **silently** (`exit 0`), because
-committing onto a shared branch a second time is exactly the thing the branch needs protection from. Anything else
-(`not-found`, `open`) is an alarm.
+The ticket is not in progress. If it is closed this is a second stop in a session that already shipped, and the
+hook leaves quietly — committing onto a shared branch twice is exactly what it is there to prevent.
 """
     }
 
     stopHook -> alarms.stopAlarms.noBranchHook "ERROR reason=no-branch" {
       title "4 of 15"
       notes """
-`BO_BRANCH` was not on the spawn line, so the loop never got as far as reading the claim's branch.
+The branch never reached the session, so the loop never got as far as reading it off the claim.
 """
     }
 
     stopHook -> alarms.stopAlarms.noPrTarget "ERROR reason=no-pr-target" {
       title "5 of 15"
       notes """
-`BO_PR_TARGET` was not on the spawn. Named for the target because `pr` now means the url: an absent target means the
-hook is aiming blind, and it will not open a pull request into a guess.
+The pull request's target never reached the session. The hook will not open a pull request into a guess.
 """
     }
 
     stopHook -> alarms.stopAlarms.notDeclaredDone "ERROR reason=not-declared-done" {
       title "6 of 15 · the gate of the whole design"
       notes """
-`$BO_DONE_FILE` does not exist: the session ended without saying, out loud, in the one place both programs read, that
-its brief is finished. **No commit, no push, no PR, no close.** The ticket stays claimed, its lease parks it off the
-frontier, and every task chained behind it waits.
-
-That is the whole safety of a shared branch: a half-finished task cannot slide its neighbours sideways. And the converse
-is the one failure this model cannot undo on its own — a worker that touches the marker early files half a task onto a
-branch its siblings are queued behind, and nothing can see it.
+The done marker is not there: the session ended without saying, in the one place both programs read, that its
+work is finished. No commit, no push, no pull request, no close. The ticket stays claimed, which parks it off
+the queue, and everything chained behind it waits.
 """
     }
 
-    stopHook -> alarms.stopAlarms.wrongBranch "ERROR reason=wrong-branch want=feature/add-recipe got=detached" {
+    stopHook -> alarms.stopAlarms.wrongBranch "ERROR reason=wrong-branch want=feature/add-recipe" {
       title "7 of 15"
       notes """
-The worker was told never to change branches; if it did anyway, this is the last place that can refuse to file its work
-under the wrong ticket's name. A detached tree reads as `got=\"detached\"`.
+The folder is not on the branch it should be — the worker was told never to change branches, and this is the
+last place that can refuse to file the work under the wrong ticket's name.
 """
     }
 
     stopHook -> alarms.stopAlarms.noTitle "ERROR reason=ticket-has-no-title" {
       title "8 of 15"
       notes """
-The commit message IS the ticket title, so a ticket with no title cannot be filed — the commit would be anonymous on a
-shared branch.
+The commit message is the ticket's title, so a ticket with no title cannot be filed — it would be an anonymous
+commit on a shared branch.
 """
     }
 
     stopHook -> alarms.stopAlarms.commitFailed "ERROR reason=commit-failed" {
       title "9 of 15 · and an empty tree is NOT this"
       notes """
-`git add -A` then `git commit -F -`. A review or test ticket legitimately lands nothing: `git diff --cached --quiet`
-skips the commit and the hook carries on to push, PR and close — so this alarm means a genuine failure, not an empty tree.
+The commit itself failed. A review or test ticket landing nothing is normal and is skipped quietly, so this line
+means a genuine failure.
 """
     }
 
-    stopHook -> alarms.stopAlarms.pushFailed "ERROR reason=push-failed msg=\"…\"" {
+    stopHook -> alarms.stopAlarms.pushFailed "ERROR reason=push-failed" {
       title "10 of 15"
       notes """
-`git push -u origin <BO_BRANCH>` failed; the first 160 characters of its output are the `msg=`. The commit is filed
-locally and the ticket stays claimed — nothing is rolled back, because a local commit is evidence, not a mistake to hide.
+The push failed and its output is quoted in the alarm. The commit stays where it is and the ticket stays
+claimed — nothing is rolled back, because a local commit is evidence, not a mistake to hide.
 """
     }
 
     stopHook -> alarms.stopAlarms.forgeUnknown "ERROR reason=forge-unknown remote=<url>" {
       title "11 of 15 · reached only after the commit and the push"
       notes """
-The remote name lied, it publishes neither `refs/pull/` nor `refs/merge-requests/`, and the machine holds both `gh` and
-`glab` — or neither. The hook refuses to guess: a wrong guess pushes a branch to the wrong forge.
+It could not tell whether this is GitHub or GitLab, and it refuses to guess: a wrong guess pushes a branch to
+the wrong forge.
 """
     }
 
     stopHook -> alarms.stopAlarms.forgeToolMissing "ERROR reason=missing-tool tool=gh forge=github" {
-      title "12 of 15 · the same reason as alarm 1, a different tool="
+      title "12 of 15 · same reason as alarm 1, different tool"
       notes """
-The forge settled, its CLI is not installed. The `forge=` suffix is how you tell this apart from the up-front check in
-the errors file.
+It knows the forge now, but that forge's command line tool is not installed. The forge name on the line is how
+you tell this from the up-front check.
 """
     }
 
     stopHook -> alarms.stopAlarms.prNotCreated "ERROR reason=pr-not-created forge=github" {
       title "13 of 15"
       notes """
-Either the list of this branch's existing PRs and the create both failed, or the CLI printed an error quoting some other
-URL — only `/(pull|merge_requests)/<digits>` counts as a pull request.
+Looking for an existing pull request and making a new one both failed, or the tool printed an error quoting some
+other address — only something that reads like a pull request number counts as one.
 """
     }
 
     stopHook -> alarms.stopAlarms.ticketNotAnnotated "ERROR reason=ticket-not-annotated pr=<url>" {
       title "14 of 15 · the work is out there, the ticket cannot say where"
       notes """
-`bd update --set-metadata pr=<url>` failed, so the hook **stops** rather than closing a ticket whose PR is unfindable.
-('--set-metadata merges, so this is the one place the hook could have disturbed the plan's `branch` key and does not.)
+Writing the pull request url onto the ticket failed, so the hook stops rather than close a ticket whose pull
+request nobody could find again.
 """
     }
 
     stopHook -> alarms.stopAlarms.closeFailed "ERROR reason=close-failed pr=<url>" {
       title "15 of 15 · everything else already succeeded"
       notes """
-The commit, the push and the PR are all out there with no record in the tower. `bd` refuses to close a ticket whose
-assignee is not the actor and the **dispatcher** claimed this one, so the hook passes the real `--session <session_id>`
-rather than overriding the actor — when that session id is stale or wrong, this is where it surfaces.
+The commit, the push and the pull request are all out there with no record in the tower. The ticket tool will
+not close a ticket unless the closer is who it says it is — the loop claimed this one, so the hook passes the
+worker's real session id; when that id is stale, this is where it surfaces.
 """
     }
 
     // ═ PART D — the session dies instead of finishing
 
-    toolbelt.claudeCli -> failHook "StopFailure fires — .error and .last_assistant_message on stdin" {
-      title "the reason is handed over, never polled or guessed"
+    toolbelt.claudeCli -> failHook "StopFailure — the reason arrives on input" {
+      title "A worker session dies instead of finishing"
       notes """
-The harness fires this hook itself when a worker's session dies mid-turn on an API error. `.error` is its coarse label
-for the kind of death (often just `unknown`); `.last_assistant_message` is the last thing the session produced, and for
-local inference that is where the real text is — typically an `API Error:` line from the proxy.
-
-```bash
-bd update \"$ticket\" --append-notes \"Worker session <id> failed: <kind>
-Last message: <last assistant message>\"
-bd update \"$ticket\" --status failed-agent
-```
-
-The reason goes on **before** the status changes. A dead worker stops heartbeating and its lease lapses, and nothing in
-this plugin runs `bd reclaim` — so an unwatched lapse leaves the ticket parked `in_progress`, invisible to `bd ready`,
-until a person moves it. This hook is what takes it somewhere a human will look, on purpose.
+The harness itself fires this hook and hands over what failed and the worker's last message — which for a local
+model is where the real error text is. The reason goes on the ticket *before* its status changes.
 """
     }
 
     failHook -> alarms.failAlarms.ticketNotFoundFail "ERROR reason=ticket-not-found" {
-      title "and silent when the state is not in_progress"
+      title "The ticket is gone, or is no longer this worker's"
       notes """
-`bd show --json` returned no state at all. Already parked, already shipped, anything not `in_progress` is somebody
-else's business — a dead session must not rewrite a ticket another worker owns.
+No state came back at all. Anything not in progress is left alone — a dead session must not rewrite a ticket
+another worker owns.
 """
     }
 
     failHook -> alarms.failAlarms.failNotAnnotated "ERROR reason=ticket-not-annotated kind=unknown" {
-      title "so the status is never touched"
+      title "The reason would not write, so the status is not touched"
       notes """
-The `--append-notes` failed, so the hook stops: a ticket parked in failure with nothing said about why is worse than one
-left `in_progress`.
+A ticket parked as failed with nothing said about why is worse than one left as it was.
 """
     }
 
-    failHook -> alarms.failAlarms.statusNotSet "ERROR reason=status-not-set kind=api_error from=in_progress" {
-      title "the shape that looks like a live worker and is a dead one"
+    failHook -> alarms.failAlarms.statusNotSet "ERROR reason=status-not-set from=in_progress" {
+      title "Looks like a live worker, and is a dead one"
       notes """
-The reason is on the ticket and the status is still `in_progress`. Nothing here brings it back — no `bd reclaim` runs in
-this plugin — so it sits out of `bd ready` until a person moves it, and the **missing** `failures` line is the tell that
-this happened.
+The reason is on the ticket but the status never changed, so it still reads as in progress and stays off the
+queue. Nothing here brings it back — the missing line in `failures` beside a parked ticket is how you catch it.
 """
     }
 
     // ═ PART E — not failures: the ticks that had nothing to dispatch
 
-    machine.dispatcher -> waiting.maxParallel "WAITING … reason=max_parallel in_progress=4 working=4 next=RECIPE-12" {
-      title "the workers are working; the tick simply does not claim"
+    machine.dispatcher -> waiting.maxParallel "WAITING … reason=max_parallel in_progress=4" {
+      title "Four workers running, so this tick claims nothing"
       notes """
-The capacity count comes fresh from `claude agents --json` every tick — never from a counter the loop keeps — precisely
-so a session that died without anyone noticing cannot hold a slot forever.
+The count is taken fresh from the live sessions every tick — never from a counter the loop keeps — so a session
+that died quietly cannot hold a slot forever.
 """
     }
 
-    machine.dispatcher -> waiting.maxParallelStalled "WAITING … reason=max_parallel_stalled in_progress=0 working=4" {
-      title "at capacity with nothing in progress: the slots are ghosts"
+    machine.dispatcher -> waiting.maxParallelStalled "WAITING … reason=max_parallel_stalled in_progress=0" {
+      title "Full, with nothing in progress: the slots are ghosts"
       notes """
-Four sessions counted busy, no ticket in progress. This is the state the live recount exists to make **visible**; the two
-counts disagreeing is the whole alarm.
+Sessions counted busy, no ticket being worked. The two counts disagreeing is the whole alarm.
 """
     }
 
-    machine.dispatcher -> waiting.branchBusyWaiting "WAITING … reason=branch_busy held=3 next=…" {
-      title "every claim this tick wanted an occupied branch"
+    machine.dispatcher -> waiting.branchBusyWaiting "WAITING … reason=branch_busy held=3" {
+      title "Every claim this tick wanted a busy branch"
       notes """
-Three claims unclaimed and skipped inside the six-attempt limit. On a chained tower this line should never appear — its
+Three claims taken and put back inside the six-attempt limit. On a chained tower this line never appears — its
 appearance says the tower was built as a fan.
 """
     }
 
-    machine.dispatcher -> waiting.frontierEmpty "WAITING … reason=frontier_empty next=-" {
-      title "the calm one — finished, or never planned"
+    machine.dispatcher -> waiting.frontierEmpty "WAITING … reason=frontier_empty" {
+      title "The calm one: finished, or never planned"
       notes """
-Empty claim and the probe found no off-frontier work. Compare with `tower_stalled`: same empty claim, opposite meaning.
+Nothing to claim, and the probe found no blocked work either.
 """
       navigateTo index
     }
 
     machine.dispatcher -> waiting.towerStalled "WAITING … reason=tower_stalled waiting=2" {
-      title "work exists and something is holding it — usually an open gate"
+      title "Work exists and something is holding it — usually an open gate"
       notes """
-Gates are a custom type hidden from default queries, so N counts **work tickets**; a gate two levels below is invisible
-in that number and is almost always the cause. Only a human closes a gate, so the loop writes this line once a minute
-and waits — it does not end, retry, or nag.
+The number counts work tickets only, so the gate two levels above is invisible in it and is nearly always the
+cause. Only a person closes a gate, so the loop writes this line once a minute and waits.
 """
       navigateTo index
     }
 
     // ═ PART F — where all of it lands
 
-    machine.dispatcher -> logRun.fErrors "ERROR … (never rate-limited)" {
-      title "every alarm, whoever saw it, in one file"
+    machine.dispatcher -> logRun.fErrors "ERROR … never rate-limited" {
+      title "Every alarm lands in one file, whoever saw it"
       notes """
-| File | Written by | Cadence |
-|---|---|---|
-| `claims` | the loop | every take and every put-back |
-| `errors` | loop and both hooks | **every** failure, never capped |
-| `waiting` | the loop | one a minute per reason |
-| `closes` | the Stop hook | one per ticket landed |
-| `failures` | the StopFailure hook | one per dead session |
-| `results` | the loop | the tally, at `BO_MAX_TICKS` or Ctrl-C |
-| `bd-stderr` / `claude-stderr` | the loop | the last tool stderr, quoted into the alarm |
-| `spawn-<ticket>` / `done-<ticket>` | the loop / the worker | that worker's session id, and its own declaration |
-
-**Reading a tower that is not moving**, in this order:
-
-```bash
-tail -f ~/.binary-obelisk/logs/<run>/waiting       # which reason, and how often
-bd list --status in_progress --json                 # who is claimed, and by whom
-bd show <id> --json                                 # its blockers — an open gate two levels below?
-grep <ticket> ~/.binary-obelisk/logs/<run>/errors    # what refused, and at which step
-claude agents                                       # is a session even alive?
-```
-
-Every line of every file carries the same nine keys, so any of these joins to any other by `grep` alone — and a
-**missing** file is itself a finding: no `failures` line beside a `failed-agent` ticket is `status-not-set`.
+The loop and both hooks write it, and unlike the waiting lines it is never capped. When the tower is stuck: the
+waiting lines for the reason, this file for the refusal, then whether any session is even alive.
 """
       navigateTo theLogs
     }
 
-    human -> beads "and every one of these is a person's call, not the loop's" {
-      title "nothing here ever unclaimed, un-parked, or closed a gate"
+    human -> beads "and every one of these is a person's call" {
+      title "None of these fix themselves"
       notes """
-The alarms are the design, not accidents: fifteen refusals and a fail-closed marker are the price of letting fourteen
-unattended sessions with `bypassPermissions` commit onto shared branches. What they cost is a tower that stops and says
-why, and waits for you.
+Nothing here ever puts a claim back, un-parks a ticket, or closes a gate. The refusals are the price of letting
+unattended workers commit onto shared branches, and what they buy is a tower that stops and says why.
 """
       navigateTo index
     }

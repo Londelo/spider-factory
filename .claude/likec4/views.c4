@@ -143,16 +143,18 @@ the loop ever reads.
     human -> machine.boCli "install the CLI once" {
       title "One command puts `bo` on your path"
       notes """
-It copies a small real file to `~/.local/bin/bo` that runs the plugin's own command. Run it again after an
-update or a move. If it warns about PATH, add the export line it prints to your shell profile.
+If `bo` is not on your path, this copies one small file to `~/.local/bin/bo`.
+If your terminal then says it cannot find it, add the export line it prints to your shell profile.
+If you updated or moved the plugin, run it again.
 """
     }
 
     human -> machine.boCli "bo loop, from inside the project" {
       title "You start the loop, and it runs until you stop it"
       notes """
-One command, in this terminal, printing every tick. Ctrl-C is the only thing that ends it. It plans nothing
-and merges nothing.
+If you run this inside a project folder, the loop starts and prints one line per tick until you stop it.
+If you want it to stop, Ctrl-C is the only thing that does it.
+It plans nothing, and it merges nothing.
 """
       navigateTo everyFailure
     }
@@ -160,16 +162,21 @@ and merges nothing.
     machine.knobs -> machine.dispatcher "4 parallel · 3 s · logs under ~/.binary-obelisk · labels *" {
       title "The settings are read once, at startup"
       notes """
-How many workers at once, how often it checks, where the logs go, which labels it may dispatch. A value
-typed wrong stops the run rather than being quietly replaced.
+At startup the loop reads four things and never reads them again: how many workers at once, how many seconds
+between ticks, where the logs go, which labels it may dispatch.
+If a number is typed wrong, the run stops there — it never quietly substitutes one for you.
 """
     }
 
     machine.dispatcher -> machine.preflight "before the first tick: six checks" {
       title "Six checks, and five of them stop the run"
       notes """
-The tools it needs, the settings, a ticket database here, a log folder it can write. The sixth — the label
-list — starts anyway and dispatches nothing, which is the one that bites.
+Before the first tick, if any of these is untrue the run refuses to start:
+- the tools it needs are on the path
+- the settings are numbers, and the tick spacing divides a minute
+- this folder answers a ticket list
+- it can create a log folder
+If only the label list is wrong, the run starts anyway and dispatches nobody — the one that bites.
 """
       navigateTo everyFailure
     }
@@ -179,145 +186,165 @@ list — starts anyway and dispatches nothing, which is the one that bites.
     machine.dispatcher -> beads "what is ready?" {
       title "The loop asks the database what is ready"
       notes """
-The ticket graph is the only thing it knows about the project. It keeps no state of its own, so restart it
-and it picks the same place.
+The loop remembers nothing between ticks: the ticket graph is the whole state of the project.
+If you restart it, it picks up in exactly the same place.
 """
     }
 
     machine.dispatcher -> toolbelt.bdCmds "the ticket commands the loop runs" {
       title "Nine ticket commands, and only the loop runs them"
       notes """
-Two of them matter here: the one that takes a ticket, and the one that writes a pull request url onto one.
+Only the loop runs these. Two of them matter here: the one that takes a ticket, and the one that writes a pull
+request url onto one.
 """
     }
 
     machine.dispatcher -> machine.claim "round 1 — take one ticket" {
       title "Count what is already running, then take one ticket"
       notes """
-Four workers already running means no claim this tick. Otherwise the ticket comes back with its label, its
-branch, and its parent already on it — that is enough to route it with no further reading.
+If four workers are already running, this tick claims nothing.
+Otherwise the database hands over one ticket, already carrying its label, its branch and its parent — enough
+to route it with no further reading.
 """
     }
 
     machine.claim -> tower.featA.backendA "RECIPE-6" {
-      title "The ticket already knows its feature, its branch, and its worker"
+      title "The ticket says who does it and where it lands"
       notes """
-Label `backend-logic`, so the engineer; branch `feature/add-recipe`, from its feature RECIPE-5. Nothing else
-in the tower is unblocked, which is the only reason this ticket came up.
+- label `backend-logic` → the engineer
+- branch `feature/add-recipe` → the folder it works in, from its feature RECIPE-5
+Nothing else was unblocked, which is the only reason this ticket came up.
 """
     }
 
     machine.dispatcher -> tower.epic "where does this land?" {
       title "The pull request's target comes from the epic gate"
       notes """
-Ticket → feature → epic, and the epic's own branch is where the work lands. It is read there every time and
-never copied onto tickets, so it cannot drift from the gate it came from.
+Read the ticket's feature, then that feature's epic, then the epic's own branch — that branch is where the work
+lands. It is read there every time and never copied onto a ticket, so it cannot go stale.
 """
     }
 
     machine.dispatcher -> toolbelt.forgeCli "publish the epic branch and its pull request, once" {
-      title "The epic's branch exists before any worker starts"
+      title "If the epic has no pull request yet, make one before anyone works"
       notes """
-Push `epic/recipe-box`, open its pull request, write the url on the epic gate. Everything below aims at that
-branch, so if this fails nothing has anywhere to land: the ticket stays claimed and the run says why.
+If the epic gate carries no pull request url, then: push `epic/recipe-box`, open its pull request, write the url
+on the gate.
+Then every branch below has somewhere to point.
+If any of that fails, nothing has anywhere to land — the ticket stays claimed and the run writes why.
 """
     }
 
     toolbelt.forgeCli -> forge "PR 1 — epic/recipe-box into main" {
       title "Pull request 1: the epic branch into main"
       notes """
-The loop publishes this one and nobody else. It also decides whether the forge is GitHub or GitLab, and
-refuses to guess when the evidence is ambiguous.
+The loop is the only thing that ever publishes this branch. It also settles whether the forge is GitHub or
+GitLab, and if the evidence is unclear it stops rather than guesses.
 """
     }
 
     machine.dispatcher -> toolbelt.worktree "make the branch's folder" {
       title "The branch gets its own folder"
       notes """
-Made the first time that branch is claimed, reused by every later ticket on it. A branch already checked out
-somewhere is reused and never re-added.
+If this branch has no folder yet, make one under `.claude/worktrees/`.
+If it already has one, reuse it — every later ticket on this branch works in the same folder.
+If the branch is checked out somewhere else, reuse that folder and never add a second.
 """
     }
 
     machine.dispatcher -> machine.agentMap "backend-logic means engineer" {
       title "One label picks one worker"
       notes """
-Eight labels, eight workers, and nothing else can name a specialist. A ticket with no label or two labels
-dispatches nobody and stays claimed.
+Look the ticket's one dispatching label up in the map, and that is the worker — nothing else can name a
+specialist.
+If the ticket has no label, or two, nobody is dispatched and the ticket stays claimed.
 """
     }
 
     machine.dispatcher -> toolbelt.claudeCli "start the worker in that folder" {
       title "A worker session is started in the background"
       notes """
-In that folder, on that branch. Its session id is read from that worker's own spawn output, so you can still
-attach to it, read it, or stop it later.
+Start a background session in that folder, then read its session id out of that worker's own spawn file — so
+you can still attach to it, read it, or stop it later.
 """
     }
 
     machine.dispatcher -> machine.spawnEnv "pass it which ticket this is" {
-      title "Eight settings tell the worker and the hooks what they are working on"
+      title "Hand the worker its settings before it starts"
       notes """
-Ticket, branch, pull request target, worker, label, folders, log place, done marker. A worker started without
-them stops itself, and its ticket sits in progress — the hooks cannot finish what they cannot identify.
+Eight settings go in with the session, and both the worker and the hook that finishes its work read them back.
+If the session starts without them, the worker stops itself and its ticket sits in progress — the hook cannot
+finish work it cannot identify.
+The eight are listed on the node itself.
 """
     }
 
     toolbelt.claudeCli -> workers.engineer "the rules arrive with the brief" {
       title "The worker's prompt is the five rules it must follow"
       notes """
-Keep your ticket alive, never close your own ticket, say what is left if you run out of room, start no other
-workers, stay on your branch and never commit or push — and touch the done marker only when the work is
-genuinely finished.
+The worker's whole prompt is five rules:
+- keep your claim alive
+- never close your own ticket
+- say what is left if you run out of room
+- start no other workers
+- stay on your branch; never commit, branch, merge or push
+and one last act: touch the done marker, and only if the brief is genuinely finished.
 """
     }
 
     workers.engineer -> tower.featA.backendA "write the code" {
       title "The engineer writes the code and leaves the ticket open"
       notes """
-Files land in the branch's folder, uncommitted; it heartbeats so its claim holds, and reports in its final
-message. Closing is somebody else's job.
+The engineer writes files into the branch's folder and commits nothing, heartbeats so its claim holds, reports
+in its final message, and leaves the ticket open.
+Closing is somebody else's job.
 """
     }
 
     workers.engineer -> stopHook "touch the done marker, then stop" {
       title "The worker's last act is to say it is finished"
       notes """
-It creates a marker file. The loop deletes it before each start, so only this session could have made it. The
-session ending alone proves nothing — that file is the statement.
+The loop deleted the marker before this session started, so only this session could have made it.
+If the marker exists, the hook runs. If it does not, the hook commits nothing, pushes nothing, opens nothing and
+closes nothing.
 """
     }
 
     stopHook -> toolbelt.gitCli "commit and push, only on that marker" {
-      title "The hook commits and pushes — after checking, not assuming"
+      title "Check first, then commit and push"
       notes """
-The ticket must still be in progress, the branch settings must have arrived, and the folder must be on the
-branch it thinks it is. Then the ticket's title becomes the commit message. A test or review ticket may land
-nothing, and that is fine.
+If any of these is untrue, the hook refuses and says which:
+- the ticket is still in progress
+- the branch and the pull request target arrived with the session
+- the folder is really on the branch it thinks it is
+Then the ticket's title becomes the commit message, and the branch is pushed.
+A test or a review ticket may land no files at all, and an empty tree is allowed.
 """
     }
 
     stopHook -> toolbelt.forgeCli "the pull request for this branch" {
       title "One branch, one pull request, forever"
       notes """
-It looks for an open pull request on this branch first; only if there is none does it make one. The next
-ticket on this branch reuses it, because the branch — not the ticket — is the unit of work.
+If this branch already has an open pull request, use it.
+If not, make one — and the next ticket on this branch reuses it, because the branch is the unit of work, not the
+ticket.
 """
     }
 
     toolbelt.forgeCli -> forge "PR 2 — feature/add-recipe into epic/recipe-box" {
       title "Pull request 2: the feature branch into the epic branch"
       notes """
-It aims at the epic's branch, not at main. This tower has three pull requests in all: one epic, one per
+It aims at the epic's branch, not at main. This tower has three pull requests in all: one for the epic, one per
 feature.
 """
     }
 
     stopHook -> beads "write the url, then close" {
-      title "The url goes on the ticket, then the hook closes it"
+      title "Write the url first, close second"
       notes """
-Written first, closed second — if the url cannot be written the hook stops rather than close a ticket whose
-pull request is unfindable. That close is what unblocks the next ticket in the chain.
+If the url will not write onto the ticket, stop — do not close it, or the work is out there with no way back to
+it.
+Otherwise write the url, then close. That close is what lets the next ticket in the chain be claimed.
 """
       navigateTo everyFailure
     }
@@ -327,82 +354,91 @@ pull request is unfindable. That close is what unblocks the next ticket in the c
     machine.dispatcher -> machine.claim "the rounds — 13 tickets the loop dispatches" {
       title "One ticket at a time, in the order the graph releases them"
       notes """
-Each round is the five steps above again. Within a feature the order is fixed — logic, its tests, the
-interface, the suite, the review — because each ticket waits on the one before. Across features the order can
-interleave, because nothing joins the two. The three gates are never dispatched: a person closes those.
+Then repeat those steps, one ticket per round, thirteen times.
+Inside a feature the order is fixed — logic, its tests, the interface, the suite, the review — because each
+ticket waits on the one before it. Across features the rounds interleave, because nothing joins the two.
+The three gates are never dispatched: a person closes those.
 """
     }
 
     machine.dispatcher -> workers.engineer "RECIPE-12 — the other feature's logic" {
-      title "The engineer takes the second feature"
+      title "Round 2 — the same flow, the second feature"
       notes """
-Claimed in the same round, its own branch, its own folder, its own pull request. Closing this releases its
-tests.
+Same flow as RECIPE-6: claim RECIPE-12, its own branch, its own folder, its own pull request, engineer starts,
+writes the search code, the hook lands it.
+The two features run side by side, so neither waits on the other. When this ticket closes, its tests become
+claimable.
 """
     }
 
     machine.dispatcher -> workers.testerUnit "RECIPE-7 — the tests for that logic" {
-      title "The unit tester covers one function completely"
+      title "Round 3 — the unit tester, same flow"
       notes """
-Every branch, every boundary, every error that function can throw, in its own test file. Second commit on the
-same branch, same pull request. Releases the interface ticket.
+Same flow again, this time the unit tester alone on `validateRecipe`: every branch, every boundary, every error
+it can throw, in its own test file.
+Second commit on the same branch, same pull request. Its close makes the interface ticket claimable.
 """
     }
 
     machine.dispatcher -> workers.testerUnit "RECIPE-13 — the other feature's tests" {
       title "The same depth on the other feature"
       notes """
-The search side's functions, its own branch and pull request. Releases that feature's interface.
+Same flow, other feature: the unit tester on `searchRecipes`. Its close releases that feature's interface.
 """
     }
 
     machine.dispatcher -> workers.frontend "RECIPE-8 — the interface" {
-      title "The interface is built last, against proved functions"
+      title "Round 5 — the interface, built last"
       notes """
-The whole component including its styling — one ticket, no separate styling task. Releases that feature's test
-suite.
+Same flow, this time the front-end worker: the whole component with its styling, against functions already
+proved. One ticket, no separate styling task.
+Its close releases that feature's suite.
 """
     }
 
     machine.dispatcher -> workers.frontend "RECIPE-14 — the other feature's interface" {
       title "The search interface, on its own branch"
       notes """
-The box, the results, the empty state, the error state. When four workers are already running a tick claims
-nothing and writes a waiting line instead — that is not a failure.
+Same flow, other feature: the search box, its results, its empty state, its error state.
+If four workers are already running, a tick claims nothing and writes a waiting line instead — that is not a
+failure.
 """
     }
 
     machine.dispatcher -> workers.testerFeature "RECIPE-9 — is it wired together?" {
-      title "The feature tester proves the pieces are wired together"
+      title "Round 7 — does the feature actually hang together?"
       notes """
-One case per path, in a real browser, on the finished feature branch — and every error and success the feature
-has actually reaches the user. It does not repeat the unit tests and it does not leave the feature. Releases
-the review.
+Same flow, this time the feature tester, driving a real browser on the finished branch: one case per path, and
+every error and every success the feature has really reaching the screen.
+It does not repeat the unit tests, and it never leaves the feature. Its close releases the review.
 """
     }
 
     workers.testerFeature -> tower.featA "everything it proves is inside one feature" {
       title "Nothing is tested against half a feature"
       notes """
-The three test tiers differ only in scope: one function, one feature, the whole epic. The ticket's label is
-what says which, and that is why the chain had to finish before this ticket existed to claim.
+The three test tiers differ only in how wide they look — one function, one feature, the whole epic — and the
+ticket's label is what says which. This ticket could not exist until the chain had finished.
 """
     }
 
     machine.dispatcher -> workers.testerFeature "RECIPE-15 — the other feature's wiring" {
       title "The search side's wiring"
       notes """
-Type a query, results appear; a query with no matches shows an empty state, not a crash. Releases that
-feature's review.
+Same flow, other feature: type a query, results appear; a query with no matches shows an empty state, not a
+crash. Its close releases that feature's review.
 """
     }
 
     machine.dispatcher -> workers.reviewAgent "RECIPE-10 — review the feature" {
-      title "The reviewer answers three questions about the branch"
+      title "Round 9 — the reviewer's three questions"
       notes """
-Does the code do what it is supposed to, do the tests prove it, is it readable. It reads the diff, follows the
-code, adds trace logs, runs the tests against that, then posts findings as comments on the pull request. It
-files nothing and commits nothing. With the other review closed, the tower waits for a person.
+Same flow, this time the reviewer: read the diff, follow the code it touches, add trace logs, run the tests
+against that, then answer three questions from first principles —
+- does the code do what it is meant to?
+- do the tests actually prove it?
+- is it simple enough to read?
+Then it posts what it found as comments on the pull request. It files no tickets and commits nothing.
 """
       navigateTo theLogs
     }
@@ -410,26 +446,27 @@ files nothing and commits nothing. With the other review closed, the tower waits
     workers.reviewAgent -> tower.featA "the findings go on the pull request" {
       title "What the reviewer writes is what you read before closing"
       notes """
-The same agent covers a feature here and the whole epic later — the ticket's label says how wide to look. That
-report is the only reason the gate is worth having.
+What the reviewer writes is what you read before closing, so it is the only reason the gate is worth having. The
+same agent covers one feature here and the whole epic later — the label says how wide to look.
 """
     }
 
     machine.dispatcher -> workers.reviewAgent "RECIPE-16 — review the other feature" {
       title "The same review on the other feature"
       notes """
-Findings on pull request 3. Both reviews ran at the same time, which is the four-worker ceiling in practice.
+Same flow, other feature; findings on pull request 3. Both reviews ran at the same time, which is the
+four-worker ceiling in practice.
 """
     }
 
     // ═ ACT IV — the tower stops, and only a person can start it again
 
     machine.dispatcher -> waiting.towerStalled "nothing left to claim" {
-      title "The loop is finished and does not know it"
+      title "The work is done and the loop does not know it"
       notes """
-Both features are closed, the two feature gates are still open, and those gates hold everything above them. So
-the claim came back empty, the loop checked, found work that exists but is blocked, and wrote a waiting line
-instead. It writes that line once a minute and waits for you.
+Both features are finished, but both feature gates are still open, and an open gate holds everything above it.
+So: the claim came back empty, the loop checked whether work exists anyway, found some, and wrote a waiting line
+instead of an error — once a minute, until a person arrives.
 """
       navigateTo everyFailure
     }
@@ -437,54 +474,62 @@ instead. It writes that line once a minute and waits for you.
     human -> tower.featA "read PR 2, close RECIPE-5" {
       title "You read pull request 2 and close the first gate"
       notes """
-Closing the gate is how the feature branch gets merged into the epic branch. No worker can do this, so the
-tower is meant to stop here.
+Read pull request 2, and if the branch is right, close RECIPE-5.
+Closing the gate is what merges the feature branch into the epic branch. No worker can do this, so the tower is
+meant to stop right here.
 """
     }
 
     human -> tower.featB "read PR 3, close RECIPE-11" {
       title "You close the second gate"
       notes """
-Now nothing blocks the merge ticket, and it becomes the frontier.
+Close RECIPE-11 the same way. Now the merge ticket has nothing blocking it, so it becomes the next thing to
+claim.
 """
     }
 
     machine.dispatcher -> workers.mergeAgent "RECIPE-2 — join the branches" {
-      title "The merge worker joins the two feature branches"
+      title "Round 11 — the merge worker assembles the epic"
       notes """
-It reads both branch names off the feature gates, merges them onto `epic/recipe-box` one at a time in its own
-folder, fixes what collides, then runs the tests and reads the count rather than trusting the exit code. It
-writes no code and opens no pull request of its own. Releases the end-to-end tests.
+Same flow as any other round. This worker:
+- reads both branch names off the two feature gates
+- merges them onto `epic/recipe-box`, one at a time, in its own folder
+- fixes what collides
+- runs the tests and reads the pass and fail counts rather than trusting the exit code
+It writes no code and opens no pull request of its own. Its close releases the end-to-end tests.
 """
     }
 
     workers.mergeAgent -> tower.epic "both features, on the epic branch" {
       title "The epic branch now holds both features together"
       notes """
-The epic's tests and review are only honest against the assembled result — so assembly is a ticket, dispatched
-and landed exactly like any other.
+The epic's tests and review are only honest against the assembled result, so assembling is a ticket too —
+claimed, worked and landed exactly like every other.
 """
     }
 
     machine.dispatcher -> workers.testerE2e "RECIPE-3 — the whole flow" {
-      title "The end-to-end tester walks the whole flow"
+      title "Round 12 — the whole flow in a real browser"
       notes """
-A recipe saved by one feature is found by the other, in a real browser, on the assembled branch. One journey
-per outcome, and nothing repeated from the lower tiers.
+Same flow, this time the end-to-end tester: a recipe saved by one feature is found by the other, in a real
+browser, on the assembled branch. One journey per thing a user can actually do, nothing repeated from the lower
+tiers.
 """
     }
 
     machine.dispatcher -> workers.reviewAgent "RECIPE-4 — review the epic" {
-      title "The reviewer looks at the whole epic"
+      title "Round 13 — the same three questions, wider"
       notes """
-The same three questions across both features, with findings on the epic's pull request. Nothing dispatches
-after this.
+Same flow, this time across both features at once, findings on the epic's pull request. After this there is
+nothing left to dispatch.
 """
     }
 
     human -> tower.epic "close RECIPE-1" {
       title "You close the epic gate, and the tower is finished"
       notes """
+If the epic review is done, close RECIPE-1, and the tower is finished.
+
 | Who | What they did |
 |---|---|
 | the loop | published the epic branch and its pull request, made 3 folders (one per branch), started 13 workers, closed 13 tickets |

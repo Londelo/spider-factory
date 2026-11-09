@@ -9,7 +9,8 @@ views {
   //   4 · the failures — the same run with every alarm firing
   // A step here says only what happens at that moment. What a thing *is*, and
   // every rule and table behind it, lives in that node's own description in
-  // model.c4 — click the node, not the step.
+  // model.c4 — click the node, not the step. Rules for editing these files:
+  // ./REFERENCE.md — the code is the only source of truth.
   // ═════════════════════════════════════════════════════════════════════════════
 
   // ────────────────────────────────────────────────────────────────────────────

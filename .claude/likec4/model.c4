@@ -5,6 +5,7 @@ model {
   // Every value here was read off CLI/bin/bo, CLI/beads-loop.sh, CLI/loop-log.sh,
   // CLI/forge.sh, hooks/worker-stop.sh, hooks/worker-fail.sh, hooks/hooks.json.
   // The cast only: the story is told by the four walkthroughs in views.c4.
+  // Rules for editing these files: ./REFERENCE.md — the code is the only source of truth.
   // ═════════════════════════════════════════════════════════════════════════════
 
   machine = layer "The machine — one command in, background workers out" {

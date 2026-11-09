@@ -588,7 +588,7 @@ chained onto their predecessor one to the next, and every ticket verified with a
   // ═════════════════════════════════════════════════════════════════════════════
 
   tower = layer "The tower — worked example: a recipe box (invented ids, real shapes)" {
-    summary "A worked example: one epic, two features, sixteen tickets with real ids and real shapes."
+    summary "A worked example: one epic, one feature, ten tickets with real ids and real shapes."
     epic = gate "Epic gate — Recipe Box · RECIPE-1" {
       summary "The epic gate — the what; the human closes it once, after the epic review."
       description """
@@ -606,23 +606,23 @@ the frontier is that explicit edge, and only a human closes it — so the tower 
 `bd ready` never shows a gate: it is structurally invisible, so there is nothing to exclude.
 """
       epicMergePr = ticket "epic-merge-pr · RECIPE-2" {
-        summary "Assemble both feature branches onto epic/recipe-box, run the tests, report."
+        summary "Assemble the finished feature branch onto epic/recipe-box, run the tests, report."
         description """
 ```
-title:    assemble the feature branches onto epic/recipe-box
+title:    assemble the feature branch onto epic/recipe-box
 label:    epic-merge-pr        → AGENT → merge
 parent:   RECIPE-1             (the epic gate)
 metadata: { \"branch\": \"epic/recipe-box\" }
-depends:  blocked-by RECIPE-5 and RECIPE-11 — the two feature gates
+depends:  blocked-by RECIPE-5 — the feature gate
 PR base:  main — this ticket's own parent IS the epic gate, so the loop says main
 ```
-**Brief:** read the feature branches off the feature gates' own `branch` keys, assemble them one at a time onto
-`epic/recipe-box` in the order the brief gives, resolve what collides, run the project's own test command and
-read how many tests ran. No new code, no new tests, no merge into `main`, no PR of its own.
+**Brief:** read the feature branch off its gate's own `branch` key, assemble it onto `epic/recipe-box`, resolve
+what collides, run the project's own test command and read how many tests ran. No new code, no new tests, no
+merge into `main`, no PR of its own.
 """
       }
       epicE2e = ticket "epic-e2e-test · RECIPE-3" {
-        summary "Journeys across the whole app in a real browser, once the branches are assembled."
+        summary "Journeys across the whole app in a real browser, once the branch is assembled."
         description """
 ```
 title:    journeys across the whole app in a real browser
@@ -632,8 +632,8 @@ metadata: { \"branch\": \"epic/recipe-box\" }
 depends:  blocked-by RECIPE-2 — merge first, so the journey is proved against the assembled result
 skill:    framework-playwright
 ```
-**Brief:** cross-feature state handoffs, session continuity, one success and one failure journey per feature.
-Never re-test the micro tier's edges or the composition tier's wiring.
+**Brief:** state handoffs across the app, session continuity, one success and one failure journey through the
+flow. Never re-test the micro tier's edges or the composition tier's wiring.
 """
       }
       epicReview = ticket "epic-review · RECIPE-4" {
@@ -667,7 +667,7 @@ line, never a fan**, so the frontier can only ever hand out one task per feature
 written by two workers at once. Closing this gate IS merging `feature/add-recipe` into `epic/recipe-box`.
 """
       backendA = ticket "backend-logic · RECIPE-6" {
-        summary "validateRecipe and saveRecipe as pure functions: the first task, part of the frontier."
+        summary "validateRecipe and saveRecipe as pure functions: the first task, and the only one claimable."
         description """
 ```
 title:    validateRecipe + saveRecipe — pure functions
@@ -675,7 +675,7 @@ label:    backend-logic        → AGENT → engineer
 category: backend-logic
 parent:   RECIPE-5
 metadata: { \"branch\": \"feature/add-recipe\" }   ← copied VERBATIM from the feature gate
-depends:  none — the first task; with RECIPE-12 it IS the frontier, and both are claimable together
+depends:  none — the first task, and the only ticket claimable when the run starts
 ```
 **Requirements**
 1. `validateRecipe(input): Either<RecipeValidationError, Recipe>` — pure, no mutation
@@ -746,96 +746,6 @@ depends:  blocked-by RECIPE-9 — no review before the suite
 ```
 **Brief:** three questions from first principles, findings as PR comments. Then the human verifies and closes
 gate RECIPE-5, and that PR merges `feature/add-recipe` into `epic/recipe-box`.
-"""
-      }
-    }
-
-    featB = gate "Feature gate — Search the Box · RECIPE-11" {
-      summary "The second flow, searching the box — side by side with the first, on its own branch."
-      description """
-```
-type:     gate
-branch:   feature/search-recipes
-pr:       https://github.com/…/pull/3
-waits on: RECIPE-16 (feature-review)
-PR base:  epic/recipe-box
-```
-Runs **side by side** with Add a Recipe: two features in parallel, each alone on its own branch. Nothing joins
-them — that absence of an edge is the parallelism.
-"""
-      backendB = ticket "backend-logic · RECIPE-12" {
-        summary "searchRecipes as a pure filter over the repository port: the other frontier ticket."
-        description """
-```
-title:    searchRecipes — pure filter over the repository port
-label:    backend-logic        → AGENT → engineer
-category: backend-logic
-parent:   RECIPE-11
-metadata: { \"branch\": \"feature/search-recipes\" }
-depends:  none — with RECIPE-6 it is the frontier
-```
-**Requirements**
-1. `searchRecipes(query, records): Recipe[]` — pure, deterministic order
-2. empty query returns all, newest first; whitespace trimmed
-3. no match returns `[]`, never an error
-
-**Files:** `src/recipes/search-recipes.ts`, `src/recipes/ports.ts` (read side)
-"""
-      }
-      unitB = ticket "unit-tests · RECIPE-13" {
-        summary "Exhaustive coverage of searchRecipes: empty query, unicode, ordering, case folding."
-        description """
-```
-title:    exhaustive coverage for searchRecipes
-label:    unit-tests           → AGENT → tester-unit
-category: unit-tests
-parent:   RECIPE-11
-metadata: { \"branch\": \"feature/search-recipes\" }
-depends:  blocked-by RECIPE-12
-skill:    framework-jest
-```
-**Cover:** empty query, whitespace, unicode titles, an empty store, tie-break ordering, case folding.
-"""
-      }
-      frontendB = ticket "frontend-ui · RECIPE-14" {
-        summary "SearchBar and the live results list, all from the shared component system."
-        description """
-```
-title:    SearchBar + live results list
-label:    frontend-ui          → AGENT → frontend
-category: frontend-ux
-parent:   RECIPE-11
-metadata: { \"branch\": \"feature/search-recipes\" }
-depends:  blocked-by RECIPE-13
-```
-**Brief:** debounce, empty-state copy, highlighted matches, all from the shared component system.
-"""
-      }
-      featureTestB = ticket "feature-test · RECIPE-15" {
-        summary "The search pieces proved wired, once its last task has landed."
-        description """
-```
-title:    the search pieces are wired
-label:    feature-test         → AGENT → tester-feature
-category: feature-test
-parent:   RECIPE-11
-metadata: { \"branch\": \"feature/search-recipes\" }
-depends:  blocked-by RECIPE-14 — the LAST task
-skill:    framework-playwright
-```
-"""
-      }
-      featureReviewB = ticket "feature-review · RECIPE-16" {
-        summary "The three questions over feature/search-recipes; then the human closes the gate."
-        description """
-```
-title:    the three questions over feature/search-recipes
-label:    feature-review       → AGENT → review
-category: review
-parent:   RECIPE-11
-metadata: { \"branch\": \"feature/search-recipes\" }
-depends:  blocked-by RECIPE-15
-```
 """
       }
     }

@@ -18,7 +18,7 @@ plugins/binary-obelisk/
 ├── .claude-plugin/plugin.json            # manifest
 ├── .claude/design.yaml                   # EDITABLE design model
 ├── agents/                               # engineer, frontend, tester-unit, tester-feature, tester-e2e, review, merge + 3 plan agents
-├── skills/                               # bead-read, bead-create, bead-initialize, bead-heartbeat, setup-cli, pr-comments, standards-*, framework-jest, framework-playwright
+├── skills/                               # bead-read, bead-create, bead-initialize, bead-heartbeat, setup-cli, diagram-authoring, pr-comments, standards-*, framework-jest, framework-playwright
 ├── standards/                            # coding/review standards
 ├── CLI/                                  # the `bo` command — a bin package, no node, installed by a launcher script
 │   ├── bin/bo                            # the entrypoint `bo` — one command, `bo loop`, foreground

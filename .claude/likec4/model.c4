@@ -4,11 +4,11 @@ model {
   // THE MACHINE — one command in, background workers out.
   // Every value here was read off CLI/bin/bo, CLI/beads-loop.sh, CLI/loop-log.sh,
   // CLI/forge.sh, hooks/worker-stop.sh, hooks/worker-fail.sh, hooks/hooks.json.
-  // The cast only: the story is told by the two walkthroughs in views.c4.
+  // The cast only: the story is told by the four walkthroughs in views.c4.
   // ═════════════════════════════════════════════════════════════════════════════
 
   machine = layer "The machine — one command in, background workers out" {
-    summary "One command in, background workers out: the CLI, the checks, the parameters, the dispatcher, the claim."
+    summary "One command in, background workers out: the setup skill, the checks, the parameters, the dispatcher, the claim."
 
     setupSkill = skill "setup-cli — the skill that puts the CLI in your AI agent" {
       summary "One conversation inside your AI agent: it checks the repo, the tickets and the CLI, then installs `bo` on your say-so."
@@ -32,21 +32,6 @@ prints the exact `export PATH=` line your shell profile is missing.
 """
       link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/skills/setup-cli/SKILL.md "Source — the setup-cli skill"
       link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/install-cli.sh "Source — CLI/install-cli.sh"
-    }
-
-    boCli = cliTool "bo — the front door" {
-      summary "The bo command — probes the directory, then runs the dispatcher in the foreground."
-      description """
-**What it is:** `CLI/bin/bo` — one command, `bo loop`, and nothing else. Bare `bo` prints its help; any
-other word is refused with "the only command is 'bo loop'". It checks that the engine file is there and
-that the directory answers a ticket list (`bd list --limit 1 --json` must answer an array), prints
-`bo: dispatching $PWD — Ctrl-C to stop.`, then `bash`s the engine (`../beads-loop.sh`) in the
-**foreground**, so every tick is on the terminal.
-
-It is not on your machine until the setup skill above has run — the skill installs it, the command runs
-the loop, and neither can do the other's job.
-"""
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/bin/bo "Source — CLI/bin/bo"
     }
 
     preflight = noteDoc "The checks — everything that must hold before the first tick" {

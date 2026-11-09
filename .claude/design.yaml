@@ -79,6 +79,8 @@ skills:
     description: "The worker contract, loaded by every spawned worker first: keep the five-minute claim lease alive with `bd heartbeat <ticket>` between long steps (a lapsed lease reads as death to the supervisor-run reaper), never close your own ticket, put a comment on the ticket saying what remains when the brief outruns you, spawn nothing, stay on your branch in the folder you were given (the Stop hook files your one commit), and `touch $BO_DONE_FILE` as your very last action only when the brief is truly done."
   setup-cli:
     description: "Installing the `bo` dispatcher onto PATH with the real launcher, so it survives a plugin update. A utility outside the tower."
+  diagram-authoring:
+    description: "How to edit the LikeC4 diagrams so every node, arrow, step note and walkthrough says what the code actually does: the code is the only source of truth, the four things checked (title, summary, description, arrow plus step notes) against it and against each other, the grammar that breaks the parser, and the validate/build/screenshot proof with counts. A utility outside the tower."
   errors:
     description: "Error factories, error taxonomies, and failure-mode handling standards."
   coding:

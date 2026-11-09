@@ -10,18 +10,43 @@ model {
   machine = layer "The machine — one command in, background workers out" {
     summary "One command in, background workers out: the CLI, the checks, the parameters, the dispatcher, the claim."
 
+    setupSkill = skill "setup-cli — the skill that puts the CLI in your AI agent" {
+      summary "One conversation inside your AI agent: it checks the repo, the tickets and the CLI, then installs `bo` on your say-so."
+      description """
+**What it is:** `skills/setup-cli/SKILL.md` — a conversation, not a command you remember. Say
+"setup binary-obelisk" or "install the CLI" to the AI agent and it runs three steps.
+
+| Step | What the agent does |
+|---|---|
+| 1 · detect | `git rev-parse --show-toplevel`, `bd where`, `command -v bo` — the repo, whether tickets live here yet, whether `bo` is on the path |
+| 2 · report and branch | reads back the three answers **before** offering anything; no repo → stop and name the folder to `cd` into; no ticket database → hand off to `bead-initialize`; no CLI → step 3; all present → nothing to do, run `bo loop` |
+| 3 · install | runs `CLI/install-cli.sh` — only after you confirm: it never blind-runs anything |
+
+**What the installer writes:** one real file at `~/.local/bin/bo` (`CLI/bin/bo`'s launcher), never a
+symlink, which finds the plugin folder and execs the real `CLI/bin/bo`. A real file is deliberate: it
+outlives an uninstalled plugin and names its own problem — the missing-plugin message prints the `rm`
+that clears it and the two ways to get it back. If `~/.local/bin` is not on your path, the installer
+prints the exact `export PATH=` line your shell profile is missing.
+
+**Nothing here runs the loop.** The skill's whole job is to make `bo loop` reachable.
+"""
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/skills/setup-cli/SKILL.md "Source — the setup-cli skill"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/install-cli.sh "Source — CLI/install-cli.sh"
+    }
+
     boCli = cliTool "bo — the front door" {
       summary "The bo command — probes the directory, then runs the dispatcher in the foreground."
       description """
-**What it is:** `CLI/bin/bo` — one command, `bo loop`, and nothing else. It probes the directory
-(`bd list --limit 1 --json` must answer an array), prints `bo: dispatching $PWD — Ctrl-C to stop.`,
-then `bash`s the engine (`../beads-loop.sh`) in the **foreground**, so every tick is on the terminal.
+**What it is:** `CLI/bin/bo` — one command, `bo loop`, and nothing else. Bare `bo` prints its help; any
+other word is refused with "the only command is 'bo loop'". It checks that the engine file is there and
+that the directory answers a ticket list (`bd list --limit 1 --json` must answer an array), prints
+`bo: dispatching $PWD — Ctrl-C to stop.`, then `bash`s the engine (`../beads-loop.sh`) in the
+**foreground**, so every tick is on the terminal.
 
-`CLI/install-cli.sh` writes a **real launcher** onto PATH rather than a symlink, so the command still
-reports a helpful error after the plugin is uninstalled.
+It is not on your machine until the setup skill above has run — the skill installs it, the command runs
+the loop, and neither can do the other's job.
 """
       link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/bin/bo "Source — CLI/bin/bo"
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/install-cli.sh "Source — CLI/install-cli.sh"
     }
 
     preflight = noteDoc "The checks — everything that must hold before the first tick" {

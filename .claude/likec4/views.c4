@@ -110,6 +110,7 @@ the loop ever reads.
     include
       human,
       machine,
+      machine.setupSkill,
       machine.boCli,
       machine.knobs,
       machine.preflight,
@@ -140,12 +141,23 @@ the loop ever reads.
 
     // ═ ACT I — put the dispatcher on PATH once, then start the run
 
-    human -> machine.boCli "install the CLI once" {
-      title "One command puts `bo` on your path"
+    human -> machine.setupSkill "setup binary-obelisk · install the CLI" {
+      title "You ask your AI agent to set it up — once per machine"
       notes """
-If `bo` is not on your path, this copies one small file to `~/.local/bin/bo`.
-If your terminal then says it cannot find it, add the export line it prints to your shell profile.
-If you updated or moved the plugin, run it again.
+There is no install command to remember. Say "setup binary-obelisk" and the skill looks at three things:
+are you in a repo, do tickets live here yet, is `bo` reachable.
+If only the CLI is missing, it asks you once, then runs the installer.
+If nothing is missing, it says so and points at `bo loop`.
+"""
+    }
+
+    machine.setupSkill -> machine.boCli "writes the launcher once" {
+      title "The install is one small file on your path"
+      notes """
+If `~/.local/bin/bo` is missing, this writes it — a real file, not a link, which finds the plugin and
+runs the real command.
+If your terminal still cannot find it, the line to paste into your shell profile is printed for you.
+If the plugin is uninstalled later, that file is what tells you, and names the `rm` that clears it.
 """
     }
 

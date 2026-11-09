@@ -43,6 +43,10 @@ specification {
     style { color plannerTeal shape agent icon bootstrap:compass }
   }
 
+  element skill {
+    style { color plannerTeal shape document icon bootstrap:magic }
+  }
+
   // ── the tower ────────────────────────────────────────────────────────────────
   element gate {
     style { color gateAmber shape rectangle icon bootstrap:lock-fill }

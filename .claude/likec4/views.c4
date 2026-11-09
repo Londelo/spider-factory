@@ -342,113 +342,294 @@ Otherwise write the url, then close. That close is what lets the next ticket in 
       navigateTo everyFailure
     }
 
-    // ═ ACT III — the same five steps, thirteen times, in the order the graph releases them
+    // ═ ACT III — the same four beats, twelve more times: claim, ticket, worker, work
 
     machine.dispatcher -> machine.claim "the rounds — 13 tickets the loop dispatches" {
-      title "One ticket at a time, in the order the graph releases them"
+      title "Then the same four beats, twelve more times"
       notes """
-Then repeat those steps, one ticket per round, thirteen times.
+Every round from here is these four: the loop claims, the claim hands over a ticket, that ticket's label calls
+its worker, the worker does the work.
 Inside a feature the order is fixed — logic, its tests, the interface, the suite, the review — because each
 ticket waits on the one before it. Across features the rounds interleave, because nothing joins the two.
 The three gates are never dispatched: a person closes those.
 """
     }
 
-    machine.dispatcher -> workers.engineer "RECIPE-12 — the other feature's logic" {
-      title "Round 2 — the same flow, the second feature"
+    // ── round 2 · RECIPE-12 — the second feature's logic
+
+    machine.dispatcher -> machine.claim "round 2 — claim again" {
+      title "The next tick takes what the closes have released"
       notes """
-Same flow as RECIPE-6: claim RECIPE-12, its own branch, its own folder, its own pull request, engineer starts,
-writes the search code, the hook lands it.
-The two features run side by side, so neither waits on the other. When this ticket closes, its tests become
-claimable.
+If four workers are already running, this tick claims nothing.
+Otherwise the database hands over the one ticket whose blockers have all closed.
 """
     }
 
-    machine.dispatcher -> workers.testerUnit "RECIPE-7 — the tests for that logic" {
-      title "Round 3 — the unit tester, same flow"
+    machine.claim -> tower.featB.backendB "RECIPE-12 — the other feature's logic" {
+      title "The claim arrives carrying its label, its branch and its parent"
       notes """
-Same flow again, this time the unit tester alone on `validateRecipe`: every branch, every boundary, every error
-it can throw, in its own test file.
-Second commit on the same branch, same pull request. Its close makes the interface ticket claimable.
+label `backend-logic` · branch `feature/search-recipes`, off its feature RECIPE-11.
+The two features run side by side, so neither waits on the other.
 """
     }
 
-    machine.dispatcher -> workers.testerUnit "RECIPE-13 — the other feature's tests" {
-      title "The same depth on the other feature"
+    tower.featB.backendB -> workers.engineer "its label calls the engineer" {
+      title "One label, looked up in the map"
       notes """
-Same flow, other feature: the unit tester on `searchRecipes`. Its close releases that feature's interface.
+The label is the only thing that names a worker, and the map is on the node itself.
 """
     }
 
-    machine.dispatcher -> workers.frontend "RECIPE-8 — the interface" {
-      title "Round 5 — the interface, built last"
+    workers.engineer -> tower.featB.backendB "build searchRecipes" {
+      title "The work lands on that ticket's branch"
       notes """
-Same flow, this time the front-end worker: the whole component with its styling, against functions already
-proved. One ticket, no separate styling task.
-Its close releases that feature's suite.
+The search function, and the hook commits it when the worker stops.
+Its close makes RECIPE-13 claimable.
 """
     }
 
-    machine.dispatcher -> workers.frontend "RECIPE-14 — the other feature's interface" {
-      title "The search interface, on its own branch"
+    // ── round 3 · RECIPE-7 — the tests for the first feature's logic
+
+    machine.dispatcher -> machine.claim "round 3 — claim again" {
+      title "RECIPE-6 closed, so its tests are now claimable"
       notes """
-Same flow, other feature: the search box, its results, its empty state, its error state.
-If four workers are already running, a tick claims nothing and writes a waiting line instead — that is not a
+Nothing is remembered between ticks: the close on RECIPE-6 is the only reason this ticket can come up.
+"""
+    }
+
+    machine.claim -> tower.featA.unitA "RECIPE-7 — the tests for that logic" {
+      title "Same branch, same pull request, new ticket"
+      notes """
+label `unit-tests` · branch `feature/add-recipe` — the same branch and pull request as RECIPE-6.
+"""
+    }
+
+    tower.featA.unitA -> workers.testerUnit "its label calls the unit tester" {
+      title "A different label, a different specialist"
+      notes """
+`unit-tests` is the micro tier — what that means is on the node.
+"""
+    }
+
+    workers.testerUnit -> tower.featA.unitA "test validateRecipe alone" {
+      title "Every branch, every boundary, every error"
+      notes """
+One function, its own test file, no component in sight.
+Its close makes RECIPE-8 claimable.
+"""
+    }
+
+    // ── round 4 · RECIPE-13 — the tests for the second feature's logic
+
+    machine.dispatcher -> machine.claim "round 4 — claim again" {
+      title "The other feature's turn at the same tier"
+      notes """
+If four workers are already running, this tick claims nothing and writes a waiting line instead — that is not a
 failure.
 """
     }
 
-    machine.dispatcher -> workers.testerFeature "RECIPE-9 — is it wired together?" {
-      title "Round 7 — does the feature actually hang together?"
+    machine.claim -> tower.featB.unitB "RECIPE-13 — the other feature's tests" {
+      title "The second feature's own test ticket"
       notes """
-Same flow, this time the feature tester, driving a real browser on the finished branch: one case per path, and
-every error and every success the feature has really reaching the screen.
-It does not repeat the unit tests, and it never leaves the feature. Its close releases the review.
+label `unit-tests` · branch `feature/search-recipes`.
 """
     }
 
-    workers.testerFeature -> tower.featA "everything it proves is inside one feature" {
-      title "Nothing is tested against half a feature"
+    tower.featB.unitB -> workers.testerUnit "its label calls the unit tester" {
+      title "The same specialist, another ticket"
       notes """
-The three test tiers differ only in how wide they look — one function, one feature, the whole epic — and the
-ticket's label is what says which. This ticket could not exist until the chain had finished.
+One worker per ticket, and the ticket's branch is where it lands.
 """
     }
 
-    machine.dispatcher -> workers.testerFeature "RECIPE-15 — the other feature's wiring" {
-      title "The search side's wiring"
+    workers.testerUnit -> tower.featB.unitB "test searchRecipes alone" {
+      title "Same depth, other function"
       notes """
-Same flow, other feature: type a query, results appear; a query with no matches shows an empty state, not a
-crash. Its close releases that feature's review.
+Its close makes RECIPE-14 claimable.
 """
     }
 
-    machine.dispatcher -> workers.reviewAgent "RECIPE-10 — review the feature" {
-      title "Round 9 — the reviewer's three questions"
+    // ── round 5 · RECIPE-8 — the first feature's interface
+
+    machine.dispatcher -> machine.claim "round 5 — claim again" {
+      title "The interface is last, so it comes up now"
       notes """
-Same flow, this time the reviewer: read the diff, follow the code it touches, add trace logs, run the tests
-against that, then answer three questions from first principles —
-- does the code do what it is meant to?
-- do the tests actually prove it?
-- is it simple enough to read?
-Then it posts what it found as comments on the pull request. It files no tickets and commits nothing.
+The chain inside a feature is what puts this ticket on the frontier and nothing else.
+"""
+    }
+
+    machine.claim -> tower.featA.frontendA "RECIPE-8 — the interface" {
+      title "The last ticket in the first feature's chain"
+      notes """
+label `frontend-ui` · branch `feature/add-recipe`, third commit on that branch.
+"""
+    }
+
+    tower.featA.frontendA -> workers.frontend "its label calls the front-end worker" {
+      title "A third label, a third specialist"
+      notes """
+The interface is built against functions the micro tier has already proved.
+"""
+    }
+
+    workers.frontend -> tower.featA.frontendA "build the add-a-recipe form" {
+      title "One ticket, styling included"
+      notes """
+Its close releases that feature's suite, RECIPE-9.
+"""
+    }
+
+    // ── round 6 · RECIPE-14 — the second feature's interface
+
+    machine.dispatcher -> machine.claim "round 6 — claim again" {
+      title "Both features are still moving at once"
+      notes """
+Two features in flight is the four-worker ceiling doing what it is for.
+"""
+    }
+
+    machine.claim -> tower.featB.frontendB "RECIPE-14 — the other feature's interface" {
+      title "The last ticket in the second feature's chain"
+      notes """
+label `frontend-ui` · branch `feature/search-recipes`.
+"""
+    }
+
+    tower.featB.frontendB -> workers.frontend "its label calls the front-end worker" {
+      title "The same specialist, other feature"
+      notes """
+Nothing about the ticket says which feature it belongs to except its parent.
+"""
+    }
+
+    workers.frontend -> tower.featB.frontendB "build the search box and its states" {
+      title "Results, empty state, error state"
+      notes """
+Its close releases that feature's suite, RECIPE-15.
+"""
+    }
+
+    // ── round 7 · RECIPE-9 — is the first feature wired together?
+
+    machine.dispatcher -> machine.claim "round 7 — claim again" {
+      title "The suite only becomes claimable after the last task"
+      notes """
+Nothing is proved against half a feature: this ticket waited on RECIPE-8.
+"""
+    }
+
+    machine.claim -> tower.featA.featureTestA "RECIPE-9 — is it wired together?" {
+      title "The composition tier, on the finished branch"
+      notes """
+label `feature-test` · branch `feature/add-recipe`, every task already committed there.
+"""
+    }
+
+    tower.featA.featureTestA -> workers.testerFeature "its label calls the feature tester" {
+      title "A fourth label, a fourth specialist"
+      notes """
+How wide each test tier looks is on the node; the label is what chose this one.
+"""
+    }
+
+    workers.testerFeature -> tower.featA.featureTestA "drive the add flow in a browser" {
+      title "One case per path, nothing repeated"
+      notes """
+Every error and every success the feature has really reaching the screen, and never leaving the feature.
+Its close releases the review, RECIPE-10.
+"""
+    }
+
+    // ── round 8 · RECIPE-15 — is the second feature wired together?
+
+    machine.dispatcher -> machine.claim "round 8 — claim again" {
+      title "The other feature reaches its suite"
+      notes """
+Same tier, other branch, claimed in the same stretch of ticks.
+"""
+    }
+
+    machine.claim -> tower.featB.featureTestB "RECIPE-15 — the other feature's wiring" {
+      title "The composition tier, other branch"
+      notes """
+label `feature-test` · branch `feature/search-recipes`.
+"""
+    }
+
+    tower.featB.featureTestB -> workers.testerFeature "its label calls the feature tester" {
+      title "The same specialist, other feature"
+      notes """
+Two tiers, two tickets, one worker file — the label carries the difference.
+"""
+    }
+
+    workers.testerFeature -> tower.featB.featureTestB "drive the search flow in a browser" {
+      title "A query with no matches shows an empty state, not a crash"
+      notes """
+Its close releases that feature's review, RECIPE-16.
+"""
+    }
+
+    // ── round 9 · RECIPE-10 — review the first feature
+
+    machine.dispatcher -> machine.claim "round 9 — claim again" {
+      title "The review is the last thing a gate waits for"
+      notes """
+If the suite has not closed, this ticket is not on the frontier and the tick claims something else.
+"""
+    }
+
+    machine.claim -> tower.featA.featureReviewA "RECIPE-10 — review the feature" {
+      title "The review ticket for the first branch"
+      notes """
+label `feature-review` · branch `feature/add-recipe`.
+"""
+    }
+
+    tower.featA.featureReviewA -> workers.reviewAgent "its label calls the reviewer" {
+      title "A fifth label, and the last specialist of the feature tier"
+      notes """
+The three questions it answers are on the node.
+"""
+    }
+
+    workers.reviewAgent -> tower.featA.featureReviewA "review the branch, findings on PR 2" {
+      title "What it writes is what you read before closing"
+      notes """
+Comments on the pull request — no tickets filed, nothing committed.
+Its close releases RECIPE-5, the gate, which only you can close.
 """
       navigateTo theLogs
     }
 
-    workers.reviewAgent -> tower.featA "the findings go on the pull request" {
-      title "What the reviewer writes is what you read before closing"
+    // ── round 10 · RECIPE-16 — review the second feature
+
+    machine.dispatcher -> machine.claim "round 10 — claim again" {
+      title "Both reviews run at once"
       notes """
-What the reviewer writes is what you read before closing, so it is the only reason the gate is worth having. The
-same agent covers one feature here and the whole epic later — the label says how wide to look.
+Two review workers side by side is the four-worker ceiling in practice.
 """
     }
 
-    machine.dispatcher -> workers.reviewAgent "RECIPE-16 — review the other feature" {
-      title "The same review on the other feature"
+    machine.claim -> tower.featB.featureReviewB "RECIPE-16 — review the other feature" {
+      title "The review ticket for the second branch"
       notes """
-Same flow, other feature; findings on pull request 3. Both reviews ran at the same time, which is the
-four-worker ceiling in practice.
+label `feature-review` · branch `feature/search-recipes`.
+"""
+    }
+
+    tower.featB.featureReviewB -> workers.reviewAgent "its label calls the reviewer" {
+      title "The same reviewer, other branch"
+      notes """
+One agent file answers both feature and epic labels; the label says how wide to look.
+"""
+    }
+
+    workers.reviewAgent -> tower.featB.featureReviewB "review the branch, findings on PR 3" {
+      title "Same three questions, other feature"
+      notes """
+Its close releases RECIPE-11, the second gate.
 """
     }
 
@@ -481,40 +662,97 @@ claim.
 """
     }
 
-    machine.dispatcher -> workers.mergeAgent "RECIPE-2 — join the branches" {
-      title "Round 11 — the merge worker assembles the epic"
+    // ── round 11 · RECIPE-2 — assemble the epic
+
+    machine.dispatcher -> machine.claim "round 11 — claim again" {
+      title "Both gates closed, so the merge is now claimable"
       notes """
-Same flow as any other round. This worker:
-- reads both branch names off the two feature gates
-- merges them onto `epic/recipe-box`, one at a time, in its own folder
-- fixes what collides
-- runs the tests and reads the pass and fail counts rather than trusting the exit code
-It writes no code and opens no pull request of its own. Its close releases the end-to-end tests.
+If either gate were still open, this ticket would sit off the frontier and the tick would write a waiting line.
 """
     }
 
-    workers.mergeAgent -> tower.epic "both features, on the epic branch" {
+    machine.claim -> tower.epic.epicMergePr "RECIPE-2 — join the branches" {
+      title "The merge is a ticket like any other"
+      notes """
+label `epic-merge-pr` · branch `epic/recipe-box`, claimed, worked and landed exactly like a task.
+"""
+    }
+
+    tower.epic.epicMergePr -> workers.mergeAgent "its label calls the merge worker" {
+      title "A sixth label, the epic tier's only specialist"
+      notes """
+It writes no code and no tests, and opens no pull request of its own.
+"""
+    }
+
+    workers.mergeAgent -> tower.epic.epicMergePr "merge both feature branches onto the epic branch" {
       title "The epic branch now holds both features together"
       notes """
-The epic's tests and review are only honest against the assembled result, so assembling is a ticket too —
-claimed, worked and landed exactly like every other.
+Both branch names read off the two gates, merged one at a time, conflicts resolved, then the tests run and its
+pass and fail counts read rather than the exit code.
+Its close makes RECIPE-3 claimable.
 """
     }
 
-    machine.dispatcher -> workers.testerE2e "RECIPE-3 — the whole flow" {
-      title "Round 12 — the whole flow in a real browser"
+    // ── round 12 · RECIPE-3 — the whole flow in a real browser
+
+    machine.dispatcher -> machine.claim "round 12 — claim again" {
+      title "The assembled branch is what the broad tier tests against"
       notes """
-Same flow, this time the end-to-end tester: a recipe saved by one feature is found by the other, in a real
-browser, on the assembled branch. One journey per thing a user can actually do, nothing repeated from the lower
-tiers.
+The epic's tests are only honest against the joined result, which is why they come after the merge and not
+before it.
 """
     }
 
-    machine.dispatcher -> workers.reviewAgent "RECIPE-4 — review the epic" {
-      title "Round 13 — the same three questions, wider"
+    machine.claim -> tower.epic.epicE2e "RECIPE-3 — the whole flow" {
+      title "The broad tier's single ticket"
       notes """
-Same flow, this time across both features at once, findings on the epic's pull request. After this there is
-nothing left to dispatch.
+label `epic-e2e-test` · branch `epic/recipe-box`.
+"""
+    }
+
+    tower.epic.epicE2e -> workers.testerE2e "its label calls the end-to-end tester" {
+      title "A seventh label, the widest tier"
+      notes """
+One journey per thing a user can actually do, nothing repeated from the tiers below.
+"""
+    }
+
+    workers.testerE2e -> tower.epic.epicE2e "walk the flow across both features" {
+      title "A recipe saved by one feature is found by the other"
+      notes """
+Real browser, real stack, on the assembled branch.
+Its close makes RECIPE-4 claimable.
+"""
+    }
+
+    // ── round 13 · RECIPE-4 — review the epic
+
+    machine.dispatcher -> machine.claim "round 13 — claim again" {
+      title "The last ticket the loop ever claims"
+      notes """
+After this the frontier is empty and the run waits on you.
+"""
+    }
+
+    machine.claim -> tower.epic.epicReview "RECIPE-4 — review the epic" {
+      title "The same reviewer, the widest look"
+      notes """
+label `epic-review` · branch `epic/recipe-box`.
+"""
+    }
+
+    tower.epic.epicReview -> workers.reviewAgent "its label calls the reviewer" {
+      title "The eighth label, and the same worker as the fifth"
+      notes """
+Nothing derives a worker from a name: the map on the node binds both labels to this one agent.
+"""
+    }
+
+    workers.reviewAgent -> tower.epic.epicReview "review the epic, findings on PR 1" {
+      title "Both features at once, findings on the epic's pull request"
+      notes """
+After this there is nothing left to dispatch.
 """
     }
 

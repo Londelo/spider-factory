@@ -53,8 +53,11 @@ exists (validate fails).
 - **If/then, never prose.** `If the gate carries no pull request url, then: push the branch, open the
   pull request, write the url on the gate. If any of that fails, the ticket stays claimed.`
 - **One moment per step.** A step says only what happens *at* that step.
-- **Repeated rounds do not re-teach the flow.** After the first occurrence, a round names the ticket, who
-  works it, and what its close releases — one line.
+- **Repeated rounds repeat the structure, never the prose.** Every round draws the same four arrows — the loop
+  claims, the claim hands over a ticket, that ticket's label calls its worker, the worker does the work — so the
+  reader can see it is a loop and see which ticket belongs to which worker. What is capped is the words: one or
+  two lines naming the ticket, its tier, and what its close releases. Collapsing a round to a single
+  `dispatcher -> worker` arrow hides both, and is the failure this bullet exists to prevent.
 - **What a thing *is* belongs on the node**, in the panel you click open, never in the step.
 - **A step nobody can parse is deleted, not defended.**
 

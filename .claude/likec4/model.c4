@@ -140,9 +140,9 @@ and what to say about it. Without them the worker just stops and its ticket sits
 
 | Var | Value | Who reads it |
 |---|---|---|
-| `BO_TICKET` | `RECIPE-6` | both hooks — and it is the **only** test that tells a dispatched worker from any other session in any other project |
-| `BO_BRANCH` | `feature/add-recipe` | Stop hook: commit here, push here, refuse if `git branch --show-current` disagrees |
-| `BO_PR_TARGET` | `epic/recipe-box`, or `main` at the epic tier | Stop hook: the base of this branch's PR; never stored on the ticket |
+| `BO_TICKET` | `the back-end ticket` | both hooks — and it is the **only** test that tells a dispatched worker from any other session in any other project |
+| `BO_BRANCH` | `feature/add-record` | Stop hook: commit here, push here, refuse if `git branch --show-current` disagrees |
+| `BO_PR_TARGET` | `epic/record-box`, or `main` at the epic tier | Stop hook: the base of this branch's PR; never stored on the ticket |
 | `BO_AGENT` | `engineer` | both hooks, so an alarm names who was doing the work |
 | `BO_LABEL` | `backend-logic` | both hooks, so an alarm names the label that chose that worker |
 | `BO_PROJECT_DIR` | the tower root, where `.beads` lives | both hooks — **the worktree is not the tower** |
@@ -203,7 +203,7 @@ names the ticket, label, agent, branch, target, repo and session, and the same k
 `exit=`, a `msg=` — is passed as **detail**; the key set is closed, or the joining stops working.
 
 ```
-CLAIMS   2026-11-04T09:12:03\trun=2026-11-04_09-12-01 repo=/home/dev/recipe-box ticket=RECIPE-6 label=backend-logic agent=engineer branch=feature/add-recipe target=epic/recipe-box session=287d3c4c worktree=/home/dev/recipe-box/.claude/worktrees/feature+add-recipe reason=dispatched
+CLAIMS   2026-11-04T09:12:03\trun=2026-11-04_09-12-01 repo=/home/dev/record-box ticket=back-end label=backend-logic agent=engineer branch=feature/add-record target=epic/record-box session=287d3c4c worktree=/home/dev/record-box/.claude/worktrees/feature+add-record reason=dispatched
 ```
 """
     link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/loop-log.sh "Source — CLI/loop-log.sh"
@@ -418,7 +418,7 @@ The loop owns the folders, because a worktree belongs to a **branch**, not to a 
   already checked out somewhere is reused, never re-added.
 - `ensureWorktree <branch> <prTarget>` → `git worktree add -B <branch> <path> <start>`, under
   `<tower>/.claude/worktrees/`, where the folder name is the branch name with `/` → `+`
-  (`feature/add-recipe` → `feature+add-recipe`).
+  (`feature/add-record` → `feature+add-record`).
 - `<start>` is the **first** of `origin/<branch>`, `origin/<prTarget>`, `<prTarget>`, `HEAD` that resolves —
   a feature branch starts where it is going to land.
 - `git -C <tower> fetch --quiet origin` before each lookup; `push -u origin <branch>` is the Stop hook's.
@@ -437,8 +437,8 @@ pull request — an error message quoting a docs URL is not one.
     worktree = branchBox "the branch's folder — .claude/worktrees/<branch with / → +>" {
       summary "One folder per branch, where every ticket of that feature works in turn."
       description """
-One folder per **branch**, not per ticket, which is why the loop owns it: `feature/add-recipe` lives at
-`.claude/worktrees/feature+add-recipe`, and every ticket of that feature works in the same folder, one after
+One folder per **branch**, not per ticket, which is why the loop owns it: `feature/add-record` lives at
+`.claude/worktrees/feature+add-record`, and every ticket of that feature works in the same folder, one after
 the other, each one's commit landing on the last.
 
 ```
@@ -583,169 +583,169 @@ chained onto their predecessor one to the next, and every ticket verified with a
 
   // ═════════════════════════════════════════════════════════════════════════════
   // THE TOWER — a worked example. The machine above is verified against source;
-  // this tower is an INVENTED example (a recipe box) used so the walkthroughs can
-  // name real ticket ids, branches and log lines.
+  // this tower is an INVENTED example (a record box) used so the walkthroughs can
+  // name real labels, branches and log lines.
   // ═════════════════════════════════════════════════════════════════════════════
 
-  tower = layer "The tower — worked example: a recipe box (invented ids, real shapes)" {
-    summary "A worked example: one epic, one feature, ten tickets with real ids and real shapes."
-    epic = gate "Epic gate — Recipe Box · RECIPE-1" {
+  tower = layer "The tower — worked example: one epic, one feature" {
+    summary "A worked example: one epic, one feature, ten tickets named by what they are."
+    epic = gate "Epic gate" {
       summary "The epic gate — the what; the human closes it once, after the epic review."
       description """
 **What it is:** the epic gate — the *what*; the human closes it once, after `epic-review`.
 
 ```
 type:     gate                       (custom type: bd config set types.custom \"gate\")
-branch:   epic/recipe-box            ← plan-epic's key, the only metadata it writes
+branch:   epic/record-box            ← plan-epic's key, the only metadata it writes
 pr:       https://github.com/…/pull/1 ← written by the LOOP, by ensureEpicGatePr
-waits on: RECIPE-4 (epic-review)      — an explicit blocked-by edge onto the gate itself
+waits on: the epic review ticket      — an explicit blocked-by edge onto the gate itself
 ```
 
 A gate does **not** block its own children: they are claimable while it is open. What holds the next tier off
 the frontier is that explicit edge, and only a human closes it — so the tower stalls here until someone verifies.
 `bd ready` never shows a gate: it is structurally invisible, so there is nothing to exclude.
 """
-      epicMergePr = ticket "epic-merge-pr · RECIPE-2" {
-        summary "Assemble the finished feature branch onto epic/recipe-box, run the tests, report."
+      epicMergePr = ticket "epic-merge-pr" {
+        summary "Assemble the finished feature branch onto epic/record-box, run the tests, report."
         description """
 ```
-title:    assemble the feature branch onto epic/recipe-box
+title:    assemble the feature branch onto epic/record-box
 label:    epic-merge-pr        → AGENT → merge
-parent:   RECIPE-1             (the epic gate)
-metadata: { \"branch\": \"epic/recipe-box\" }
-depends:  blocked-by RECIPE-5 — the feature gate
+parent:   the epic gate
+metadata: { \"branch\": \"epic/record-box\" }
+depends:  blocked-by the feature gate
 PR base:  main — this ticket's own parent IS the epic gate, so the loop says main
 ```
-**Brief:** read the feature branch off its gate's own `branch` key, assemble it onto `epic/recipe-box`, resolve
+**Brief:** read the feature branch off its gate's own `branch` key, assemble it onto `epic/record-box`, resolve
 what collides, run the project's own test command and read how many tests ran. No new code, no new tests, no
 merge into `main`, no PR of its own.
 """
       }
-      epicE2e = ticket "epic-e2e-test · RECIPE-3" {
+      epicE2e = ticket "epic-e2e-test" {
         summary "Journeys across the whole app in a real browser, once the branch is assembled."
         description """
 ```
 title:    journeys across the whole app in a real browser
 label:    epic-e2e-test        → AGENT → tester-e2e
-parent:   RECIPE-1
-metadata: { \"branch\": \"epic/recipe-box\" }
-depends:  blocked-by RECIPE-2 — merge first, so the journey is proved against the assembled result
+parent:   the epic gate
+metadata: { \"branch\": \"epic/record-box\" }
+depends:  blocked-by the merge ticket — merge first, so the journey is proved against the assembled result
 skill:    framework-playwright
 ```
 **Brief:** state handoffs across the app, session continuity, one success and one failure journey through the
 flow. Never re-test the micro tier's edges or the composition tier's wiring.
 """
       }
-      epicReview = ticket "epic-review · RECIPE-4" {
+      epicReview = ticket "epic-review" {
         summary "The three questions over the whole epic, posted on the epic pull request."
         description """
 ```
 title:    the three questions over the whole epic
 label:    epic-review          → AGENT → review
-parent:   RECIPE-1
-metadata: { \"branch\": \"epic/recipe-box\" }
-depends:  blocked-by RECIPE-3
+parent:   the epic gate
+metadata: { \"branch\": \"epic/record-box\" }
+depends:  blocked-by the end-to-end ticket
 ```
 **Brief:** map entry → exit, instrument with trace logs, run the tests against the instrumented code, post
-findings as PR comments. Then the human verifies and closes RECIPE-1.
+findings as PR comments. Then the human verifies and closes the epic gate.
 """
       }
     }
 
-    featA = gate "Feature gate — Add a Recipe · RECIPE-5" {
-      summary "One complete flow — a user writes a recipe and sees it in the box; five tasks, one line."
+    featA = gate "Feature gate" {
+      summary "One complete flow — a user writes a record and sees it in the box; five tasks, one line."
       description """
 ```
 type:     gate
-branch:   feature/add-recipe           ← plan-feature's key
+branch:   feature/add-record           ← plan-feature's key
 pr:       https://github.com/…/pull/2  ← written by the Stop hook onto the ticket that first landed work
-waits on: RECIPE-10 (feature-review)
-PR base:  epic/recipe-box              ← read off the epic gate, never copied down
+waits on: the feature review ticket
+PR base:  epic/record-box              ← read off the epic gate, never copied down
 ```
-One complete user-facing flow: a user writes a recipe and sees it in the box. Its five tasks are **one linked
+One complete user-facing flow: a user writes a record and sees it in the box. Its five tasks are **one linked
 line, never a fan**, so the frontier can only ever hand out one task per feature and this branch is never
-written by two workers at once. Closing this gate IS merging `feature/add-recipe` into `epic/recipe-box`.
+written by two workers at once. Closing this gate IS merging `feature/add-record` into `epic/record-box`.
 """
-      backendA = ticket "backend-logic · RECIPE-6" {
-        summary "validateRecipe and saveRecipe as pure functions: the first task, and the only one claimable."
+      backendA = ticket "backend-logic" {
+        summary "validateRecord and saveRecord as pure functions: the first task, and the only one claimable."
         description """
 ```
-title:    validateRecipe + saveRecipe — pure functions
+title:    validateRecord + saveRecord — pure functions
 label:    backend-logic        → AGENT → engineer
 category: backend-logic
-parent:   RECIPE-5
-metadata: { \"branch\": \"feature/add-recipe\" }   ← copied VERBATIM from the feature gate
+parent:   the feature gate
+metadata: { \"branch\": \"feature/add-record\" }   ← copied VERBATIM from the feature gate
 depends:  none — the first task, and the only ticket claimable when the run starts
 ```
 **Requirements**
-1. `validateRecipe(input): Either<RecipeValidationError, Recipe>` — pure, no mutation
-2. `saveRecipe(validated)` through the repository port only
-3. reject: empty title, title > 120 chars, duplicate slug, missing ingredients
+1. `validateRecord(input): Either<RecordValidationError, Record>` — pure, no mutation
+2. `saveRecord(validated)` through the repository port only
+3. reject: empty title, title > 120 chars, duplicate slug, missing body
 
-**Files:** `src/recipes/validate-recipe.ts`, `src/recipes/types.ts`, `src/recipes/ports.ts`
+**Files:** `src/records/validate-record.ts`, `src/records/types.ts`, `src/records/ports.ts`
 **Done means:** report in the final message; the Stop hook files it, not you.
 """
       }
-      unitA = ticket "unit-tests · RECIPE-7" {
-        summary "Exhaustive coverage of validateRecipe: every branch, every boundary, every error."
+      unitA = ticket "unit-tests" {
+        summary "Exhaustive coverage of validateRecord: every branch, every boundary, every error."
         description """
 ```
-title:    exhaustive coverage for validateRecipe
+title:    exhaustive coverage for validateRecord
 label:    unit-tests           → AGENT → tester-unit
 category: unit-tests
-parent:   RECIPE-5
-metadata: { \"branch\": \"feature/add-recipe\" }
-depends:  blocked-by RECIPE-6 — the back-end ticket it tests
+parent:   the feature gate
+metadata: { \"branch\": \"feature/add-record\" }
+depends:  blocked-by the back-end ticket — the ticket it tests
 skill:    framework-jest
 ```
 **Cover:** every branch, every boundary (120/121 chars), empty and null input, each error it throws, the empty
-ingredients list.
+body.
 **Owned elsewhere:** composition wiring (feature tier), components (never here), journeys (epic tier).
 """
       }
-      frontendA = ticket "frontend-ui · RECIPE-8" {
-        summary "RecipeForm and RecipeCard against proved functions; its close unblocks the suite."
+      frontendA = ticket "frontend-ui" {
+        summary "RecordForm and RecordCard against proved functions; its close unblocks the suite."
         description """
 ```
-title:    RecipeForm + RecipeCard against proved functions
+title:    RecordForm + RecordCard against proved functions
 label:    frontend-ui          → AGENT → frontend
 category: frontend-ux          ← the CATEGORY; the LABEL is frontend-ui
-parent:   RECIPE-5
-metadata: { \"branch\": \"feature/add-recipe\" }
-depends:  blocked-by RECIPE-7
+parent:   the feature gate
+metadata: { \"branch\": \"feature/add-record\" }
+depends:  blocked-by the unit tests ticket
 ```
-**Brief:** the form, validation feedback surfacing each `RecipeValidationError`, the card in the box. Layout and
+**Brief:** the form, validation feedback surfacing each `RecordValidationError`, the card in the box. Layout and
 styling only — the logic is already proved by the micro tier. This ticket landing is what unblocks `feature-test`.
 """
       }
-      featureTestA = ticket "feature-test · RECIPE-9" {
-        summary "The add-a-recipe pieces proved wired, once every task has landed on the branch."
+      featureTestA = ticket "feature-test" {
+        summary "The add-a-record pieces proved wired, once every task has landed on the branch."
         description """
 ```
-title:    the add-recipe pieces are wired
+title:    the add-record pieces are wired
 label:    feature-test         → AGENT → tester-feature
 category: feature-test
-parent:   RECIPE-5
-metadata: { \"branch\": \"feature/add-recipe\" }
-depends:  blocked-by RECIPE-8 — the LAST task; nothing is proved against half a feature
+parent:   the feature gate
+metadata: { \"branch\": \"feature/add-record\" }
+depends:  blocked-by the front-end ticket — the LAST task; nothing is proved against half a feature
 skill:    framework-playwright
 ```
-**Cover:** the composed flow saves a recipe; each encapsulated error surfaces to the user.
+**Cover:** the composed flow saves a record; each encapsulated error surfaces to the user.
 """
       }
-      featureReviewA = ticket "feature-review · RECIPE-10" {
-        summary "The three questions over feature/add-recipe; then the human verifies and closes the gate."
+      featureReviewA = ticket "feature-review" {
+        summary "The three questions over feature/add-record; then the human verifies and closes the gate."
         description """
 ```
-title:    the three questions over feature/add-recipe
+title:    the three questions over feature/add-record
 label:    feature-review       → AGENT → review
 category: review
-parent:   RECIPE-5
-metadata: { \"branch\": \"feature/add-recipe\" }
-depends:  blocked-by RECIPE-9 — no review before the suite
+parent:   the feature gate
+metadata: { \"branch\": \"feature/add-record\" }
+depends:  blocked-by the feature's suite — no review before the suite
 ```
 **Brief:** three questions from first principles, findings as PR comments. Then the human verifies and closes
-gate RECIPE-5, and that PR merges `feature/add-recipe` into `epic/recipe-box`.
+the feature gate, and that PR merges `feature/add-record` into `epic/record-box`.
 """
       }
     }
@@ -1110,4 +1110,19 @@ count comes fresh from `claude agents --json` every tick precisely so this state
 """
     }
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // The depends-on edges, as edges of the model rather than of one walkthrough.
+  // A static view draws only these; a dynamic view draws only the edges its own
+  // steps create — so the graph view needs them here. The two edges that run from
+  // a row onto its own gate are absent: the engine refuses a parent-child edge.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  tower.featA.backendA -[blocks]-> tower.featA.unitA "then its tests"
+  tower.featA.unitA -[blocks]-> tower.featA.frontendA "then the interface"
+  tower.featA.frontendA -[blocks]-> tower.featA.featureTestA "then the suite"
+  tower.featA.featureTestA -[blocks]-> tower.featA.featureReviewA "then the review"
+  tower.featA -[blocks]-> tower.epic.epicMergePr "the closed gate releases the merge"
+  tower.epic.epicMergePr -[blocks]-> tower.epic.epicE2e "then the journeys"
+  tower.epic.epicE2e -[blocks]-> tower.epic.epicReview "then the review"
 }

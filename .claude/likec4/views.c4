@@ -202,16 +202,18 @@ closes. The database is all the loop ever reads.
 There is no install command to remember. Say "setup binary-obelisk" and the skill looks at three things:
 are you in a repo, do tickets live here yet, is the command reachable.
 If only the CLI is missing, it asks you once, then runs the installer: one real file on your path, which
-finds the plugin and runs the engine in the foreground.
+finds the plugin and runs the engine in the foreground, and — the first time only — the one settings file
+the parameters node names, which is yours to edit after that.
 If nothing is missing, it says so and gets out of the way.
 """
     }
 
-    machine.knobs -> machine.dispatcher "4 parallel · 3 s · logs under ~/.binary-obelisk · labels *" {
+    machine.knobs -> machine.dispatcher "claude · 4 parallel · 3 s · logs under ~/.binary-obelisk · labels *" {
       title "The settings are read once, at startup"
       notes """
-At startup the loop reads four things and never reads them again: how many workers at once, how many seconds
-between ticks, where the logs go, which labels it may dispatch.
+At startup the loop loads its one settings file and never reads it again: the command that runs an agent, how
+many workers at once, how many seconds between ticks, where the logs go, which labels it may dispatch.
+Whatever you exported yourself already wins over the file.
 If a number is typed wrong, the run stops there — it never quietly substitutes one for you.
 """
     }
@@ -327,7 +329,7 @@ The worker's whole prompt is five rules:
 - never close your own ticket
 - say what is left if you run out of room
 - start no other workers
-- stay on your branch; never commit, branch, merge or push
+- stay on your branch; never a bare commit or push — commit the way your own agent file tells you, as you go
 and one last act: touch the done marker, and only if the brief is genuinely finished.
 """
     }
@@ -335,8 +337,8 @@ and one last act: touch the done marker, and only if the brief is genuinely fini
     workers.engineer -> tower.featA.backendA "write the code" {
       title "The engineer writes the code and leaves the ticket open"
       notes """
-The engineer writes files into the branch's folder and commits nothing, heartbeats so its claim holds, reports
-in its final message, and leaves the ticket open.
+The engineer writes files into the branch's folder and lands each finished piece there with `bo commit`,
+heartbeats so its claim holds, reports in its final message, and leaves the ticket open.
 Closing is somebody else's job.
 """
     }
@@ -357,7 +359,8 @@ If any of these is untrue, the hook refuses and says which:
 - the ticket is still in progress
 - the branch and the pull request target arrived with the session
 - the folder is really on the branch it thinks it is
-Then the ticket's title becomes the commit message, and the branch is pushed.
+Then `bo commit` files the ticket's title as the commit — usually there is nothing left to stage, the worker
+committed as it went — and the hook pushes the branch itself.
 A test or a review ticket may land no files at all, and an empty tree is allowed.
 """
     }
@@ -774,7 +777,7 @@ acted on.
 
     // ═ PART A — the run never starts
 
-    machine.dispatcher -> alarms.startupAlarms.toolsMissing "bd jq claude git — <tool> not found · exit 1" {
+    machine.dispatcher -> alarms.startupAlarms.toolsMissing "bd jq git + the agent command — <tool> not found · exit 1" {
       title "A tool is missing, and the run will not start"
       notes """
 It checks the tools before doing anything, and quits rather than start half-ready. The Stop hook checks a
@@ -1108,145 +1111,6 @@ Nothing here ever puts a claim back, un-parks a ticket, or closes a gate. The re
 unattended workers commit onto shared branches, and what they buy is a tower that stops and says why.
 """
       navigateTo index
-    }
-
-    autoLayout LeftRight
-  }
-
-  view theGraph {
-    title "Binary Obelisk/Walkthrough/5 · The dependency graph — the tower as a graph, one band per branch"
-
-    description """
-The graph, not the story: eight tickets, the seven depends-on edges between them, and the branch each row lands
-on. Read it left to right — every arrow says *then*, and a row is claimable only when every arrow pointing at it
-has been walked.
-
-Two bands, because there are two branches: everything in `feature/add-record` is committed by that feature's
-workers, everything in `epic/record-box` by the epic's. A task never invents a branch — it copies its gate's
-verbatim, which is why the band and the gate agree by construction.
-
-The two gates are deliberately absent: a node sits inside its parent and nowhere else, so a gate drawn here
-would swallow its own tier. They are the human's checkpoints, and they are drawn in *The rounds* and in
-*The planning phase*.
-"""
-
-    include tower.featA.backendA, tower.featA.unitA, tower.featA.frontendA
-    include tower.featA.featureTestA, tower.featA.featureReviewA
-    include tower.epic.epicMergePr, tower.epic.epicE2e, tower.epic.epicReview
-
-    group "branch feature/add-record — one worker at a time, left to right" {
-      color branchGreen
-      include tower.featA.backendA, tower.featA.unitA, tower.featA.frontendA
-      include tower.featA.featureTestA, tower.featA.featureReviewA
-    }
-
-    group "branch epic/record-box — assembled only after the feature gate closes" {
-      color branchGreen
-      include tower.epic.epicMergePr, tower.epic.epicE2e, tower.epic.epicReview
-    }
-
-    autoLayout LeftRight
-  }
-
-  dynamic view theRounds {
-    title "Binary Obelisk/Walkthrough/6 · The rounds — tick by tick, which node of the graph lights up"
-
-    include machine.dispatcher, human, waiting.frontierEmpty
-    include tower.epic, tower.epic.epicMergePr, tower.epic.epicE2e, tower.epic.epicReview
-    include tower.featA, tower.featA.backendA, tower.featA.unitA, tower.featA.frontendA
-    include tower.featA.featureTestA, tower.featA.featureReviewA
-
-    machine.dispatcher -> tower.featA.backendA "tick 1 — the back-end ticket comes off the frontier" {
-      title "The only claimable row: the head of the feature's chain"
-      notes """
-The claim is `bd ready --claim`, never a bare `bd ready`. The label `backend-logic` alone picks `engineer`; the
-branch comes off the claim's own `metadata`, verbatim, and the worktree for it is made before the worker spawns.
-"""
-    }
-
-    machine.dispatcher -> waiting.frontierEmpty "tick 2 — the chain is closed behind it" {
-      title "The unit tests ticket waits on the back-end ticket, so there is nothing second to claim"
-      notes """
-A feature's tasks are one linked line, never a fan: the frontier hands out one ticket per feature, so the branch
-is never written by two workers at once. A second feature would be claimed here, side by side.
-"""
-    }
-
-    tower.featA.backendA -[blocks]-> tower.featA.unitA "the back-end ticket is reported done — the unit tests ticket opens" {
-      title "The worker's final message closes nothing; the done marker lands the commit"
-      notes """
-If the worker never touched its done marker, then: no commit, no push, no pull request, and the ticket stays
-claimed — `ERROR reason=not-declared-done`. The chain waits with it.
-"""
-    }
-
-    machine.dispatcher -> tower.featA.unitA "tick 3 — the unit tests ticket, the micro tier" {
-      title "The label picks the depth, not the ticket text"
-    }
-
-    tower.featA.unitA -[blocks]-> tower.featA.frontendA "the unit tests ticket is reported done — the front-end ticket opens" {
-      title "The interface is built against functions already proved"
-    }
-
-    machine.dispatcher -> tower.featA.frontendA "tick 4 — the front-end ticket, the interface" {
-      title "The last task of the line, and the one that releases the suite"
-    }
-
-    tower.featA.frontendA -[blocks]-> tower.featA.featureTestA "the front-end ticket is reported done — the suite opens" {
-      title "Nothing is proved against half a feature"
-    }
-
-    machine.dispatcher -> tower.featA.featureTestA "tick 5 — the feature's suite, the composition tier" {
-      title "One suite, after every task has landed on the feature branch"
-    }
-
-    tower.featA.featureTestA -[blocks]-> tower.featA.featureReviewA "the feature's suite is reported done — the review opens" {
-      title "No review before the suite"
-    }
-
-    machine.dispatcher -> tower.featA.featureReviewA "tick 6 — the feature review ticket, the three questions" {
-      title "The review files no tickets and commits nothing"
-    }
-
-    human -[closes]-> tower.featA "you close the feature gate" {
-      title "You read the review's report, verify the flow, then close"
-      notes """
-Nothing but a human closes a gate. The gate does not block its own children — what was held off the frontier was
-the explicit edge onto the gate, and closing it is what releases the epic's merge.
-"""
-    }
-
-    tower.featA -[blocks]-> tower.epic.epicMergePr "the closed gate releases the merge" {
-      title "The one edge only plan-feature can write"
-    }
-
-    machine.dispatcher -> tower.epic.epicMergePr "tick 7 — the merge" {
-      title "The merge ticket is dispatched like any other stamp"
-    }
-
-    tower.epic.epicMergePr -[blocks]-> tower.epic.epicE2e "the merge ticket is reported done — the journeys open" {
-      title "The journey is proved against the assembled branch"
-    }
-
-    machine.dispatcher -> tower.epic.epicE2e "tick 8 — the end-to-end ticket, the broad tier" {
-      title "Journeys across features, in a real browser"
-    }
-
-    tower.epic.epicE2e -[blocks]-> tower.epic.epicReview "the end-to-end ticket is reported done — the review opens" {
-      title "No review before the journeys"
-    }
-
-    machine.dispatcher -> tower.epic.epicReview "tick 9 — the epic's three questions" {
-      title "The last row the loop ever claims"
-    }
-
-    human -[closes]-> tower.epic "you close the epic gate" {
-      title "The graph is walked; the tower stops here until you do"
-      notes """
-If you never close it, the loop has nothing left to claim and logs `reason=frontier_empty` — a full frontier of
-open work can also read as `reason=tower_stalled waiting=N`, and the waiting line is what tells the two apart.
-"""
-      navigateTo theLoop
     }
 
     autoLayout LeftRight

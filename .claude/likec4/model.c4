@@ -29,6 +29,11 @@ outlives an uninstalled plugin and names its own problem — the missing-plugin 
 that clears it and the two ways to get it back. If `~/.local/bin` is not on your path, the installer
 prints the exact `export PATH=` line your shell profile is missing.
 
+**Its second write:** `CLI/default.env` copied to `~/.obelisk.env`, the run's parameters at their
+defaults — yours to edit by hand. The installer touches that file only when it does not exist; delete
+it to get the defaults back. `bo` itself is five commands: `loop`, `plan:epic`, `plan:feature`,
+`plan:task`, `commit`.
+
 **Nothing here runs the loop.** The skill's whole job is to make `bo loop` reachable.
 """
       link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/skills/setup-cli/SKILL.md "Source — the setup-cli skill"
@@ -43,7 +48,7 @@ ever happens; a run that cannot report on itself is not a run.
 
 | # | Check | Refuses when |
 |---|---|---|
-| 1 | `requireToolsOnPath` — `bd jq claude git` | the first one missing is named on stderr |
+| 1 | `requireToolsOnPath` — `bd jq git` plus the first word of `BO_AGENT_COMMAND` | the first one missing is named on stderr |
 | 2 | `configureAllowedLabels` — `BO_ALLOWED_LABELS` against the `AGENT` map | **not fatal** — a typo'd list matches no ticket, and the tower sits still while waiting lines keep arriving |
 | 3 | `requireNumericSettingsFromEnvironment` | `BO_MAX_PARALLEL` / `BO_POLL_S` / `BO_MAX_TICKS` set to anything but digits — never defaulted silently, because they govern unattended workers |
 | 4 | `requireUsablePollInterval` — `BO_POLL_S` must divide 60 | the permitted list is printed: `1 2 3 4 5 6 10 12 15 20 30 60`; the waiting lines are rate-limited at one per minute, so a poll that does not divide the minute makes that cadence a lie |
@@ -57,11 +62,19 @@ broken install names itself instead of failing deep in a tick.
     }
 
     knobs = knobPanel "The run's parameters (env, read once at startup)" {
-      summary "The run's parameters from the environment, read once at startup."
+      summary "The run's parameters, read once at startup out of `~/.obelisk.env`; what you export yourself still wins."
       description """
+Both engines source `CLI/user-env.sh` and call `loadObeliskEnv` as their first act. It takes only
+`BO_*=` lines out of `~/.obelisk.env` (`CLI/default.env` copied there on install), expands `$HOME` in a
+value, and **exports only what is unset** — so a value you exported yourself still beats the file.
+`BO_ENV_FILE` points it elsewhere, which is the whole test hook; no file at all is a normal state, and
+the engines' own `:-` defaults are the floor under it. `CLI/default.env` is documentation that happens
+to be installed, so it and the engines are kept in step by hand.
+
 | Knob | Default | What it does |
 |---|---|---|
-| `BO_MAX_PARALLEL` | `4` | workers spawned at once; the cap is recounted from `claude agents --json` every tick |
+| `BO_AGENT_COMMAND` | `claude` | the command that runs an agent — the worker spawn, the worker count, and the three planners all go through it; split on spaces, so it may carry its own arguments |
+| `BO_MAX_PARALLEL` | `4` | workers spawned at once; the cap is recounted from `$BO_AGENT_COMMAND agents --json` every tick |
 | `BO_POLL_S` | `3` | seconds between ticks; **must divide 60** or the run refuses to start, because the idle rate limit is `60 / BO_POLL_S` ticks |
 | `BO_MAX_TICKS` | `0` | stop after N ticks — a test seam only; 0 = endless |
 | `BO_LOG_ROOT` | `~/.binary-obelisk/logs` | parent of the one timestamped dir this run writes |
@@ -81,7 +94,7 @@ One tick, in the order the code runs it (`tick()`):
 | # | Step | Reads | On failure |
 |---|---|---|---|
 | 0 | `branchesCurrentlyAtWork` — the branches already at work, read **before** claiming so the ticket in hand is never counted against itself | `bd list --status in_progress --limit 0 --json` → `.[] \| .metadata.branch \| sort -u` | — |
-| 1 | capacity check | `claude agents --json`, background sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled` |
+| 1 | capacity check | `$BO_AGENT_COMMAND agents --json`, background sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled` |
 | 2 | **claim** | `bd ready --claim --json` — atomic: assignee + `in_progress` + a 5-minute lease | `bd-failure`; an empty answer is a waiting line, not an error |
 | 3 | match labels against the `AGENT` map — **exactly one** may match | `.[0].labels` | `label-ambiguous`, left claimed |
 | 4 | read the branch | `.[0].metadata.branch` | `metadata-missing`, left claimed |
@@ -89,7 +102,7 @@ One tick, in the order the code runs it (`tick()`):
 | 6 | find the PR base | `.[0].parent` → `epicGateOf` (≤ 4 hops of `bd show --json` `parent`) → the gate's own `branch`; `main` when the claim's parent **is** that topmost gate | `epic-pr-failed step=walk` |
 | 7 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` | `epic-pr-failed step=…`, left claimed |
 | 8 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
-| 9 | spawn | `claude --bg --agent <agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
+| 9 | spawn | `$BO_AGENT_COMMAND --bg --agent <agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
 | 10 | one log line, move on | `logTo claims \"reason=dispatched\"` | — |
 
 **What it never does:** it never polls a worker, never reads worker output, never merges, never ends
@@ -135,7 +148,7 @@ so there is nothing to assemble.
     spawnEnv = knobPanel "BO_* — the environment the spawn carries" {
       summary "The eight BO_ variables the spawn carries, which tell both hooks what to finish."
       description """
-Set on the `claude --bg` line and nothing else: this is how the hooks know which ticket to finish
+Set on the `$BO_AGENT_COMMAND --bg` line and nothing else: this is how the hooks know which ticket to finish
 and what to say about it. Without them the worker just stops and its ticket sits `in_progress`.
 
 | Var | Value | Who reads it |
@@ -258,7 +271,7 @@ Stderr of the last `bd ready --claim`, captured on the claim line itself; its la
     fClaudeStderr = logFile "claude-stderr" {
       summary "Stderr of the last capacity count."
       description """
-Stderr of the last `claude agents --json` capacity count.
+Stderr of the last `$BO_AGENT_COMMAND agents --json` capacity count.
 """
     }
     fSpawn = logFile "spawn-<ticket>" {
@@ -287,13 +300,22 @@ fires in **every session of every project** the plugin is enabled in — `BO_TIC
 worker apart from everything else, and a session the loop did not spawn leaves on the first line.
 
 ```
-worker says it is done → commit onto its feature's branch → push → the branch's PR →
+worker says it is done → `bo commit` onto its feature's branch → push → the branch's PR →
 write the PR url onto the ticket's pr metadata → close it
 ```
 
 It refuses **fifteen** ways, each one `exit 0` with the ticket untouched, in the order the code checks them —
 they are walked one by one in the second walkthrough. The gate of the whole design is `not-declared-done`:
 no marker, no commit, no push, no PR, no close.
+
+**The commit is the worker's own command, not a private one:** `stageTheWork` first asks whether anything is
+left to land — usually the worker committed it all as it went, and then nothing is — and `commitTheTask` runs
+`bo commit` in the worktree with the ticket's title and a `Ticket:` line as the message, so a task's last
+commit is the same shape as all the others. `git diff --cached --quiet` proving the index came back clean is
+what `reason=commit-failed` means. The hook then pushes for itself: cheap when the branch is current, and it
+is the hook's own guarantee that the branch is on the forge before a PR is opened off it — which is why
+`reason=push-failed` is a separate alarm from `reason=commit-failed`. `bo` is in `requireTools` for this
+reason; `reason=missing-tool tool=bo` is the alarm when the CLI is not installed.
 
 **One branch, one pull request, forever:** the branch's first task creates the PR, and every later task finds
 it by `gh pr list --head <branch> --base <target> --state open` and reuses it — which is why the branch, not
@@ -369,7 +391,7 @@ a branch to the wrong forge.
   }
 
   toolbelt = layer "The commands the loop shells out to" {
-    summary "The commands the loop shells out to: the ticket tool, claude, git, the forge tool, the folder."
+    summary "The commands the loop shells out to: the ticket tool, the agent command, git, the forge tool, the folder."
 
     bdCmds = noteDoc "bd — the only reads and writes the tower answers to" {
       summary "The ticket commands the tower answers to, and why each one is that one."
@@ -394,16 +416,22 @@ an unregistered type, it **accepts and hides it**, so a broken gate and a workin
 """
     }
 
-    claudeCli = cliTool "claude — background sessions" {
-      summary "claude, used twice: spawn a worker in the background, count the live sessions."
+    claudeCli = cliTool "$BO_AGENT_COMMAND (claude) — the command every agent runs through" {
+      summary "The one command every agent runs through: the worker spawn, the worker count, and the three planners."
       description """
-Two uses, both by the dispatcher:
+`BO_AGENT_COMMAND`, default `claude` — the one command every agent in the system runs through, so
+pointing it at your own build moves all of them. Three uses:
 
-- `claude --bg --agent <agent> --permission-mode bypassPermissions \"<the six rules>\"`, run with `cd`
-  **inside** the branch's worktree, and deliberately **no `-w`** — `claude --worktree` only ever
-  *creates* one, and this branch already owns its own.
-- `claude agents --json` — the capacity count, recounted fresh every tick: background sessions whose
-  `cwd` starts with `<tower>/.claude/worktrees` or equals the tower.
+- `$BO_AGENT_COMMAND --bg --agent <agent> --permission-mode bypassPermissions \"<the six rules>\"` —
+  the worker spawn, run with `cd` **inside** the branch's worktree, and deliberately **no `-w`** —
+  `claude --worktree` only ever *creates* one, and this branch already owns its own.
+- `$BO_AGENT_COMMAND agents --json` — the capacity count, recounted fresh every tick: background
+  sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower.
+- `$BO_AGENT_COMMAND --agent <planner> \"<prompt>\"` — the three plan agents, foreground, through
+  `CLI/plan-agent.sh`, which is what `bo plan:epic`, `bo plan:feature` and `bo plan:task` run.
+
+It is split on spaces, so it may carry its own arguments, and its first word is what the startup check
+looks for on the PATH.
 
 Workers run `bypassPermissions` unattended, so this loop only ever belongs in a repo you fully trust.
 """
@@ -421,7 +449,13 @@ The loop owns the folders, because a worktree belongs to a **branch**, not to a 
   (`feature/add-record` → `feature+add-record`).
 - `<start>` is the **first** of `origin/<branch>`, `origin/<prTarget>`, `<prTarget>`, `HEAD` that resolves —
   a feature branch starts where it is going to land.
-- `git -C <tower> fetch --quiet origin` before each lookup; `push -u origin <branch>` is the Stop hook's.
+- `git -C <tower> fetch --quiet origin` before each lookup, and the loop's one push —
+  `git -C <tower> push --quiet origin <start>:refs/heads/<gateBranch>`, publishing an epic branch that has none.
+- **Nothing else here commits.** `git add -A`, `git commit -m \"agent:branch:message\"` and
+  `git push -u origin <branch>` all live inside `bo commit` (`CLI/commit.sh`) — the only way anything
+  commits in this plugin. The agent is `BO_AGENT`, `manual` when a person typed it; the branch is
+  `git symbolic-ref --short HEAD`, and a detached HEAD is refused because a branch it cannot name is a
+  subject it cannot write.
 """
     }
 
@@ -448,9 +482,10 @@ git worktree add -B <branch> <path> <start>
 git -C <tower> fetch --quiet origin    before each lookup
 ```
 
-A feature branch starts where it is going to land. The worker is spawned with its cwd **inside** this folder and
-is told never to commit, branch, merge or push — the Stop hook files its one commit, which is what keeps two
-hands off one branch. The tower root (where `.beads` lives) is `BO_PROJECT_DIR`: **the worktree is not the tower**.
+A feature branch starts where it is going to land. The worker is spawned with its cwd **inside** this folder,
+and it lands its own finished pieces here as it goes — `bo commit`, one commit per piece (the rule is on the
+workers layer) — never a bare `git commit` or `git push`, never a branch of its own, so two hands never write
+one branch. The tower root (where `.beads` lives) is `BO_PROJECT_DIR`: **the worktree is not the tower**.
 """
     }
 
@@ -475,6 +510,20 @@ someone verifies it. That is the design, not a bug — it is the only place a cl
 
   workers = layer "The workers" {
     summary "The seven workers: each is one agent file, each dispatched by exactly one label."
+    description """
+**The contract is in the agent file.** Every tower agent carries a `## The contract` section — keep the
+five-minute lease alive with `bd heartbeat <ticket>` between long steps, never close your own ticket,
+write what remains as a comment, spawn nothing, and `touch $BO_DONE_FILE` as the very last action and only
+when the brief is genuinely complete. `merge` states the same rules inside its own steps rather than in a
+section of that name. No skill holds these rules; the loop's spawn prompt repeats them, which is the
+safety net for a worker run outside the loop.
+
+**The five that build, commit as they go.** `engineer`, `frontend`, `tester-unit`, `tester-feature` and
+`tester-e2e` each carry a `## Commit As You Go` section running `BO_AGENT=<agent> bo commit <what you just
+did>` after every major change that stands on its own — one commit per piece, so the pull request shows the
+work as it happens instead of one blob at the end. The name is passed rather than inherited, so a worker run
+outside the loop still commits named for itself. `merge` and `review` have no such section: neither commits.
+"""
     engineer = worker "engineer" {
       summary "Business logic, endpoints, hooks, types, error factories; never tests, JSX or CSS."
       description """
@@ -551,6 +600,9 @@ lowercase words saying what the thing *is*); **what counts as a feature** (a com
 foundations → core → dependent → polish); **the order inside a feature's line** (the logic, then its tests,
 then the UI — never a fan); **the tier of a test ticket** (the label carries the tier, never `--agent`). Each
 plan agent writes one key and only one: its own gate's `branch`, onto its own tier's rows.
+
+Each is one foreground command — `bo plan:epic`, `bo plan:feature`, `bo plan:task` — and anything you type
+after it goes to the planner as the prompt. What runs them is on the agent-command node.
 """
     planEpic = planner "plan-epic" {
       summary "A vague idea into exactly one epic gate plus its merge, end-to-end and review tickets."
@@ -765,8 +817,9 @@ the feature gate, and that PR merges `feature/add-record` into `epic/record-box`
         #fatal
         summary "A tool the loop needs is not on PATH, so the run exits before its first tick."
         description """
-`requireToolsOnPath` wants `bd jq claude git` and `exit 1`s on the first one missing. Note the Stop hook has
-its own shorter list — `bd jq git` — because it never spawns a session.
+`requireToolsOnPath` wants `bd jq git` plus the first word of `BO_AGENT_COMMAND`, and `exit 1`s on the first
+one missing. Note the Stop hook has its own list — `bd jq git bo` — shorter because it never spawns a session,
+and carrying `bo` because that is the command it commits with.
 """
       }
       knobNotNumeric = alarm "startup: BO_<VAR>=<x> is not a number" {
@@ -893,7 +946,7 @@ missing folder burns a slot on nothing.
         #unclaimed
         summary "The spawn came back failed; the one alarm that puts the ticket straight back."
         description """
-`claude --bg` came back non-zero; the last line of that worker's `spawn-<ticket>` file is quoted in `msg=`.
+`$BO_AGENT_COMMAND --bg` came back non-zero; the last line of that worker's `spawn-<ticket>` file is quoted in `msg=`.
 `bd unclaim` — unlike every other tick alarm, this one puts the ticket **straight back**, because nothing was
 ever spawned to work it and the next tick may well succeed.
 """
@@ -904,10 +957,11 @@ ever spawned to work it and the next tick may well succeed.
       summary "Everything the Stop hook refuses, in code order: fail-closed, ticket untouched."
       missingToolHook = alarm "ERROR reason=missing-tool tool=<t>" {
         #staysClaimed
-        summary "bd, jq or git is missing; checked before anything else the hook does."
+        summary "bd, jq, git or bo is missing; checked before anything else the hook does."
         description """
-`bd`, `jq` or `git` missing — checked before anything else the hook does, but after the `BO_TICKET` guard, so a
-session the loop never spawned still exits on line one.
+`bd`, `jq`, `git` or `bo` missing — checked before anything else the hook does, but after the `BO_TICKET`
+guard, so a session the loop never spawned still exits on line one. `bo` is there because the hook commits
+through it, and the CLI is installed before any worker ever runs.
 """
       }
       noWorktreeHook = alarm "ERROR reason=no-worktree" {
@@ -1106,7 +1160,7 @@ so the tick simply does not claim.
       summary "At capacity with nothing in progress: the counted workers are ghosts."
       description """
 At capacity with **nothing in progress**: the slots are ghosts — sessions counted busy whose tickets are gone. The
-count comes fresh from `claude agents --json` every tick precisely so this state is visible rather than silent.
+count comes fresh from `$BO_AGENT_COMMAND agents --json` every tick precisely so this state is visible rather than silent.
 """
     }
   }

@@ -50,9 +50,12 @@ its own problem). Run the installer:
 bash "$(claude plugin details binary-obelisk --json | jq -r '.root')/CLI/install-cli.sh"
 ```
 
-That writes `~/.local/bin/bo`. Re-running the installer overwrites the launcher, which is how you repoint
-it after a reinstall. If it prints a PATH warning, tell the user to add that `export PATH=...` line to
-their shell profile. Then confirm with `bo help`.
+That writes `~/.local/bin/bo`, and — only the first time — `~/.obelisk.env`, a copy of `CLI/default.env`
+holding every setting the CLI reads at its default. That file belongs to the user: re-running the installer
+never touches it, and both engines read it on every run, so it is where they change how the CLI behaves
+(`BO_MAX_PARALLEL`, `BO_AGENT_COMMAND`, `BO_POLL_S` …). Tell them it exists and what it is for. Re-running
+the installer overwrites the launcher, which is how you repoint it after a reinstall. If it prints a PATH
+warning, tell the user to add that `export PATH=...` line to their shell profile. Then confirm with `bo help`.
 
 ## Step 4 — Uninstall (either or both — confirm each)
 
@@ -64,7 +67,8 @@ rm -f "$HOME/.local/bin/bo"
 **If the plugin was uninstalled instead** — the launcher is still on PATH and `bo` prints a warning naming
 the plugin path it can no longer find, plus the two ways out: remove the launcher, or reinstall the plugin
 and run its `CLI/install-cli.sh` again. If they report that message, ask which they want — the reinstall is
-Step 3, the removal is the `rm` above. Either way nothing else on the machine needs cleaning.
+Step 3, the removal is the `rm` above. Either way nothing else on the machine needs cleaning, except
+`~/.obelisk.env` if they want it gone too — that one is their own edits, so never remove it unasked.
 
 **Uninstall beads from this repo** — this deletes the beads database. Confirm the repo path first;
 this is destructive to the tower:
@@ -84,3 +88,4 @@ reverse (`brew uninstall beads` / `npm rm -g @beads/bd`).
 | uninstall the CLI | `rm -f ~/.local/bin/bo` |
 | uninstall beads (repo) | `rm -rf .beads` (destructive — confirm path) |
 | run the dispatcher | `bo loop` (foreground — Ctrl-C stops it) |
+| change how the CLI behaves | edit `~/.obelisk.env` — read on every run; an exported value still wins |

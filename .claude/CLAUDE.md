@@ -24,9 +24,11 @@ plugins/binary-obelisk/
 │   ├── bin/bo                            # the entrypoint `bo` — four foreground commands, each a call into the engine beside it: `loop` → beads-loop.sh, `plan:epic` / `plan:feature` / `plan:task` → plan-agent.sh
 │   ├── beads-loop.sh                     # the claim-beads dispatcher engine
 │   ├── plan-agent.sh                     # the planner engine — one plan agent, foreground, through `BO_AGENT_COMMAND` (`claude`); runnable on its own as `plan-agent.sh epic|feature|task [prompt]`
+│   ├── default.env                       # every variable the engines read, at the value it gets when you set nothing — copied to `~/.obelisk.env` by the installer, never read in place
+│   ├── user-env.sh                       # the loader for `~/.obelisk.env`; sourced by both engines before they read anything
 │   ├── forge.sh                          # detects GitHub vs GitLab and names the right tool; sourced by the engine and the Stop hook
 │   ├── loop-log.sh                       # the one log-line definition, sourced by the engine AND both hooks
-│   └── install-cli.sh                    # writes a real launcher onto PATH (not a symlink, so it survives uninstall)
+│   └── install-cli.sh                    # writes a real launcher onto PATH (not a symlink, so it survives uninstall), and puts `~/.obelisk.env` there the first time
 ├── scripts/tower-walk.sh                 # experiment harness — builds a tower and walks the frontier by hand
 └── shared/plan-tasks/                    # the three task templates plan-task fills: engineer.md, frontend.md, tester-unit.md
 ```
@@ -218,6 +220,19 @@ never reads output, never reaps, never merges, never ends itself.
   third: tickets exist and are claimable, but every branch they want is already working.
 - **Waiting lines are capped at one a minute per reason**; errors are never capped.
 - Workers run `bypassPermissions` unattended → **only run this loop in a repo you fully trust**.
+
+### The environment — `~/.obelisk.env`
+One file, one place, and it is **yours**: `CLI/install-cli.sh` copies `CLI/default.env` there on install
+and never touches it again, so re-installing never destroys your edits — delete the file to get the
+defaults back. Both engines source `CLI/user-env.sh` and call `loadObeliskEnv` as their first act, before
+`configureFromEnvironment` and before `BO_AGENT_COMMAND` is read.
+
+The loader takes only `BO_*=` lines (comments and the loop-owned block in `default.env` never match),
+expands `$HOME` in a value, and **exports only what is unset** — a value you exported yourself still
+wins, which is how a one-off run beats the file without editing it. `BO_ENV_FILE` (`~/.obelisk.env`)
+points it elsewhere, which is the whole test hook: no file at all is a normal state, and the engines' own
+`:-` defaults are the floor under it. `CLI/default.env` is documentation that happens to be installed —
+the engines still hold every default themselves, so the two must be kept in step by hand.
 
 ### The log — CLI/loop-log.sh
 One directory per run under `BO_LOG_ROOT` (`~/.binary-obelisk/logs/<date_time>` — the binary obelisk

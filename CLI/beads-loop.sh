@@ -4,8 +4,13 @@
 #   BO_MAX_PARALLEL (4) workers at once | BO_POLL_S (3) seconds per tick, must divide 60 | BO_MAX_TICKS (0 = never ends)
 #   BO_LOG_ROOT (~/.binary-obelisk/logs) one directory per run | BO_ALLOWED_LABELS unset or * = the whole AGENT set, a comma list narrows it
 #   BO_AGENT_COMMAND (claude) the command that runs an agent — every worker spawn and the worker count go through it
+#   Every one of them may live in ~/.obelisk.env, which CLI/install-cli.sh puts there and you edit by hand.
 #   Contract: .claude/CLAUDE.md §The dispatcher and §The log; .claude/design.yaml.
 set -uo pipefail
+
+engineDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$engineDir/user-env.sh"
+loadObeliskEnv
 
 declare -A AGENT=(
     [backend-logic]=engineer
@@ -540,7 +545,6 @@ requireNumericSettingsFromEnvironment
 requireUsablePollInterval
 requireBeadsProject
 createRunLogDirectory
-engineDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$engineDir/loop-log.sh"
 source "$engineDir/forge.sh"
 resolveTowerPaths

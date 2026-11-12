@@ -2,7 +2,9 @@
 # install-cli.sh — put `bo` on PATH as a real file at ~/.local/bin/bo, never a symlink, so it outlives an
 # uninstalled plugin and can name its own problem. No node, no package manager.
 #   bash "$(claude plugin details binary-obelisk --json | jq -r '.root')/CLI/install-cli.sh"
-# Re-running it overwrites the launcher, which is how you repoint it after a reinstall.
+# It also puts the environment file at ~/.obelisk.env, the defaults copied from CLI/default.env.
+# Re-running it overwrites the launcher, which is how you repoint it after a reinstall — but it never
+# touches ~/.obelisk.env once it exists: those are your edits by then. Delete it to get the defaults back.
 set -euo pipefail
 
 locateLauncherPaths() {
@@ -10,6 +12,8 @@ locateLauncherPaths() {
     pluginRoot="$(dirname "$here")"
     binDir="$HOME/.local/bin"
     launcher="$binDir/bo"
+    envFile="$HOME/.obelisk.env"
+    defaultEnvFile="$here/default.env"
 }
 
 writeLauncher() {
@@ -32,6 +36,20 @@ EOF
     chmod +x "$launcher"
 }
 
+installDefaultEnvFile() {
+    if [[ -f "$envFile" ]]; then
+        envFileState="kept your edits"
+        return 0
+    fi
+    [[ -f "$defaultEnvFile" ]] || {
+        echo "bo: the defaults are missing at $defaultEnvFile — this install is broken." >&2
+        exit 1
+    }
+    cp "$defaultEnvFile" "$envFile"
+    chmod 600 "$envFile"
+    envFileState="wrote the defaults"
+}
+
 warnWhenBinDirMissingFromPath() {
     case ":$PATH:" in
         *":$binDir:"*) ;;
@@ -41,9 +59,11 @@ warnWhenBinDirMissingFromPath() {
 
 announceInstallation() {
     echo "installed: $launcher -> $pluginRoot/CLI/bin/bo"
+    echo "env:       $envFile ($envFileState) — edit it by hand, the CLI reads it on every run"
 }
 
 locateLauncherPaths
 writeLauncher
+installDefaultEnvFile
 warnWhenBinDirMissingFromPath
 announceInstallation

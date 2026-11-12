@@ -21,10 +21,11 @@ plugins/binary-obelisk/
 ├── skills/                               # bead-read, bead-create, bead-initialize, bead-heartbeat, setup-cli, pr-comments, standards-*, framework-jest, framework-playwright
 ├── standards/                            # coding/review standards
 ├── CLI/                                  # the `bo` command — a bin package, no node, installed by a launcher script
-│   ├── bin/bo                            # the entrypoint `bo` — four foreground commands, each a call into the engine beside it: `loop` → beads-loop.sh, `plan:epic` / `plan:feature` / `plan:task` → plan-agent.sh
+│   ├── bin/bo                            # the entrypoint `bo` — five foreground commands, each a call into the engine beside it: `loop` → beads-loop.sh, `plan:epic` / `plan:feature` / `plan:task` → plan-agent.sh, `commit` → commit.sh
 │   ├── beads-loop.sh                     # the claim-beads dispatcher engine
 │   ├── plan-agent.sh                     # the planner engine — one plan agent, foreground, through `BO_AGENT_COMMAND` (`claude`); runnable on its own as `plan-agent.sh epic|feature|task [prompt]`
 │   ├── default.env                       # every variable the engines read, at the value it gets when you set nothing — copied to `~/.obelisk.env` by the installer, never read in place
+│   ├── commit.sh                         # `git add -A`, one commit with subject `agent:branch:message` (`BO_AGENT`, else `manual`), then `git push -u origin <branch>`
 │   ├── user-env.sh                       # the loader for `~/.obelisk.env`; sourced by both engines before they read anything
 │   ├── forge.sh                          # detects GitHub vs GitLab and names the right tool; sourced by the engine and the Stop hook
 │   ├── loop-log.sh                       # the one log-line definition, sourced by the engine AND both hooks
@@ -233,6 +234,19 @@ wins, which is how a one-off run beats the file without editing it. `BO_ENV_FILE
 points it elsewhere, which is the whole test hook: no file at all is a normal state, and the engines' own
 `:-` defaults are the floor under it. `CLI/default.env` is documentation that happens to be installed —
 the engines still hold every default themselves, so the two must be kept in step by hand.
+
+### The committer — `CLI/commit.sh`
+`bo commit <message>` is `git add -A`, one commit whose subject is `agent:branch:message` — `BO_AGENT` (the
+name the loop spawned the worker under, `manual` when you typed it yourself), the branch off
+`git symbolic-ref --short HEAD`, and your own line — then `git push -u origin <branch>`. No PR, nothing
+claimed or closed. It needs a git repo and no beads DB, it refuses a detached HEAD because a branch it
+cannot name is a subject it cannot write, and a commit that fails — nothing staged, git says so — stops
+before the push.
+
+**It does not fight the Stop hook.** `commitTheTask` stages with `add -A` and returns 0 on an index that is
+already clean, and `git push` on a branch already up to date exits 0, so work landed from here still gets
+its PR by the hook. The two kinds of commit are told apart by their subject — the hook's is the ticket title
+with a `Ticket:` line below it.
 
 ### The log — CLI/loop-log.sh
 One directory per run under `BO_LOG_ROOT` (`~/.binary-obelisk/logs/<date_time>` — the binary obelisk

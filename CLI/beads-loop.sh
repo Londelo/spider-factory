@@ -170,16 +170,50 @@ startingCommitFor() {
     return 1
 }
 
+unseenCommitsOn() {
+    git -C "$towerDir" rev-list --count "$1" --not --remotes=origin 2>/dev/null
+}
+
+moveStrayFolderAside() {
+    local dir="$1" aside
+    [[ -d "$dir" ]] || return 0
+    [[ -z "$(ls -A "$dir" 2>/dev/null)" ]] && return 0
+    aside="$dir.stale-$(date +%s)"
+    mv "$dir" "$aside" 2>/dev/null || return 1
+    printf '%s' "$aside"
+}
+
 ensureWorktree() {
-    local branch="$1" prTarget="$2" existing path start
+    local branch="$1" prTarget="$2" existing start unseen
+    worktreePath=""
+    worktreeAside=""
+    worktreeFailure="add-failed"
     existing="$(branchAlreadyCheckedOut "$branch")"
-    if [[ -n "$existing" && -d "$existing" ]]; then echo "$existing"; return 0; fi
-    path="$(worktreePathFor "$branch")"
-    [[ -e "$path" ]] || mkdir -p "$worktreesRoot"
+    if [[ -n "$existing" && -d "$existing" ]]; then
+        worktreePath="$existing"
+        worktreeFailure=""
+        return 0
+    fi
+    worktreePath="$(worktreePathFor "$branch")"
+    [[ -e "$worktreePath" ]] || mkdir -p "$worktreesRoot"
     git -C "$towerDir" fetch --quiet origin 2>/dev/null || true
-    start="$(startingCommitFor "origin/$branch" "origin/$prTarget" "$prTarget" "HEAD")" || return 1
-    git -C "$towerDir" worktree add -B "$branch" "$path" "$start" >/dev/null 2>&1 || return 1
-    [[ -d "$path" ]] && echo "$path"
+    git -C "$towerDir" worktree prune >/dev/null 2>&1 || true
+    unseen="$(unseenCommitsOn "$branch")"
+    if [[ -n "$unseen" && "$unseen" -gt 0 ]]; then
+        worktreeFailure="unpushed-commits"
+        return 1
+    fi
+    worktreeAside="$(moveStrayFolderAside "$worktreePath")" || {
+        worktreeFailure="folder-immovable"
+        return 1
+    }
+    start="$(startingCommitFor "origin/$branch" "origin/$prTarget" "$prTarget" "HEAD")" || {
+        worktreeFailure="no-start"
+        return 1
+    }
+    git -C "$towerDir" worktree add -B "$branch" "$worktreePath" "$start" >/dev/null 2>&1 || return 1
+    [[ -d "$worktreePath" ]] || { worktreePath=""; return 1; }
+    worktreeFailure=""
 }
 
 readFieldOf() {
@@ -414,10 +448,10 @@ Rules:
 1. Keep your claim lease alive — the 5-minute lease must NEVER lapse. Run
    bd heartbeat $ticketId
    between long steps; a lapsed lease reads as death — the reaper takes your ticket back to ready mid-work.
-2. Do NOT close your ticket — never run \`bd close\`, whatever the outcome. When your work is
-   done, keep the lease (bd heartbeat $ticketId) and state your proof of work in your final message:
-   what you did and the test evidence that proves it. A human reads the final message,
-   checks the work, and closes the ticket; a ticket you close yourself closes unverified.
+2. Do NOT close your ticket — never run \`bd close\`, whatever the outcome. Keep the lease
+   (bd heartbeat $ticketId) and state your proof of work in your final message: what you did and the
+   test evidence that proves it. The Stop hook closes $ticketId for you once you declare done; close it
+   by hand and the hook walks past it — no commit, no push, no PR, your work never lands.
 3. If the brief needs more work than you can finish: write a beads comment on $ticketId
    describing exactly what remains (check bd comment --help). Never half-do and hide it.
 4. Spawn nothing. Work nothing but $ticketId. You and your ticket are one and the same.
@@ -445,16 +479,31 @@ spawnWorker() {
 
 dispatchWorker() {
     local ticketId="$1" agentName="$2" branch="$3" prTarget="$4" label="$5"
-    local worktreePath doneFile spawnFile
+    local worktreePath worktreeAside worktreeFailure doneFile spawnFile
 
     boIdent agent "$agentName"
 
-    if ! worktreePath="$(ensureWorktree "$branch" "$prTarget")" || [[ -z "$worktreePath" ]]; then
+    if ! ensureWorktree "$branch" "$prTarget" || [[ -z "$worktreePath" ]]; then
         boIdent worktree "$(worktreePathFor "$branch")"
-        logTo errors "reason=worktree-failed msg=\"the branch folder could not be made from origin/$branch or from its target $prTarget\""
+        case "$worktreeFailure" in
+            unpushed-commits)
+                logTo errors "reason=branch-has-unpushed-commits msg=\"the local branch $branch holds commits origin has never seen, and the loop will not reset a branch that does — recover them with git reflog, or push them, then run the loop again\""
+                ;;
+            no-start)
+                logTo errors "reason=worktree-failed step=no-start msg=\"no starting commit: neither origin/$branch nor its target $prTarget resolves\""
+                ;;
+            folder-immovable)
+                logTo errors "reason=worktree-failed step=stray-folder msg=\"the branch folder $worktreePath exists, is not a registered worktree, and could not be moved aside\""
+                ;;
+            *)
+                logTo errors "reason=worktree-failed msg=\"the branch folder could not be made from origin/$branch or from its target $prTarget\""
+                ;;
+        esac
         return 1
     fi
     boIdent worktree "$worktreePath"
+    [[ -n "$worktreeAside" ]] &&
+        logTo errors "reason=worktree-folder-moved-aside msg=\"the branch folder held files from an interrupted build; kept as ${worktreeAside##*/} rather than overwritten\""
 
     doneFile="$(doneFileFor "$ticketId")"
     spawnFile="$(spawnFileFor "$ticketId")"

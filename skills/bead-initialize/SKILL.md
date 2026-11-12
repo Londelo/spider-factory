@@ -58,15 +58,26 @@ This creates `.beads/` with the Dolt-backed database and writes a beads section 
 `bd where` proves which database this directory resolves to — bd walks **up**, so it answers for the
 nearest `.beads/` above you, not the one you think you are in.
 
-### Step 3b: Register the `gate` type (the tower does not work without it)
+### Step 3b: Register the `gate` type and the `failed-agent` status (the tower does not work without them)
 
 Epics and features are `-t gate`, a **custom** type. `bd` does not refuse an unregistered type — it
 accepts `gate`, writes the row, and hides it, so a broken tower and a working one look identical.
 
+`failed-agent` is a **custom status**, and it is what parks a dead worker's ticket: the Fail hook writes
+it, and only that hook's Stop-hook counterpart ever lands work. An unregistered status is refused outright
+(`invalid status "failed-agent"`), so a dead worker's ticket stays `in_progress`, its lease lapses, and the
+reaper hands it to another worker to redo. `bd reclaim` only ever reverts `in_progress` issues, so the
+status is the whole of the parking — nothing parks a ticket that never got it.
+
 ```bash
 bd config set types.custom "gate"
-bd types          # `gate` must be listed here before you create anything
+bd types                                    # `gate` must be listed here before you create anything
+bd config set status.custom "failed-agent:frozen"
+bd config get status.custom                 # must read back `failed-agent:frozen`
 ```
+
+Both are per-database settings, so a tower created before these lines existed does not have them — run the
+two `bd config set` lines in it too, before you dispatch anything there.
 
 ### Step 4: Set up Claude Code integration
 

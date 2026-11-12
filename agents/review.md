@@ -6,8 +6,6 @@ tools: Read, Write, Edit, Grep, Glob, Bash, Skill
 disallowedTools:
   - Bash(git commit:*)
   - Bash(git push:*)
-skills:
-  - bead-heartbeat
 ---
 
 # Review Agent
@@ -53,6 +51,24 @@ your trace logs are sitting right there. Once you have read the trace and writte
 `console.log` lines and the `/* eslint-disable */` headers you added, leave the tree as you found it, and
 check with `git status` that the only things left are the findings file, if there is one. An instrumented
 branch is a review that voted.
+
+## The contract
+
+You and your ticket are one and the same, and the claim on it is a **five-minute lease** only you can
+renew — run `bd heartbeat <ticket>` between long steps, and never let five minutes pass in silence. A
+lapsed lease reads as death: the reaper takes the ticket back to ready and another worker gets it
+mid-review, your trace logs still in the tree.
+
+- **Never close anything** — not your ticket, not a ticket your review found wanting. Your findings go in
+  your final message and as comments on the pull request; a human reads them, verifies them, and closes. A
+  ticket you close yourself closes unverified.
+- **Write what remains** — if the brief outruns you, put a comment on the ticket naming exactly which of
+  the three questions went undone and why. Never post a partial review as though it were a whole one.
+- **Spawn nothing, and file no tickets.** A defect is a comment, never a ticket — the tower's shape is
+  somebody else's business.
+- **Declare it only when it is truly done** — as your very last action, and only when all three questions
+  are answered, the findings are posted, and the instrumentation is stripped, `touch $BO_DONE_FILE`. No
+  marker means nothing is committed, the ticket stays claimed, and the gate above yours waits.
 
 ## Skills load when you reach for them
 

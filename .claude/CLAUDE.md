@@ -18,7 +18,7 @@ plugins/binary-obelisk/
 ├── .claude-plugin/plugin.json            # manifest
 ├── .claude/design.yaml                   # EDITABLE design model
 ├── agents/                               # engineer, frontend, tester-unit, tester-feature, tester-e2e, review, merge + 3 plan agents
-├── skills/                               # bead-read, bead-create, bead-initialize, bead-heartbeat, setup-cli, pr-comments, standards-*, framework-jest, framework-playwright
+├── skills/                               # bead-read, bead-create, bead-initialize, setup-cli, pr-comments, standards-*, framework-jest, framework-playwright
 ├── standards/                            # coding/review standards
 ├── CLI/                                  # the `bo` command — a bin package, no node, installed by a launcher script
 │   ├── bin/bo                            # the entrypoint `bo` — five foreground commands, each a call into the engine beside it: `loop` → beads-loop.sh, `plan:epic` / `plan:feature` / `plan:task` → plan-agent.sh, `commit` → commit.sh
@@ -55,11 +55,18 @@ mis-labeled one tier up or down gets the wrong depth of coverage, and no worker 
 |---|---|---|---|---|
 | `engineer` | business logic, endpoints, hooks, types, error factories | s b w | ✓ | files, naming |
 | `frontend` | components, layout, styling, component system | s b w | ✓ | coding, files, naming |
-| `tester-unit` | **micro tier** — one back-end function alone; every branch, boundary, empty/null, error; never a component (the UI is proved by the composition tier) | s b w | ✓ | **bead-heartbeat**, **bead-read**, coding, files, naming, errors, **framework-jest** |
-| `tester-feature` | **composition tier** — one feature's pieces proved wired; its errors/successes surface | s b w | ✓ | **bead-heartbeat**, **bead-read**, coding, files, naming, errors, **framework-playwright** |
-| `tester-e2e` | **broad tier** — journeys across features on the real stack; cross-feature state, one success+failure per feature | s b w | ✓ | **bead-heartbeat**, **bead-read**, coding, files, naming, errors, **framework-playwright** |
-| `review` | **three questions, from first principles** — does the code do what its source of truth demands, do the tests prove it, is it simple and readable. Maps the system the change sits in (entry → exit, following imports), instruments it with trace logs, runs the tests against the instrumented code, posts findings as PR comments — files no tickets, and commits or pushes nothing | s b w | ✓ | **bead-heartbeat**, **bead-read**, coding, files, naming, errors, **pr-comments** |
-| `merge` | **epic tier only** — assembles the epic's finished feature branches onto the epic branch, resolves the conflicts between them, runs the tests and reports — writes no code, no tests; never merges into `main`, never opens a PR | s b w | ✓ | **bead-heartbeat**, **bead-read** |
+| `tester-unit` | **micro tier** — one back-end function alone; every branch, boundary, empty/null, error; never a component (the UI is proved by the composition tier) | s b w | ✓ | **bead-read**, coding, files, naming, errors, **framework-jest** |
+| `tester-feature` | **composition tier** — one feature's pieces proved wired; its errors/successes surface | s b w | ✓ | **bead-read**, coding, files, naming, errors, **framework-playwright** |
+| `tester-e2e` | **broad tier** — journeys across features on the real stack; cross-feature state, one success+failure per feature | s b w | ✓ | **bead-read**, coding, files, naming, errors, **framework-playwright** |
+| `review` | **three questions, from first principles** — does the code do what its source of truth demands, do the tests prove it, is it simple and readable. Maps the system the change sits in (entry → exit, following imports), instruments it with trace logs, runs the tests against the instrumented code, posts findings as PR comments — files no tickets, and commits or pushes nothing | s b w | ✓ | **bead-read**, coding, files, naming, errors, **pr-comments** |
+| `merge` | **epic tier only** — assembles the epic's finished feature branches onto the epic branch, resolves the conflicts between them, runs the tests and reports — writes no code, no tests; never merges into `main`, never opens a PR | s b w | ✓ | **bead-read** |
+
+**The contract is in the agent file.** Every tower agent carries a `## The contract` section — keep the
+five-minute lease alive with `bd heartbeat <ticket>` between long steps, never close your own ticket,
+write what remains as a comment, spawn nothing, and `touch $BO_DONE_FILE` as the very last action only when
+the brief is genuinely complete — plus a `## Commit As You Go` in the five that commit. `merge` states the
+same rules inside its own steps rather than in a section of that name. No skill holds these rules; the
+loop's spawn prompt repeats them, which is the safety net for a worker run outside the loop.
 
 **Tiers vs. tools.** A test agent owns a **tier** — what to cover and how deep — and is deliberately
 agnostic about the framework. A `framework-*` skill owns the **tool**: syntax, config, run and debug
@@ -190,9 +197,10 @@ its own. That is a deliberate reversal of the old rule "Claude makes the worktre
 folders": the loop owns the folders now, because a worktree belongs to a *branch*, not to a ticket.
 Then it logs one line and moves on. The worker prompt hands the worker six rules — keep the lease alive,
 never close the ticket (report in the final message instead), comment what remains, spawn nothing, stay
-on your branch and never commit/branch/merge/push, and `touch $BO_DONE_FILE` as the very last action
-**only** if the brief is genuinely complete — and nothing more; the loop itself never polls a worker,
-never reads output, never reaps, never merges, never ends itself.
+on your branch (never a bare `git commit` or `git push` — the commit rule belongs to the agent file, §The
+committer), and `touch $BO_DONE_FILE` as the very
+last action **only** if the brief is genuinely complete — and nothing more; the loop itself never polls a
+worker, never reads output, never reaps, never merges, never ends itself.
 
 - **One pair of hands per branch.** `BO_DONE_FILE` is the worker's declaration, and
   `hooks/worker-stop.sh` is **fail-closed** on it: no marker → no commit, no push, no PR, no close, and
@@ -236,17 +244,38 @@ points it elsewhere, which is the whole test hook: no file at all is a normal st
 the engines still hold every default themselves, so the two must be kept in step by hand.
 
 ### The committer — `CLI/commit.sh`
-`bo commit <message>` is `git add -A`, one commit whose subject is `agent:branch:message` — `BO_AGENT` (the
-name the loop spawned the worker under, `manual` when you typed it yourself), the branch off
-`git symbolic-ref --short HEAD`, and your own line — then `git push -u origin <branch>`. No PR, nothing
-claimed or closed. It needs a git repo and no beads DB, it refuses a detached HEAD because a branch it
-cannot name is a subject it cannot write, and a commit that fails — nothing staged, git says so — stops
-before the push.
+**The only way anything commits in this plugin.** No agent file, hook, or skill runs `git commit` or
+`git push` itself; the one exception is the `git merge` inside the merge agent, which is the merge itself and
+not a commit of work. `bo commit <message>` is `git add -A`, one commit whose subject is
+`agent:branch:message` — `BO_AGENT` (the name the loop spawned the worker under, `manual` when you typed it
+yourself), the branch off `git symbolic-ref --short HEAD`, and your own line — then
+`git push -u origin <branch>`. No PR, nothing claimed or closed. It needs a git repo and no beads DB, it
+refuses a detached HEAD because a branch it cannot name is a subject it cannot write, and a commit that fails
+— nothing staged, git says so — stops before the push.
 
-**It does not fight the Stop hook.** `commitTheTask` stages with `add -A` and returns 0 on an index that is
-already clean, and `git push` on a branch already up to date exits 0, so work landed from here still gets
-its PR by the hook. The two kinds of commit are told apart by their subject — the hook's is the ticket title
-with a `Ticket:` line below it.
+**Workers run it as they go**, and the rule lives in the worker's own agent file — a `## Commit As You Go`
+section in each of the five (`engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`) that
+carries the call with its own name written into it, `BO_AGENT=<agent> bo commit <what you just did>`, and
+says to run it after every major change that stands on its own. One commit per piece, so the PR shows the
+work as it happens instead of one blob at the end; the name is passed rather than inherited so a worker
+run outside the loop still commits named for itself. Those five files are the only place the commit rule is
+written; the spawn prompt only forbids the bare `git commit` and `git push`. `merge` and `review` have no
+such section — neither commits. A commit that does not name its author is a commit nobody can trace — that
+is the whole reason this command exists.
+
+**The Stop hook calls it too** — as `bo commit`, off PATH, the same command a worker runs; the CLI is
+installed before any worker runs, and `reason=missing-tool tool=bo` is the alarm when it is not.
+`commitTheTask` runs it in the worktree with the ticket title and a `Ticket:` line as the message, so a
+task's last commit is the same shape as all the others. Before it, `stageTheWork`
+asks whether anything is left to land — usually the worker committed it all, and then nothing is; after it,
+`diff --cached --quiet` proves the index came back clean, which is what `reason=commit-failed` means. The hook
+then pushes for itself: cheap when the branch is current, and it is the hook's own guarantee that the branch
+is on the forge before a PR is opened off it, which is why `reason=push-failed` is a separate alarm from
+`reason=commit-failed`.
+
+**The fail hook commits nothing, on purpose.** A worker that died mid-brief has no done marker and no right
+to the branch; its files stay in the worktree uncommitted, the ticket parks in `failed-agent` out of reach of
+the reaper, and a human decides whether that half is worth keeping.
 
 ### The log — CLI/loop-log.sh
 One directory per run under `BO_LOG_ROOT` (`~/.binary-obelisk/logs/<date_time>` — the binary obelisk
@@ -314,8 +343,10 @@ by grep alone.
   self-closed ticket is a bug. The Stop hook closes a *task* only on its done marker — a worker that
   touches that marker before the brief is complete has filed half a task onto a shared branch, which is
   the one failure this model cannot undo on its own.
-- No agent file hardcodes a beads command. Commands belong to the skills — `bead-read`, `bead-create`,
-  `bead-initialize`, `bead-heartbeat` — and an agent file carries only the descriptor plus the skill to
-  load, so the worker references the skills context instead of duplicating commands into the context
-  window. Where a command must be forbidden, the rule names the act (`never unclaim`, `never reopen`),
-  not the invocation. The loop and the hooks are not agents; they run the commands directly.
+- No agent file hardcodes a ticket-system query. Reading, authoring, and closing belong to the skills —
+  `bead-read`, `bead-create`, `bead-initialize` — and an agent file carries only the descriptor plus the
+  skill to load, so the worker references the skills context instead of duplicating commands into the
+  context window. The two commands a worker runs about itself — the lease (`bd heartbeat <ticket>`) and
+  the commit (`bo commit`) — are named in its own agent file, because nothing else is theirs to name.
+  Where a command must be forbidden, the rule names the act (`never unclaim`, `never reopen`), not the
+  invocation. The loop and the hooks are not agents; they run the commands directly.

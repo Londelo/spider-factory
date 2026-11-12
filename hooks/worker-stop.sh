@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# worker-stop.sh — the Stop hook that finishes a dispatched worker's ticket: guard, commit,
-# push, the branch's PR, annotate, close. FAIL-CLOSED on $BO_DONE_FILE — no marker, nothing
+# worker-stop.sh — the Stop hook that finishes a dispatched worker's ticket: guard, commit through
+# `bo commit`, push, the branch's PR, annotate, close. FAIL-CLOSED on $BO_DONE_FILE — no marker, nothing
 # lands, the ticket stays claimed, ERROR reason=not-declared-done (.claude/CLAUDE.md
 # §The dispatcher). A session the loop did not spawn carries no BO_TICKET and leaves at once.
 set -uo pipefail
@@ -37,7 +37,7 @@ declareRunIdentity() {
 
 requireTools() {
     local requiredTool
-    for requiredTool in bd jq git; do
+    for requiredTool in bd jq git bo; do
         command -v "$requiredTool" >/dev/null 2>&1 ||
             alarmAndExit "reason=missing-tool tool=$requiredTool"
     done
@@ -98,14 +98,16 @@ ticketTitleOf() {
         | jq -r 'if type == "array" then .[0] else . end | .title // ""' 2>/dev/null
 }
 
-commitTheTask() {
+stageTheWork() {
     git -C "$worktreeDir" add -A >/dev/null 2>&1
-    git -C "$worktreeDir" diff --cached --quiet 2>/dev/null && return 0
-    git -C "$worktreeDir" commit -F - >/dev/null 2>&1 <<COMMIT
-$title
+    ! git -C "$worktreeDir" diff --cached --quiet 2>/dev/null
+}
 
-Ticket: $ticket
-COMMIT
+commitTheTask() {
+    ( cd "$worktreeDir" && bo commit "$title
+
+Ticket: $ticket" ) >/dev/null 2>&1
+    git -C "$worktreeDir" diff --cached --quiet 2>/dev/null
 }
 
 pushTheBranch() {
@@ -174,7 +176,9 @@ requireWorkOnItsOwnBranch
 title="$(ticketTitleOf)"
 [[ -n "$title" ]] || alarmAndExit "reason=ticket-has-no-title"
 
-commitTheTask || alarmAndExit "reason=commit-failed msg=\"the commit for this task did not land on its branch\""
+if stageTheWork; then
+    commitTheTask || alarmAndExit "reason=commit-failed msg=\"the commit for this task did not land on its branch\""
+fi
 pushTheBranch || alarmAndExit "reason=push-failed msg=\"$(oneLine <<<"$pushOutput")\""
 requireForge
 

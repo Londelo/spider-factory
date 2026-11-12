@@ -479,7 +479,7 @@ someone verifies it. That is the design, not a bug — it is the only place a cl
       summary "Business logic, endpoints, hooks, types, error factories; never tests, JSX or CSS."
       description """
 **Label `backend-logic` → `engineer`.** Business logic, endpoints, hooks, types, error factories.
-Never writes tests, JSX or CSS. Skills: `bead-heartbeat` (the contract), `bead-read`, and the four standards.
+Never writes tests, JSX or CSS. Skills: `bead-read` and the four standards; the worker contract lives in the agent file itself.
 """
       link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/engineer.md "Source — agents/engineer.md"
     }
@@ -525,7 +525,7 @@ verbose tier. Skill: `framework-playwright`.
 do what its source of truth demands, do the tests prove it, is it simple and readable. Maps the system the
 change sits in (entry → exit, following imports), instruments it with trace logs, runs the tests against the
 instrumented code, posts findings as PR comments. Files no tickets; the trace logs stay in the working tree.
-Only `bead-heartbeat` is preloaded — `bead-read`, the standards and `pr-comments` load on demand at the step
+Nothing is preloaded — `bead-read`, the standards and `pr-comments` load on demand at the step
 that uses them.
 """
       link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/review.md "Source — agents/review.md"

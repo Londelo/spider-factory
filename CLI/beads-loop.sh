@@ -399,9 +399,10 @@ buildWorkerPrompt() {
    on this branch carrying your ticket's title."
     else
         stayOnBranchRule="5. Stay on \`${branch}\`, in this folder. Never create a branch, never check one out, never merge,
-   never rebase, never push, and never commit — the branch is shared work and those are not a
-   worker's calls. Leave your work in the working tree; when you stop, your work becomes one
-   commit on this branch carrying your ticket's title."
+   never rebase, and never a bare \`git commit\` or \`git push\` — the branch is shared work and
+   those are not a worker's calls. Commit as your agent file tells you, as you go. Whatever is
+   still uncommitted when you stop becomes one last commit on this branch carrying your ticket's
+   title."
     fi
     printf '%s' "Your ticket: $ticketId.
 FIRST: bd show --json $ticketId — the description, design notes, and acceptance criteria in that output are your complete brief; read them IN FULL before touching code.

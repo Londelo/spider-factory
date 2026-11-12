@@ -21,8 +21,9 @@ plugins/binary-obelisk/
 ├── skills/                               # bead-read, bead-create, bead-initialize, bead-heartbeat, setup-cli, pr-comments, standards-*, framework-jest, framework-playwright
 ├── standards/                            # coding/review standards
 ├── CLI/                                  # the `bo` command — a bin package, no node, installed by a launcher script
-│   ├── bin/bo                            # the entrypoint `bo` — one command, `bo loop`, foreground
+│   ├── bin/bo                            # the entrypoint `bo` — four foreground commands, each a call into the engine beside it: `loop` → beads-loop.sh, `plan:epic` / `plan:feature` / `plan:task` → plan-agent.sh
 │   ├── beads-loop.sh                     # the claim-beads dispatcher engine
+│   ├── plan-agent.sh                     # the planner engine — one plan agent, foreground, through `BO_AGENT_COMMAND` (`claude`); runnable on its own as `plan-agent.sh epic|feature|task [prompt]`
 │   ├── forge.sh                          # detects GitHub vs GitLab and names the right tool; sourced by the engine and the Stop hook
 │   ├── loop-log.sh                       # the one log-line definition, sourced by the engine AND both hooks
 │   └── install-cli.sh                    # writes a real launcher onto PATH (not a symlink, so it survives uninstall)
@@ -178,7 +179,9 @@ parent **is** that topmost gate — the tick tests it with `[[ "$gateId" == "$cl
 epic gate's branch and PR if it has none
 (`ensureEpicGatePr <gate-id>` — see §Branches), make sure that branch's worktree exists (`ensureWorktree` → `git worktree add` under
 `.claude/worktrees/`, starting at `origin/<branch>` else `origin/<base>` else `<base>` else `HEAD`),
-then spawn `claude --bg --agent <agent> --permission-mode bypassPermissions` **with cwd inside that
+then spawn `$BO_AGENT_COMMAND --bg --agent <agent> --permission-mode bypassPermissions` — the command
+is `BO_AGENT_COMMAND`, default `claude`, and it is the one command every agent in the system runs
+through, the three `bo plan:*` planners included — **with cwd inside that
 worktree** — no `-w`, because claude's `--worktree` only ever *creates* one and this branch already owns
 its own. That is a deliberate reversal of the old rule "Claude makes the worktree, the loop builds no
 folders": the loop owns the folders now, because a worktree belongs to a *branch*, not to a ticket.
@@ -203,7 +206,9 @@ never reads output, never reaps, never merges, never ends itself.
   `reason=worktree-failed` (left claimed) and `reason=worker-not-dispatched` (unclaimed) are
   the others, plus `reason=epic-pr-failed step=…` (§Branches). The Stop hook's own alarm for a target the
   loop never handed down is `reason=no-pr-target` — named for the target, since `pr` now means the url.
-- **Capacity** is counted fresh each tick from `claude agents --json` (background sessions whose `cwd`
+- **Capacity** is counted fresh each tick from `$BO_AGENT_COMMAND agents --json`, the same command as
+  the spawn — a build behind that variable that does not answer `agents --json` reports zero workers,
+  and the loop then spawns past `BO_MAX_PARALLEL` believing the tower is empty (background sessions whose `cwd`
   is under this tower's `.claude/worktrees`, plus the tower itself, minus finished ones); at capacity
   with nothing `in_progress` logs `max_parallel_stalled`.
 - **An empty frontier is two states, and the waiting line names which:** `reason=frontier_empty`

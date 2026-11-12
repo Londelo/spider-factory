@@ -3,6 +3,7 @@
 #   bo loop   (or ./beads-loop.sh) from inside the tower project; Ctrl-C stops dispatching.
 #   BO_MAX_PARALLEL (4) workers at once | BO_POLL_S (3) seconds per tick, must divide 60 | BO_MAX_TICKS (0 = never ends)
 #   BO_LOG_ROOT (~/.binary-obelisk/logs) one directory per run | BO_ALLOWED_LABELS unset or * = the whole AGENT set, a comma list narrows it
+#   BO_AGENT_COMMAND (claude) the command that runs an agent — every worker spawn and the worker count go through it
 #   Contract: .claude/CLAUDE.md §The dispatcher and §The log; .claude/design.yaml.
 set -uo pipefail
 
@@ -30,6 +31,7 @@ maximumParallelWorkers=0
 pollSeconds=0
 maximumTicks=0
 logRoot=""
+agentCommand=""
 waitingLineCadence=0
 maximumClaimsPerTick=0
 tickCount=0
@@ -41,6 +43,7 @@ configureFromEnvironment() {
     pollSeconds="${BO_POLL_S:-3}"
     maximumTicks="${BO_MAX_TICKS:-0}"
     logRoot="${BO_LOG_ROOT:-$HOME/.binary-obelisk/logs}"
+    agentCommand="${BO_AGENT_COMMAND:-claude}"
 }
 
 configureAllowedLabels() {
@@ -64,7 +67,7 @@ isLabel() {
 
 requireToolsOnPath() {
     local requiredTool
-    for requiredTool in bd jq claude git; do
+    for requiredTool in bd jq git "${agentCommand%% *}"; do
         command -v "$requiredTool" >/dev/null 2>&1 || {
             echo "beads-loop: $requiredTool not found on PATH" >&2
             exit 1
@@ -133,7 +136,7 @@ countOf() {
 }
 
 numberOfBusyWorkers() {
-    claude agents --json 2>"$logDir/claude-stderr" \
+    $agentCommand agents --json 2>"$logDir/claude-stderr" \
         | jq --arg root "$worktreesRoot" --arg tower "$towerDir" \
           '[ .[] | select(.kind == "background")
                  | select((.cwd // "") | startswith($root) or . == $tower) ] | length' 2>/dev/null
@@ -430,7 +433,7 @@ spawnWorker() {
         && BO_TICKET="$ticketId" BO_BRANCH="$branch" BO_PR_TARGET="$prTarget" \
            BO_AGENT="$agentName" BO_LABEL="$label" \
            BO_PROJECT_DIR="$towerDir" BO_LOG_DIR="$logDir" BO_DONE_FILE="$doneFile" \
-           claude --bg --agent "$agentName" --permission-mode bypassPermissions \
+           $agentCommand --bg --agent "$agentName" --permission-mode bypassPermissions \
            "$(buildWorkerPrompt "$ticketId" "$branch" "$doneFile" "$agentName")" ) >"$spawnFile" 2>&1
 }
 

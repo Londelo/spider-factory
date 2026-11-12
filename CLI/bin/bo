@@ -1,31 +1,58 @@
 #!/usr/bin/env bash
-# bo — the binary-obelisk CLI. One command, `bo loop`, which runs the dispatcher in the foreground.
-#   bo loop      from inside a tower project (one with a beads DB); Ctrl-C stops dispatching.
-#   The engine is ../beads-loop.sh; its contract is .claude/CLAUDE.md §The dispatcher.
+# bo — the binary-obelisk CLI. Four commands, all foreground, each one an engine beside it in CLI/.
+#   bo loop          the dispatcher, ../beads-loop.sh; Ctrl-C stops dispatching.
+#   bo plan:epic     the planner, ../plan-agent.sh, epic kind
+#   bo plan:feature  the planner, ../plan-agent.sh, feature kind
+#   bo plan:task     the planner, ../plan-agent.sh, task kind
+#   BO_AGENT_COMMAND (claude) — the command every agent runs through, the planners and the workers alike
+#   The contracts are .claude/CLAUDE.md §The dispatcher and §Plan agents.
 set -uo pipefail
+
+declare -A planKindOf=(
+    [plan:epic]=epic
+    [plan:feature]=feature
+    [plan:task]=task
+)
 
 usage() {
     cat <<'USAGE'
-bo — binary-obelisk loop dispatcher
+bo — binary-obelisk CLI
 
-  bo loop     run the dispatcher over the tower in the current directory
+  bo loop          run the dispatcher over the tower in the current directory
+  bo plan:epic     run the epic planner
+  bo plan:feature  run the feature planner
+  bo plan:task     run the task planner
 
-Runs in the foreground and prints every tick, so the log is on screen the whole time.
-Ctrl-C stops dispatching — the tickets it claimed stay claimed, and any worker already
-spawning keeps running. Run `bo loop` again to resume.
+`bo loop` prints every tick, so the log is on screen the whole time. Ctrl-C stops
+dispatching — the tickets it claimed stay claimed, and any worker already spawning
+keeps running. Run `bo loop` again to resume.
 
-Run it from inside a tower project (one with a beads DB).
+The three plan commands each run one planner in the foreground, and hand it anything
+you type after the command as the prompt:
+
+  bo plan:epic a record box for my diary entries
+  bo plan:feature BO-12
+  bo plan:task BO-31
+
+BO_AGENT_COMMAND (claude) — the command that runs an agent. Point it at your own
+build and the three planners and the loop's workers all run through that instead;
+it is split on spaces, so it may carry its own arguments. The loop also asks it for
+`agents --json` to count the workers already running, so your build has to answer
+that too or the loop will spawn past BO_MAX_PARALLEL.
+
+Run any of them from inside a tower project (one with a beads DB).
 USAGE
 }
 
-locateEngine() {
+locateEngines() {
     here="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-    engine="$here/../beads-loop.sh"
+    dispatcher="$here/../beads-loop.sh"
+    planner="$here/../plan-agent.sh"
 }
 
 requireEngine() {
-    [[ -f "$engine" ]] || {
-        echo "bo: the dispatcher engine is missing at $engine — this install is broken. Re-run its CLI/install-cli.sh." >&2
+    [[ -f "$1" ]] || {
+        echo "bo: the engine is missing at $1 — this install is broken. Re-run its CLI/install-cli.sh." >&2
         exit 1
     }
 }
@@ -38,15 +65,31 @@ requireBeadsProject() {
 }
 
 dispatchOverCurrentTower() {
-    requireEngine
+    requireEngine "$dispatcher"
     requireBeadsProject
     echo "bo: dispatching $PWD — Ctrl-C to stop."
-    bash "$engine"
+    bash "$dispatcher"
     echo "bo: the engine ended (exit $?)."
 }
 
+dispatchPlanAgent() {
+    local kind="$1"
+    shift
+    requireEngine "$planner"
+    exec bash "$planner" "$kind" "$@"
+}
+
+unknownCommand() {
+    echo "bo: unknown command '$1' — there are four: 'bo loop', 'bo plan:epic', 'bo plan:feature', 'bo plan:task'. Try 'bo --help'." >&2
+    exit 1
+}
+
 runRequestedCommand() {
-    case "${1:-}" in
+    local requested="${1:-}"
+    if [[ -n "$requested" && -n "${planKindOf["$requested"]+set}" ]]; then
+        dispatchPlanAgent "${planKindOf["$requested"]}" "${@:2}"
+    fi
+    case "$requested" in
         ""|-h|--help|help)
             usage
             exit 0
@@ -55,11 +98,10 @@ runRequestedCommand() {
             dispatchOverCurrentTower
             ;;
         *)
-            echo "bo: unknown command '$*' — the only command is 'bo loop'. Try 'bo --help'." >&2
-            exit 1
+            unknownCommand "$requested"
             ;;
     esac
 }
 
-locateEngine
+locateEngines
 runRequestedCommand "$@"

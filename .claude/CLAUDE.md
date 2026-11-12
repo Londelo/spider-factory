@@ -23,8 +23,8 @@ plugins/binary-obelisk/
 ├── .claude-plugin/plugin.json      # manifest
 ├── .claude/diagram/                # the translated source of truth — likec4 model, views, build.sh, dist/
 ├── agents/                         # 7 tower agents + 3 plan agents
-├── skills/                         # bead-initialize, bead-create, bead-read, bead-comment, setup-cli,
-│                                   #   pr-comments, standards-{coding,naming,errors,file-organization},
+├── skills/                         # bead-initialize, bead-create, bead-read, bead-comment, overseer,
+│                                   #   setup-cli, pr-comments, standards-{coding,naming,errors,file-organization},
 │                                   #   framework-{jest,playwright}
 ├── CLI/                            # the `bo` package — bash, no node
 │   ├── bin/bo                      # five commands: loop, plan:epic, plan:feature, plan:task, commit

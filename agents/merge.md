@@ -5,6 +5,7 @@ description: "Epic tier only. Assembles the epic's finished feature branches ont
 tools: Read, Write, Edit, Grep, Glob, Bash
 skills:
   - bead-read
+  - bead-comment
 ---
 
 # Merge Agent
@@ -51,7 +52,7 @@ above you will look at what you say in chat.
 | Which branches hold the finished features | the feature gates' **`branch` metadata** (Step 2) | you read them |
 | What the code is supposed to do | the test files | nobody — you break none of it |
 | Which test command to run | the project's own config and scripts (Step 6) | you look, never invent |
-| Whether this ticket ever closes | a human, after your report (Step 8) | you report it honestly |
+| Whether this ticket ever closes | the Stop hook, once you declare done | you report it honestly |
 
 ## Before you touch anything
 
@@ -173,9 +174,11 @@ human with no memory of this branch, not another agent.
 
 Each conflict you did not fully resolve goes on the ticket as a high-severity comment on the ticket: the file, and what is still wrong — e.g. a page object pointing at markup that no longer exists, whose ticket is closed.
 
-**Step 8 — Report and stop. Never close your own ticket.** Whatever the outcome — clean merge, stuck
-conflict, red suite — a human reads your final message, verifies the assembly, and closes the ticket;
-a ticket you close yourself closes unverified. Leave the ticket **open** and keep the lease alive until a human or the dispatcher parks it. If a conflict stayed unresolved or
+**Step 8 — Report and stop. Never run `bd close`.** Whatever the outcome — clean merge, stuck conflict,
+red suite — your report is your final message, and the Stop hook closes the ticket for you once you have
+declared done. Close it by hand and the hook walks past it: nothing committed, nothing pushed, no PR — the
+assembly never lands. Leave the ticket **open** and keep the lease alive until the hook closes it or the
+dispatcher parks it. If a conflict stayed unresolved or
 the suite stayed red, that too goes in the report and the ticket note (Step 7) — a stuck ticket is how
 the tower stops and waits for a human, instead of walking past the hole.
 - **Never reopen a closed child** to "fix" its coverage. Only a human may reopen one: they wrote the

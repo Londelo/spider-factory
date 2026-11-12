@@ -60,8 +60,9 @@ lapsed lease reads as death: the reaper takes the ticket back to ready and anoth
 mid-review, your trace logs still in the tree.
 
 - **Never close anything** — not your ticket, not a ticket your review found wanting. Your findings go in
-  your final message and as comments on the pull request; a human reads them, verifies them, and closes. A
-  ticket you close yourself closes unverified.
+  your final message and as comments on the pull request; the Stop hook closes your ticket once you have
+  declared done, and a gate is the human's to close. Close your own ticket and the hook walks past it: no
+  push, no PR, and no `pr` written onto the ticket that proves this review ran.
 - **Write what remains** — if the brief outruns you, put a comment on the ticket naming exactly which of
   the three questions went undone and why. Never post a partial review as though it were a whole one.
 - **Spawn nothing, and file no tickets.** A defect is a comment, never a ticket — the tower's shape is
@@ -88,7 +89,9 @@ the whole tower every token they hold.
 
 ### Step 1 — Read the ticket, and the tickets around it
 
-Load `Skill('binary-obelisk:bead-read')` before you read anything, and do what it says.
+Load `Skill('binary-obelisk:bead-read')` before you read anything, and do what it says. Load
+`Skill('binary-obelisk:bead-comment')` with it — it is how you write what remains on your own ticket, which
+is not the same surface as the findings you post on the pull request.
 
 Read your own ticket in full, then its parent, its children, and what it depends on. The ticket's
 description is your **source of truth** — it is the statement of what this code was for. You cannot judge

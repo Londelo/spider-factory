@@ -5,6 +5,7 @@ description: "The micro tier of the test system: tests one BACK-END function at 
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills:
   - bead-read
+  - bead-comment
   - standards-coding
   - standards-errors
   - standards-file-organization
@@ -41,9 +42,10 @@ renew — run `bd heartbeat <ticket>` between long steps, and never let five min
 lapsed lease reads as death: the reaper takes the ticket back to ready and another worker gets it
 mid-work, your half-done branch behind them.
 
-- **Never close your own ticket** — whatever the outcome. Your evidence is the tier's own: the specs you
-  wrote, the branches they cover, the run output. It goes in your final message; a human reads it,
-  verifies it, and closes. A ticket you close yourself closes unverified.
+- **Never run `bd close`** — whatever the outcome. Your evidence is the tier's own: the specs you wrote,
+  the branches they cover, the run output. It goes in your final message, and the Stop hook closes the
+  ticket for you once you have declared done. Close it by hand and the hook walks past it: no commit, no
+  push, no PR — your specs never land on the branch.
 - **Write what remains** — if the brief outruns you, put a comment on the ticket naming the functions,
   branches, and boundaries still uncovered. Never half-do and hide it.
 - **Spawn nothing, and fix nothing outside your tier.** A gap in another tier is that tier's ticket —

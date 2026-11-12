@@ -10,8 +10,9 @@ description: >
   any `bd show` / `bd list` / `bd dep`, and whenever an instruction says "read the ticket" and you
   would otherwise guess a flag: a truncated read, a hidden gate child, or a skipped gate read
   silently becomes an agent building the thing nobody asked for. Reads
-  only — the claim belongs to `CLI/beads-loop.sh`, no worker ever closes its own ticket (closing is
-  a human act), and authoring tickets lives in `bead-create`.
+  only — the claim belongs to `CLI/beads-loop.sh`, no worker ever closes its own ticket (the Stop hook
+  closes a task once its worker declares done; only a human closes a gate), and authoring tickets lives
+  in `bead-create`.
   Trigger: "read the ticket", "read the bead", "what does my ticket say", "read the epic", "what are
   my children", "find the parent", "which tasks does this feature have", "bd show", "bd list",
   "bd dep list".

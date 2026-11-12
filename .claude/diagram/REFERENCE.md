@@ -1,6 +1,6 @@
 # How to edit these diagrams
 
-The reference for anyone touching `.claude/likec4/`. Read it before you change a box, an arrow or a
+The reference for anyone touching `.claude/diagram/`. Read it before you change a box, an arrow or a
 step — most of what is wrong with a diagram here was written from memory.
 
 | File | Holds |
@@ -22,8 +22,12 @@ it yesterday.
 
 The files the diagrams describe: `CLI/bin/bo`, `CLI/beads-loop.sh`, `CLI/loop-log.sh`, `CLI/forge.sh`,
 `CLI/install-cli.sh`, `hooks/worker-stop.sh`, `hooks/worker-fail.sh`, `hooks/hooks.json`, `agents/*`,
-`skills/*`. When the diagram and the code disagree, `.claude/design.yaml` is the tiebreaker between
-prose documents — but the code beats all three.
+`skills/*`.
+
+**These diagrams are the translated source of truth.** The code is the only real one; this is the
+account a human reads when they are not in the code, which makes it the thing people quote and the thing
+that must not drift. `.claude/CLAUDE.md` is a pointer and a vocabulary list — it holds no fact that lives
+here, so a fact you change, you change here and nowhere else.
 
 ## The four things, checked every time
 

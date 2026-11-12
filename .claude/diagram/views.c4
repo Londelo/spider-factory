@@ -879,11 +879,30 @@ a branch that does not exist burns a slot and files a commit nobody can pull.
 """
     }
 
-    machine.dispatcher -> alarms.tickAlarms.worktreeFailed "ERROR reason=worktree-failed · LEFT CLAIMED" {
+    machine.dispatcher -> alarms.tickAlarms.worktreeFailed "ERROR reason=worktree-failed step=… · LEFT CLAIMED" {
       title "The branch's folder could not be made"
       notes """
-Nothing it could start the branch from existed, or the folder was already in use by another branch. Same
+It heals what it can first — a stale registration is pruned, a dead build's folder is moved aside — and only
+then refuses. The `step=` says which: no starting commit resolved, or the stray folder would not move. Same
 treatment as a mislabelled ticket: a worker started into a missing folder wastes a slot on nothing.
+"""
+    }
+
+    machine.dispatcher -> alarms.tickAlarms.branchHasUnpushed "ERROR reason=branch-has-unpushed-commits · LEFT CLAIMED" {
+      title "The branch holds work no remote has ever seen, so the loop will not reset it"
+      notes """
+Rebuilding the folder means resetting the branch, and a branch with commits origin has never seen would lose
+them. It refuses and says the recovery on the line: recover them with the reflog, or push them, then run the
+loop again.
+"""
+    }
+
+    machine.dispatcher -> alarms.tickAlarms.folderMovedAside "ERROR reason=worktree-folder-moved-aside · the worker still starts" {
+      title "A dead build's folder was kept, not overwritten"
+      notes """
+The folder existed, was not a registered worktree, and held files — what a build looks like when it dies before
+registering. Git refuses to build into a folder that is not empty, so it is renamed with a `.stale-` suffix and
+the branch is built fresh. The line is written and the worker is spawned anyway: nothing was deleted.
 """
     }
 

@@ -492,10 +492,12 @@ one branch. The tower root (where `.beads` lives) is `BO_PROJECT_DIR`: **the wor
   }  // toolbelt
 
   human = human "Human (Brodie)" {
-    summary "The only one who closes anything: reads the report, verifies the branch, closes the gate."
+    summary "Closes the gates and nothing else: reads the report, verifies the branch, closes the gate."
     description """
-**What it is:** the only one who closes anything for real. Workers leave their tickets open and report in their
-final message; the human reads the report, verifies the branch and the PR, and closes. There is **no `human`
+**What it is:** the only one who closes a **gate**. A *task* is closed by the Stop hook, once its worker touches
+the done marker — the human never reaches for a task, and a worker that closes its own ticket is a bug, because
+the hook walks past an already-closed ticket and lands nothing. The human reads the worker's report, verifies the
+branch and the PR, and closes the gate above it. There is **no `human`
 agent** — the person enters through gates, and nothing is ever spawned for them. A claimable ticket assigned to
 a human is a model bug.
 
@@ -511,8 +513,13 @@ someone verifies it. That is the design, not a bug — it is the only place a cl
   workers = layer "The workers" {
     summary "The seven workers: each is one agent file, each dispatched by exactly one label."
     description """
+**Every worker reads its ticket and writes on it.** All seven load `bead-read` to take in the brief and
+`bead-comment` to write what remains onto the ticket — which is a third surface, beside the final message and
+the pull request: the ticket is where a worker leaves what the next reader cannot infer from the diff.
+
 **The contract is in the agent file.** Every tower agent carries a `## The contract` section — keep the
-five-minute lease alive with `bd heartbeat <ticket>` between long steps, never close your own ticket,
+five-minute lease alive with `bd heartbeat <ticket>` between long steps, never close your own ticket (the Stop
+hook closes it once you declare done, and a ticket already closed makes the hook walk past it, landing nothing),
 write what remains as a comment, spawn nothing, and `touch $BO_DONE_FILE` as the very last action and only
 when the brief is genuinely complete. `merge` states the same rules inside its own steps rather than in a
 section of that name. No skill holds these rules; the loop's spawn prompt repeats them, which is the
@@ -933,13 +940,43 @@ commit nobody can pull. The one place the epic gate's own branch appears is `gat
 `branch=`, which belongs to the claim, and the two differ.
 """
       }
-      worktreeFailed = alarm "ERROR reason=worktree-failed" {
+      worktreeFailed = alarm "ERROR reason=worktree-failed step=…" {
         #leftClaimed
-        summary "The branch's folder could not be built, so no worker is spawned into it."
+        summary "The branch's folder could not be built, so no worker is spawned into it; three steps say where."
         description """
-`ensureWorktree` could not build the folder — none of `origin/<branch>`, `origin/<prTarget>`, `<prTarget>`,
-`HEAD` resolved, or `git worktree add` failed. Left claimed, like a mislabelled ticket: a worker spawned into a
-missing folder burns a slot on nothing.
+`ensureWorktree` could not build the folder, so no worker is spawned into it. Left claimed, like a mislabelled
+ticket: a worker spawned into a missing folder burns a slot on nothing. It self-heals what it can first — a stale
+`git worktree` registration is pruned, and a folder left by an interrupted build is moved aside rather than
+overwritten — and only then refuses.
+
+| step | when |
+|---|---|
+| `no-start` | none of `origin/<branch>`, `origin/<prTarget>`, `<prTarget>`, `HEAD` resolves to a commit |
+| `stray-folder` | the branch's folder exists, is not a registered worktree, and could not be renamed aside |
+| *(no step)* | `git worktree add` itself failed against the starting commit it did find |
+"""
+      }
+      branchHasUnpushed = alarm "ERROR reason=branch-has-unpushed-commits" {
+        #leftClaimed
+        summary "The local branch holds commits no remote has seen; the loop refuses to reset a branch that does."
+        description """
+`git rev-list --count <branch> --not --remotes=origin` came back above zero: somebody's work sits on this local
+branch and has never reached a remote. Rebuilding the folder means `git worktree add -B`, which **resets the
+branch to the starting commit** — so the loop refuses instead of deleting a worker's commits. Left claimed.
+
+The recovery is written into the line itself: `git reflog` to find them, or push them, then run the loop again.
+This is the only worktree alarm that says what to do, because it is the only one where proceeding costs work
+rather than time.
+"""
+      }
+      folderMovedAside = alarm "ERROR reason=worktree-folder-moved-aside" {
+        #staysClaimed
+        summary "Not a refusal: an interrupted build's files were kept under a .stale-<epoch> name and the build went ahead."
+        description """
+The branch's folder existed, was not a registered worktree, and held files — the shape a build leaves when it
+dies between creating the folder and registering it. `git worktree add` into a non-empty folder fails outright,
+so the folder is renamed to `<path>.stale-<epoch>` and the branch is built fresh. The line is written to `errors`
+and the worker **is** spawned: nothing was deleted, and the kept folder is named on the line.
 """
       }
       workerNotDispatched = alarm "ERROR reason=worker-not-dispatched" {
@@ -1114,6 +1151,13 @@ failure with nothing said about why is worse than one left `in_progress`.
 `bd update --status failed-agent` refused, so the reason is on the ticket but its status is still `in_progress` —
 the shape that looks like a live worker and is a dead one. Nothing here will bring it back: no `bd reclaim` runs
 in this plugin, so it sits out of `bd ready` until a person moves it, and the missing `failures` line is the tell.
+
+**This alarm almost always means one thing: the database never registered the status.** `bd` accepts an unknown
+type and an unknown status silently and then refuses to set it, so `failed-agent` needs
+`bd config set status.custom "failed-agent:frozen"` — which `bead-initialize` now runs beside the `gate` type.
+Both settings are **per database**, so a tower created before that line existed raises this alarm on every dead
+worker: run the two `bd config set` lines in it. Until then the ticket never parks, and the reaper cannot help —
+`bd reclaim` only reverts issues that are `in_progress`.
 """
       }
     }

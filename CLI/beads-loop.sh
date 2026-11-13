@@ -492,8 +492,19 @@ doneFileFor() { printf '%s' "$logDir/done-${1//\//+}"; }
 
 spawnFileFor() { printf '%s' "$logDir/spawn-${1//\//+}"; }
 
+contextFileFor() { printf '%s' "$logRoot/worker-context/${1//\//+}"; }
+
 spawnWorker() {
-    local worktreePath="$1" ticketId="$2" agentName="$3" branch="$4" prTarget="$5" label="$6" doneFile="$7" spawnFile="$8"
+    local worktreePath="$1" ticketId="$2" agentName="$3" branch="$4" prTarget="$5" label="$6" doneFile="$7" spawnFile="$8" contextFile="$9"
+    mkdir -p "$(dirname "$contextFile")" 2>/dev/null
+    { printf 'ticket=%s\n' "$ticketId"
+      printf 'branch=%s\n' "$branch"
+      printf 'pr_target=%s\n' "$prTarget"
+      printf 'agent=%s\n' "$agentName"
+      printf 'label=%s\n' "$label"
+      printf 'tower=%s\n' "$towerDir"
+      printf 'done_file=%s\n' "$doneFile"
+    } >"$contextFile.tmp" && mv -f "$contextFile.tmp" "$contextFile"
     ( cd "$worktreePath" \
         && BO_TICKET="$ticketId" BO_BRANCH="$branch" BO_PR_TARGET="$prTarget" \
            BO_AGENT="$agentName" BO_LABEL="$label" \
@@ -504,7 +515,7 @@ spawnWorker() {
 
 dispatchWorker() {
     local ticketId="$1" agentName="$2" branch="$3" prTarget="$4" label="$5"
-    local worktreePath worktreeAside worktreeFailure doneFile spawnFile
+    local worktreePath worktreeAside worktreeFailure doneFile spawnFile contextFile
 
     boIdent agent "$agentName"
 
@@ -532,8 +543,9 @@ dispatchWorker() {
 
     doneFile="$(doneFileFor "$ticketId")"
     spawnFile="$(spawnFileFor "$ticketId")"
+    contextFile="$(contextFileFor "$branch")"
     rm -f "$doneFile"
-    if ! spawnWorker "$worktreePath" "$ticketId" "$agentName" "$branch" "$prTarget" "$label" "$doneFile" "$spawnFile"; then
+    if ! spawnWorker "$worktreePath" "$ticketId" "$agentName" "$branch" "$prTarget" "$label" "$doneFile" "$spawnFile" "$contextFile"; then
         logTo errors "reason=worker-not-dispatched msg=\"$(lastLineOf "$spawnFile")\""
         releaseClaim "$ticketId"
         return 1

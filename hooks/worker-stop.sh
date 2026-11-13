@@ -2,28 +2,60 @@
 # worker-stop.sh — the Stop hook that finishes a dispatched worker's ticket: guard, commit through
 # `bo commit`, push, the branch's PR, annotate, close. FAIL-CLOSED on $BO_DONE_FILE — no marker, nothing
 # lands, the ticket stays claimed, ERROR reason=not-declared-done (.claude/CLAUDE.md
-# §The dispatcher). A session the loop did not spawn carries no BO_TICKET and leaves at once.
+# §The dispatcher). `claude --bg` hands the worker a pooled process that never inherited the spawn's
+# environment, so the BO_* keys usually arrive only through the dispatch context the loop wrote under
+# $BO_LOG_ROOT/worker-context/, keyed by the worktree's folder name — which is the branch, `/` as `+`.
+# A session whose cwd is not a loop worktree is a human's and leaves at once.
 set -uo pipefail
-
-[[ -n "${BO_TICKET:-}" ]] || exit 0
-
-ticket="$BO_TICKET"
-branch="${BO_BRANCH:-}"
-prTarget="${BO_PR_TARGET:-}"
-towerDir="${BO_PROJECT_DIR:-$PWD}"
-logDir="${BO_LOG_DIR:-$HOME/.binary-obelisk/logs}"
-mkdir -p "$logDir" 2>/dev/null || true
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BO_LOG_QUIET=1
+source "$here/../CLI/user-env.sh"
+loadObeliskEnv
 source "$here/../CLI/loop-log.sh"
 source "$here/../CLI/forge.sh"
-boSeedIdentity "$logDir" "$towerDir"
+
+logDir="${BO_LOG_DIR:-${BO_LOG_ROOT:-$HOME/.binary-obelisk/logs}}"
+mkdir -p "$logDir" 2>/dev/null || true
+boSeedIdentity "$logDir" "${BO_PROJECT_DIR:-$PWD}"
 
 alarmAndExit() {
     logTo errors "$1"
     exit 0
 }
+
+hookInput=""
+
+contextFileForWorktree() {
+    printf '%s/%s' "${BO_LOG_ROOT:-$HOME/.binary-obelisk/logs}/worker-context" "$(basename "$1")"
+}
+
+adoptDispatchContext() {
+    [[ -n "${BO_TICKET:-}" ]] && return 0
+    hookInput="$(cat)"
+    local cwd contextFile
+    cwd="$(jq -r '.cwd // empty' <<<"$hookInput" 2>/dev/null)"
+    [[ "$(basename "$(dirname "${cwd:-/nonexistent}")")" == "worktrees" ]] || exit 0
+    contextFile="$(contextFileForWorktree "$cwd")"
+    if [[ ! -r "$contextFile" ]]; then
+        boIdent worktree "$cwd"
+        alarmAndExit "reason=no-context worktree=$(basename "$cwd") msg=\"a worker stopped in a loop worktree with no dispatch context; nothing landed and the ticket stays claimed\""
+    fi
+    source "$contextFile"
+    export BO_TICKET="${ticket:-}" BO_BRANCH="${branch:-}" BO_PR_TARGET="${pr_target:-}" \
+        BO_AGENT="${agent:-}" BO_LABEL="${label:-}" BO_PROJECT_DIR="${tower:-}" \
+        BO_DONE_FILE="${done_file:-}" BO_LOG_DIR="${done_file%/*}"
+}
+
+adoptDispatchContext
+
+ticket="$BO_TICKET"
+branch="${BO_BRANCH:-}"
+prTarget="${BO_PR_TARGET:-}"
+towerDir="${BO_PROJECT_DIR:-$PWD}"
+logDir="${BO_LOG_DIR:-${BO_LOG_ROOT:-$HOME/.binary-obelisk/logs}}"
+mkdir -p "$logDir" 2>/dev/null || true
+boSeedIdentity "$logDir" "$towerDir"
 
 oneLine() { tr '\n' ' ' | tr -d '"\\' | sed 's/  */ /g' | cut -c1-160; }
 
@@ -44,8 +76,7 @@ requireTools() {
 }
 
 readHookInput() {
-    local hookInput
-    hookInput="$(cat)"
+    [[ -n "$hookInput" ]] || hookInput="$(cat)"
     worktreeDir="$(jq -r '.cwd // empty' <<<"$hookInput" 2>/dev/null)"
     [[ -n "$worktreeDir" && -d "$worktreeDir" ]] ||
         alarmAndExit "reason=no-worktree msg=\"the hook input carried no cwd, so the worktree the work sits in is unknown; the hook will not guess from its own directory\""
@@ -194,4 +225,5 @@ annotateTicketWithThePr || alarmAndExit "reason=ticket-not-annotated pr=$prUrl"
 closeTicketAsItsClaimant || alarmAndExit "reason=close-failed pr=$prUrl"
 
 logTo closes "url=$prUrl"
+rm -f "$(contextFileForWorktree "$worktreeDir")"
 exit 0

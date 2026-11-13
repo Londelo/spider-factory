@@ -100,7 +100,7 @@ One tick, in the order the code runs it (`tick()`):
 | 4 | read the branch | `.[0].metadata.branch` | `metadata-missing`, left claimed |
 | 5 | one pair of hands per branch | is `branch` in the busy set? | `bd unclaim`, try the next claim, at most `BO_MAX_PARALLEL + 2` attempts a tick |
 | 6 | find the PR base | `.[0].parent` → `epicGateOf` (≤ 4 hops of `bd show --json` `parent`) → the gate's own `branch`; `main` when the claim's parent **is** that topmost gate | `epic-pr-failed step=walk` |
-| 7 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` | `epic-pr-failed step=…`, left claimed |
+| 7 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
 | 8 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
 | 9 | spawn | `$BO_AGENT_COMMAND --bg --agent <agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
 | 10 | one log line, move on | `logTo claims \"reason=dispatched\"` | — |
@@ -919,11 +919,11 @@ can only hand out one task per feature. The guard is for a tower that was never 
 """
       }
       epicPrFailed = alarm "ERROR reason=epic-pr-failed step=…" {
-        #leftClaimed
-        summary "The epic branch or its pull request could not be published; seven steps say where."
+        #unclaimed
+        summary "The epic branch or its pull request could not be published; eight steps say where."
         description """
 The epic branch or its PR could not be published — and every feature PR below it aims at that branch, so nothing
-beneath the epic has a base until this succeeds. Seven steps name exactly where it died:
+beneath the epic has a base until this succeeds. Eight steps name exactly where it died:
 
 | step | when |
 |---|---|
@@ -931,13 +931,20 @@ beneath the epic has a base until this succeeds. Seven steps name exactly where 
 | `gate-branch` | the epic gate carries no `branch` metadata of its own |
 | `forge` | `detectForge` settled on nothing |
 | `missing-tool` | the settled forge's CLI (`gh`/`glab`) is not installed |
+| `seed` | the branch's own first commit could not be written — `git commit-tree` needs a `user.name` and a `user.email` |
 | `push` | the epic branch could not be published off `main` |
 | `pr` | no URL matching `/(pull\|merge_requests)/[0-9]+` came back |
 | `annotate` | `bd update --set-metadata pr=` refused |
 
-Left claimed every time: a worker spawned under an epic branch that does not exist burns a slot and files a
-commit nobody can pull. The one place the epic gate's own branch appears is `gateBranch=` on the line — never
-`branch=`, which belongs to the claim, and the two differ.
+A forge will not open a pull request whose head and base are the same commit, so the branch is born with one
+commit of its own, `git commit-tree` off `main` — it never touches the tower's working tree and never moves its
+`HEAD`. A branch already there is read first and left alone unless it sits on `main`'s own commit.
+
+`walk` and `gate-branch` are plan bugs and get a plan bug's treatment: left claimed. Everything past them is the
+machine's fault and the ticket is innocent, so the claim goes back with `bd unclaim` and the next tick tries
+again — no worker is ever spawned into a branch that does not exist, because the claim is released before the
+spawn. The one place the epic gate's own branch appears is `gateBranch=` on the line — never `branch=`, which
+belongs to the claim, and the two differ.
 """
       }
       worktreeFailed = alarm "ERROR reason=worktree-failed step=…" {

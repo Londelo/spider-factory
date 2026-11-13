@@ -270,10 +270,11 @@ lands. It is read there every time and never copied onto a ticket, so it cannot 
     machine.dispatcher -> toolbelt.forgeCli "publish the epic branch and its pull request, once" {
       title "If the epic has no pull request yet, make one before anyone works"
       notes """
-If the epic gate carries no pull request url, then: push `epic/record-box`, open its pull request, write the url
-on the gate.
+If the epic gate carries no pull request url, then: give `epic/record-box` a first commit of its own off `main`,
+push it, open its pull request, write the url on the gate.
 Then every branch below has somewhere to point.
-If any of that fails, nothing has anywhere to land — the ticket stays claimed and the run writes why.
+If any of that fails, nothing has anywhere to land — the claim goes back and the run writes why, and the next tick
+tries again.
 """
     }
 
@@ -870,12 +871,13 @@ tower that was never chained.
 """
     }
 
-    machine.dispatcher -> alarms.tickAlarms.epicPrFailed "ERROR reason=epic-pr-failed step=push · LEFT CLAIMED" {
+    machine.dispatcher -> alarms.tickAlarms.epicPrFailed "ERROR reason=epic-pr-failed step=push · UNCLAIMED" {
       title "The epic's branch or pull request could not be published"
       notes """
 The `step=` names where it died: walking up to the gate, the gate's own branch, the forge, its command line
-tool, the push, the pull request, or writing the url back on the gate. Left claimed every time — a worker under
-a branch that does not exist burns a slot and files a commit nobody can pull.
+tool, the branch's first commit, the push, the pull request, or writing the url back on the gate. A pull request
+whose head and base are the same commit is no pull request at all, so the branch is born one commit ahead of
+`main`. Past the gate itself the ticket did nothing wrong, so the claim goes back and the next tick tries again.
 """
     }
 

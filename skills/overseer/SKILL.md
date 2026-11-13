@@ -101,7 +101,7 @@ one line per dead worker: `from=<state> kind=<error> msg="<its last words>"`.
 | `bd-failure exit=N` | a `bd` call died — read the last line of `bd-stderr` | usually the wrong database or an unregistered type/status |
 | `label-ambiguous` | the ticket carried zero or two dispatching labels, so no worker was chosen | the plan mis-labelled it; fix the label, the ticket is still claimed |
 | `metadata-missing` | no `branch` key on the ticket | a hand-made ticket; the plan agents always write one |
-| `epic-pr-failed step=…` | the epic branch or its PR could not be published (`gate-branch` · `forge` · `missing-tool` · `push` · `pr` · `annotate` · `walk`) | `missing-tool` → `gh`/`glab` absent or unauthenticated; `gate-branch` → the epic gate has no branch |
+| `epic-pr-failed step=…` | the epic branch or its PR could not be published (`gate-branch` · `forge` · `missing-tool` · `seed` · `push` · `pr` · `annotate` · `walk`) | `missing-tool` → `gh`/`glab` absent or unauthenticated; `seed` → git has no `user.name`/`user.email` to sign the branch's first commit; `gate-branch`/`walk` → the epic gate has no branch |
 | `worktree-failed step=no-start` | neither `origin/<branch>` nor its target resolves | the branch was never pushed and its base is gone |
 | `worktree-failed step=stray-folder` | the branch folder exists, is not a registered worktree, and would not move | inspect `<tower>/.claude/worktrees/` |
 | `worktree-failed` (no step) | the folder could not be made at all | `git worktree prune`, then look again |
@@ -117,6 +117,8 @@ one line per dead worker: `from=<state> kind=<error> msg="<its last words>"`.
 
 A ticket left **claimed** with no worker is deliberate, not a leak: an unworkable ticket is parked off
 the frontier rather than re-tried every tick. Find it with `bd list --status in_progress --limit 50 --json`.
+The one exception is `epic-pr-failed` past `walk` and `gate-branch` — there the ticket did nothing wrong, the
+claim goes back, and the same error once a tick is the loop retrying a machine it cannot fix from here.
 
 ## How far along is it
 

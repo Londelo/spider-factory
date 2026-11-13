@@ -160,14 +160,37 @@ branchAlreadyCheckedOut() {
 }
 
 startingCommitFor() {
-    local candidate
+    local candidate resolved
     for candidate in "$@"; do
-        if git -C "$towerDir" rev-parse --verify --quiet "$candidate^{commit}" >/dev/null 2>&1; then
-            printf '%s' "$candidate"
-            return 0
-        fi
+        resolved="$(git -C "$towerDir" rev-parse --verify --quiet "${candidate}^{commit}" 2>/dev/null)" || continue
+        [[ -n "$resolved" ]] || continue
+        printf '%s' "$resolved"
+        return 0
     done
     return 1
+}
+
+remoteShaOfBranch() {
+    git -C "$towerDir" ls-remote --heads origin "$1" 2>/dev/null \
+        | awk -v want="refs/heads/$1" '$2 == want {print $1; exit}'
+}
+
+branchSeedFailure=""
+
+ensureBranchAheadOfBase() {
+    local branch="$1" baseSha="$2" remoteSha seedSha
+    branchSeedFailure=""
+    remoteSha="$(remoteShaOfBranch "$branch")"
+    [[ -z "$remoteSha" || "$remoteSha" == "$baseSha" ]] || return 0
+    seedSha="$(git -C "$towerDir" commit-tree "${baseSha}^{tree}" -p "$baseSha" \
+        -m "chore: open $branch" 2>/dev/null)" || {
+        branchSeedFailure="commit-tree-failed"
+        return 1
+    }
+    git -C "$towerDir" push --quiet origin "$seedSha:refs/heads/$branch" >/dev/null 2>&1 || {
+        branchSeedFailure="push-failed"
+        return 1
+    }
 }
 
 unseenCommitsOn() {
@@ -256,15 +279,17 @@ ensureEpicGatePr() {
         return 1
     fi
 
-    if [[ -z "$(git -C "$towerDir" ls-remote --heads origin "$gateBranch" 2>/dev/null)" ]]; then
-        start="$(startingCommitFor "origin/main" "main" "HEAD")" || {
+    start="$(startingCommitFor "origin/main" "main" "HEAD")" || {
+        logTo errors "reason=epic-pr-failed step=push gate=$gateId gateBranch=$gateBranch msg=\"the epic branch could not be published off main\""
+        return 1
+    }
+    if ! ensureBranchAheadOfBase "$gateBranch" "$start"; then
+        if [[ "$branchSeedFailure" == commit-tree-failed ]]; then
+            logTo errors "reason=epic-pr-failed step=seed gate=$gateId gateBranch=$gateBranch msg=\"the epic branch could not be given its own first commit — git has no user.name and user.email to sign one with\""
+        else
             logTo errors "reason=epic-pr-failed step=push gate=$gateId gateBranch=$gateBranch msg=\"the epic branch could not be published off main\""
-            return 1
-        }
-        git -C "$towerDir" push --quiet origin "$start:refs/heads/$gateBranch" 2>/dev/null || {
-            logTo errors "reason=epic-pr-failed step=push gate=$gateId gateBranch=$gateBranch msg=\"the epic branch could not be published off main\""
-            return 1
-        }
+        fi
+        return 1
     fi
 
     if [[ "$forge" == gitlab ]]; then
@@ -541,7 +566,10 @@ claimAndDispatchOneTicket() {
         return
     fi
     resolvePullRequestTarget || return
-    ensureEpicGatePr "$gateId" || return
+    ensureEpicGatePr "$gateId" || {
+        releaseClaim "$ticketId"
+        return 1
+    }
     dispatchWorker "$ticketId" "${AGENT["${matchedLabels[0]}"]}" "$branch" "$prTarget" "${matchedLabels[0]}"
 }
 

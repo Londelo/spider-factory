@@ -24,7 +24,7 @@ bo — binary-obelisk CLI
   bo plan:epic     run the epic planner
   bo plan:feature  run the feature planner
   bo plan:task     run the task planner
-  bo overseer      watch a running loop from outside — reads only
+  bo overseer      read the tower here and report on it — reads only
   bo commit        stage everything here, commit it, push the branch
 
 `bo loop` prints every tick, so the log is on screen the whole time. Ctrl-C stops
@@ -38,10 +38,11 @@ you type after the command as the prompt:
   bo plan:feature BO-12
   bo plan:task BO-31
 
-`bo overseer` runs the watcher in the foreground while `bo loop` runs somewhere else. It
-reads the run's logs, the beads database and git, and reports: alive or not, how far along
-the tower is, what is wrong. It has no Write, Edit or Agent tools, so where the fix is a
-mutation it hands you the command to run yourself:
+`bo overseer` runs the reader in the foreground, over the tower in this directory. It
+reads the beads database, the run logs under BO_LOG_ROOT and git, and reports: alive or
+not, how far along the tower is, what is wrong. It has no Write, Edit or Agent tools and
+`bo` is denied to it — it never runs the loop or a plan — so where the fix is a mutation
+it hands you the command to run yourself:
 
   bo overseer
   bo overseer why has nothing been claimed for ten minutes

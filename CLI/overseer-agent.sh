@@ -3,6 +3,8 @@
 #   overseer-agent.sh [prompt]
 #   BO_AGENT_COMMAND (claude) the command that runs an agent — it may live in ~/.obelisk.env
 #   bo overseer is this file; the contract is agents/overseer.md.
+#   The watcher is denied 'bo' outright — --disallowedTools Bash(bo:*), which stops bo commit, bo loop and
+#   bo plan:* while leaving bd, git and every other read alone. Verified: bd and git still run under it.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,17 +15,19 @@ agentCommand="${BO_AGENT_COMMAND:-claude}"
 
 usage() {
     cat <<'USAGE'
-overseer — watch a running bo loop from outside
+overseer — read a tower and report on it
 
-  overseer-agent.sh [prompt]   the watcher, foreground, talking back to you
+  overseer-agent.sh [prompt]   the reader, foreground, talking back to you
 
-Anything after the command is handed to it as the prompt:
+Run it from inside the tower you want read. Anything after the command is handed to
+it as the prompt:
 
-  overseer-agent.sh is the loop in this repo making progress
+  overseer-agent.sh is this tower making progress
 
-It reads the run's logs, the beads database and git, and reports: is the loop alive,
-how far along the tower is, and whether anything is wrong. It has no Write, Edit or
-Agent tools — where the fix is a mutation it hands you the command to run.
+It reads the beads database of this directory and the run logs under BO_LOG_ROOT,
+and reports: is the loop alive, how far along the tower is, and whether anything is
+wrong. It has no Write, Edit or Agent tools, and 'bo' is denied to it outright —
+where the fix is a mutation it hands you the command to run.
 
 BO_AGENT_COMMAND (claude) — the command that runs an agent; it is split on spaces,
 so it may carry its own arguments. Set it in ~/.obelisk.env, or export it for one run.
@@ -50,8 +54,8 @@ requireAgentCommand() {
 runOverseer() {
     requireBeadsProject
     requireAgentCommand
-    echo "overseer: watching $PWD through '$agentCommand'" >&2
-    exec $agentCommand --agent overseer "$@"
+    echo "overseer: reading $PWD through '$agentCommand'" >&2
+    exec $agentCommand --agent overseer --disallowedTools 'Bash(bo:*)' "$@"
 }
 
 case "${1:-}" in

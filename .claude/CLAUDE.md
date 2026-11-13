@@ -30,7 +30,7 @@ plugins/binary-obelisk/
 │   ├── bin/bo                      # six commands: loop, plan:epic, plan:feature, plan:task, overseer, commit
 │   ├── beads-loop.sh               # the dispatcher engine
 │   ├── plan-agent.sh               # the planner engine — one plan agent, foreground
-│   ├── overseer-agent.sh           # the watcher engine — the overseer agent, foreground, reads only
+│   ├── overseer-agent.sh           # the reader engine — the overseer agent, foreground, `bo` denied to it
 │   ├── commit.sh                   # the only thing that commits, anywhere
 │   ├── loop-log.sh                 # one log-line definition, sourced by the engine and both hooks
 │   ├── forge.sh                    # GitHub vs GitLab, and which tool names the right CLI

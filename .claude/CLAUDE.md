@@ -22,14 +22,15 @@ when it disagrees with either of the two above, it is wrong.
 plugins/binary-obelisk/
 ├── .claude-plugin/plugin.json      # manifest
 ├── .claude/diagram/                # the translated source of truth — likec4 model, views, build.sh, dist/
-├── agents/                         # 7 tower agents + 3 plan agents
-├── skills/                         # bead-initialize, bead-create, bead-read, bead-comment, overseer,
+├── agents/                         # 7 tower agents + 3 plan agents + the overseer watcher
+├── skills/                         # bead-initialize, bead-create, bead-read, bead-comment,
 │                                   #   setup-cli, pr-comments, standards-{coding,naming,errors,file-organization},
 │                                   #   framework-{jest,playwright}
 ├── CLI/                            # the `bo` package — bash, no node
-│   ├── bin/bo                      # five commands: loop, plan:epic, plan:feature, plan:task, commit
+│   ├── bin/bo                      # six commands: loop, plan:epic, plan:feature, plan:task, overseer, commit
 │   ├── beads-loop.sh               # the dispatcher engine
 │   ├── plan-agent.sh               # the planner engine — one plan agent, foreground
+│   ├── overseer-agent.sh           # the watcher engine — the overseer agent, foreground, reads only
 │   ├── commit.sh                   # the only thing that commits, anywhere
 │   ├── loop-log.sh                 # one log-line definition, sourced by the engine and both hooks
 │   ├── forge.sh                    # GitHub vs GitLab, and which tool names the right CLI

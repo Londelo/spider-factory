@@ -50,28 +50,13 @@ requireAgentCommand() {
     }
 }
 
-agentBodyOf() {
-    local agentFile="$here/../agents/$1.md"
-    [[ -r "$agentFile" ]] || {
-        echo "plan-agent: no agent file at $agentFile — the plugin install is incomplete." >&2
-        exit 1
-    }
-    awk 'f { print } /^---$/ { n++; if (n == 2) f = 1 }' "$agentFile"
-}
-
 runPlanAgent() {
     local agentName="$1"
     shift
     requireBeadsProject
     requireAgentCommand
-    local systemPrompt
-    systemPrompt="$(agentBodyOf "$agentName")"
-    [[ -n "${systemPrompt//[[:space:]]/}" ]] || {
-        echo "plan-agent: $here/../agents/$agentName.md has no body above its front matter." >&2
-        exit 1
-    }
     echo "plan-agent: running the $agentName planner through '$agentCommand' in $PWD" >&2
-    exec $agentCommand --append-system-prompt "$systemPrompt" "$@"
+    exec $agentCommand --agent "$agentName" "$@"
 }
 
 unknownPlanKind() {

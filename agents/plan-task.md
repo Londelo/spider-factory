@@ -3,9 +3,6 @@ name: plan-task
 color: yellow
 description: "Automatically breaks ONE feature into granular worker tasks — implementation and micro tests — chained one to the next, each with requirements, edge cases, file paths and the feature's branch metadata. Requires a feature ticket in the prompt and refuses without one. Triggers: \"break this into tasks\", \"create tasks for\", \"fragment this feature\"."
 tools: Read, Bash, Grep, Glob, Skill
-disallowedTools:
-  - Bash(git commit:*)
-  - Bash(git push:*)
 skills:
   - standards-naming
   - standards-file-organization

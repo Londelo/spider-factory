@@ -3,9 +3,6 @@ name: plan-feature
 color: yellow
 description: "Breaks an epic into feature-sized features — complete user-facing flows — each with its own branch, its own PR, and its feature-test and review tickets, phased by dependency and naming the stack. Runs automatically off an epic id, or asks which epic when none is given; no epic is a valid answer. Triggers: \"break this into features\", \"create features for\", \"fragment this epic\"."
 tools: Read, Bash, Grep, Glob, Skill
-disallowedTools:
-  - Bash(git commit:*)
-  - Bash(git push:*)
 skills:
   - standards-naming
   - standards-file-organization

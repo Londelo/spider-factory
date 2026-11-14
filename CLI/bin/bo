@@ -61,7 +61,7 @@ it is split on spaces, so it may carry its own arguments. The loop also asks it 
 `agents --json` to count the workers already running, so your build has to answer
 that too or the loop will spawn past BO_MAX_PARALLEL.
 
-Every setting — BO_AGENT_COMMAND, BO_MAX_PARALLEL, BO_POLL_S, BO_MAX_TICKS, BO_LOG_ROOT,
+Every setting — BO_AGENT_COMMAND, BO_MAX_PARALLEL, BO_POLL_S, BO_MAX_TICKETS, BO_LOG_ROOT,
 BO_ALLOWED_LABELS — lives in ~/.obelisk.env, which the installer wrote there with its
 defaults. Edit that file; something you export yourself still wins for one run.
 

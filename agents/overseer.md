@@ -109,7 +109,7 @@ claude logs <session>                           # what that worker has been sayi
 | Thing | Path |
 |---|---|
 | The run's logs | `$BO_LOG_ROOT/<%F_%H-%M-%S>` — default `~/.binary-obelisk/logs/2026-11-12_20-47-45/` |
-| The knobs | `~/.obelisk.env` (`BO_MAX_PARALLEL` 4 · `BO_POLL_S` 3 · `BO_MAX_TICKS` 0 · `BO_LOG_ROOT` · `BO_ALLOWED_LABELS` · `BO_AGENT_COMMAND`) |
+| The knobs | `~/.obelisk.env` (`BO_MAX_PARALLEL` 4 · `BO_POLL_S` 3 · `BO_MAX_TICKETS` 0 · `BO_LOG_ROOT` · `BO_ALLOWED_LABELS` · `BO_AGENT_COMMAND`) |
 | The worktrees | `<tower>/.claude/worktrees/<branch with / → +>` — one per **branch**, not per ticket |
 | The tower itself | the beads database in the tower repo — `bd where` names which one you are reading |
 
@@ -224,7 +224,7 @@ Run these when the human asks you to spot trouble, or when a waiting reason does
 
 ## Report like this
 
-Four lines, no preamble: **run** (dir, started, alive yes/no, ticks and claims from `results`);
+Four lines, no preamble: **run** (dir, started, alive yes/no, ticks, claims and tickets closed from `results`);
 **progress** (tier by tier, and the gate that is holding things); **health** (what is in `errors`/`failures`,
 each explained or flagged unexplained); **action** (the one thing to do, and who does it — you never do it).
 

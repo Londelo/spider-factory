@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # beads-loop.sh — the claim-beads dispatcher: each tick claims one ready ticket and spawns its worker.
 #   bo loop   (or ./beads-loop.sh) from inside the tower project; Ctrl-C stops dispatching.
-#   BO_MAX_PARALLEL (4) workers at once | BO_POLL_S (3) seconds per tick, must divide 60 | BO_MAX_TICKS (0 = never ends)
+#   BO_MAX_PARALLEL (4) workers at once | BO_POLL_S (3) seconds per tick, must divide 60 | BO_MAX_TICKETS (0 = never ends)
+#   BO_MAX_TICKETS counts tickets the Stop hook closed this run, not ticks — the loop keeps ticking while it waits
 #   BO_LOG_ROOT (~/.binary-obelisk/logs) one directory per run | BO_ALLOWED_LABELS unset or * = the whole AGENT set, a comma list narrows it
 #   BO_AGENT_COMMAND (claude) the command that runs an agent — every worker spawn and the worker count go through it
 #   Every one of them may live in ~/.obelisk.env, which CLI/install-cli.sh puts there and you edit by hand.
@@ -26,7 +27,7 @@ declare -A AGENT=(
 declare -A numericSettingEnvName=(
     [maximumParallelWorkers]=BO_MAX_PARALLEL
     [pollSeconds]=BO_POLL_S
-    [maximumTicks]=BO_MAX_TICKS
+    [maximumTicketsDone]=BO_MAX_TICKETS
 )
 
 declare -A allowedLabel=()
@@ -34,7 +35,7 @@ declare -A lastTickForWaitingReason=()
 
 maximumParallelWorkers=0
 pollSeconds=0
-maximumTicks=0
+maximumTicketsDone=0
 logRoot=""
 agentCommand=""
 waitingLineCadence=0
@@ -46,7 +47,7 @@ tryNextClaim=0
 configureFromEnvironment() {
     maximumParallelWorkers="${BO_MAX_PARALLEL:-4}"
     pollSeconds="${BO_POLL_S:-3}"
-    maximumTicks="${BO_MAX_TICKS:-0}"
+    maximumTicketsDone="${BO_MAX_TICKETS:-0}"
     logRoot="${BO_LOG_ROOT:-$HOME/.binary-obelisk/logs}"
     agentCommand="${BO_AGENT_COMMAND:-claude}"
 }
@@ -82,7 +83,7 @@ requireToolsOnPath() {
 
 requireNumericSettingsFromEnvironment() {
     local settingName
-    for settingName in maximumParallelWorkers pollSeconds maximumTicks; do
+    for settingName in maximumParallelWorkers pollSeconds maximumTicketsDone; do
         [[ "${!settingName}" =~ ^[0-9]+$ ]] || {
             echo "beads-loop: ${numericSettingEnvName[$settingName]}=${!settingName} is not a number" >&2
             exit 1
@@ -330,6 +331,11 @@ numberOfTicketsInWork() {
 
 numberOfStalledTickets() {
     bd list --status open,blocked --limit 0 --json 2>/dev/null | jq 'length' 2>/dev/null
+}
+
+numberOfTicketsDoneThisRun() {
+    [[ -s "$logDir/closes" ]] || { printf '0'; return; }
+    printf '%s' "$(wc -l < "$logDir/closes" | tr -d '[:space:]')"
 }
 
 nameOfNextReadyTicket() {
@@ -602,15 +608,15 @@ tick() {
     waiting branch_busy "held=${#skippedTicket[@]}"
 }
 
-logRunTallyForTickLimit() {
+logRunTallyForTicketLimit() {
     boClearIdentity
-    logTo results "ticks=$tickCount claimed=$claimedThisRun note=\"hit BO_MAX_TICKS: this run was configured to end, the tower did not run out of work\""
+    logTo results "ticks=$tickCount claimed=$claimedThisRun done=$(numberOfTicketsDoneThisRun) note=\"hit BO_MAX_TICKETS=$maximumTicketsDone: this run was configured to end here\""
 }
 
 runLoop() {
     while true; do
-        if (( maximumTicks > 0 && tickCount >= maximumTicks )); then
-            logRunTallyForTickLimit
+        if (( maximumTicketsDone > 0 )) && (( $(numberOfTicketsDoneThisRun) >= maximumTicketsDone )); then
+            logRunTallyForTicketLimit
             break
         fi
         tickCount=$((tickCount + 1))
@@ -621,7 +627,7 @@ runLoop() {
 
 onInterrupt() {
     boClearIdentity
-    logTo results "ticks=$tickCount claimed=$claimedThisRun"
+    logTo results "ticks=$tickCount claimed=$claimedThisRun done=$(numberOfTicketsDoneThisRun)"
     printf "\nbeads-loop: stopped. claimed=%d  log: %s\n" "$claimedThisRun" "$logDir"
     exit 0
 }

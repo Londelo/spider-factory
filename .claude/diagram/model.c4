@@ -50,7 +50,7 @@ ever happens; a run that cannot report on itself is not a run.
 |---|---|---|
 | 1 | `requireToolsOnPath` — `bd jq git` plus the first word of `BO_AGENT_COMMAND` | the first one missing is named on stderr |
 | 2 | `configureAllowedLabels` — `BO_ALLOWED_LABELS` against the `AGENT` map | **not fatal** — a typo'd list matches no ticket, and the tower sits still while waiting lines keep arriving |
-| 3 | `requireNumericSettingsFromEnvironment` | `BO_MAX_PARALLEL` / `BO_POLL_S` / `BO_MAX_TICKS` set to anything but digits — never defaulted silently, because they govern unattended workers |
+| 3 | `requireNumericSettingsFromEnvironment` | `BO_MAX_PARALLEL` / `BO_POLL_S` / `BO_MAX_TICKETS` set to anything but digits — never defaulted silently, because they govern unattended workers |
 | 4 | `requireUsablePollInterval` — `BO_POLL_S` must divide 60 | the permitted list is printed: `1 2 3 4 5 6 10 12 15 20 30 60`; the waiting lines are rate-limited at one per minute, so a poll that does not divide the minute makes that cadence a lie |
 | 5 | `requireBeadsProject` — `bd list --limit 1 --json` must answer an **array** | `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the environment does not save a wrong directory |
 | 6 | `createRunLogDirectory` — `mkdir -p` the run's dir, then seed `claims errors waiting results closes failures` | fatal on purpose: a run that cannot write its logs cannot raise an alarm |
@@ -76,7 +76,7 @@ to be installed, so it and the engines are kept in step by hand.
 | `BO_AGENT_COMMAND` | `claude` | the command that runs an agent — the worker spawn, the worker count, and the three planners all go through it; split on spaces, so it may carry its own arguments |
 | `BO_MAX_PARALLEL` | `4` | workers spawned at once; the cap is recounted from `$BO_AGENT_COMMAND agents --json` every tick |
 | `BO_POLL_S` | `3` | seconds between ticks; **must divide 60** or the run refuses to start, because the idle rate limit is `60 / BO_POLL_S` ticks |
-| `BO_MAX_TICKS` | `0` | stop after N ticks — a test seam only; 0 = endless |
+| `BO_MAX_TICKETS` | `0` | stop once N tickets have closed this run — counted off the run's `closes` file, so the loop keeps ticking while it waits; 0 = endless |
 | `BO_LOG_ROOT` | `~/.binary-obelisk/logs` | parent of the one timestamped dir this run writes |
 | `BO_ALLOWED_LABELS` | unset or `*` = the whole AGENT set | a comma list narrows which labels may dispatch |
 """
@@ -86,7 +86,9 @@ to be installed, so it and the engines are kept in step by hand.
     dispatcher = dispatcher "beads-loop.sh — the dispatcher" {
       summary "The engine: a tick claims one ticket, finds its branch and pull request base, spawns that worker."
       description """
-**What it is:** the engine `bo loop` runs. A `while true` loop: `tick`, `sleep $BO_POLL_S`, again.
+**What it is:** the engine `bo loop` runs. A `while true` loop: test the ticket cap, `tick`, `sleep $BO_POLL_S`,
+again. It ends by itself only when `BO_MAX_TICKETS` tickets have closed this run — the test is against the run's
+`closes` file, not against the tick count, so a run waiting on workers still ticking is never cut off.
 It is the only thing in the system that claims, dispatches, publishes the epic branch, or owns folders.
 
 One tick, in the order the code runs it (`tick()`):
@@ -256,9 +258,11 @@ The StopFailure hook's account of a session that died mid-turn: `from=<state> ki
 """
     }
     fResults = logFile "results" {
-      summary "The run's tally of ticks and claims, at the tick cap or on Ctrl-C."
+      summary "The run's tally of ticks, claims and tickets closed, at the ticket cap or on Ctrl-C."
       description """
-The run's tally — `ticks=N claimed=M` — at `BO_MAX_TICKS`, or on Ctrl-C (`onInterrupt`).
+The run's tally — `ticks=N claimed=M done=K` — at `BO_MAX_TICKETS`, or on Ctrl-C (`onInterrupt`). The cap line
+carries a `note=` saying the run was configured to end there; the Ctrl-C line does not, so the two are
+told apart without guessing. `done=K` is the count off this run's `closes` file.
 """
     }
     fBdStderr = logFile "bd-stderr" {
@@ -833,7 +837,7 @@ and carrying `bo` because that is the command it commits with.
         #fatal
         summary "A numeric knob was set to something that is not a number, so the run refuses to start."
         description """
-`BO_MAX_PARALLEL`, `BO_POLL_S` or `BO_MAX_TICKS` set to anything but digits. There is no defaulting silently:
+`BO_MAX_PARALLEL`, `BO_POLL_S` or `BO_MAX_TICKETS` set to anything but digits. There is no defaulting silently:
 a knob typed wrong would otherwise change how many workers run unattended.
 """
       }

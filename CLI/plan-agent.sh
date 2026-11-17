@@ -10,6 +10,7 @@ source "$here/user-env.sh"
 loadObeliskEnv
 
 agentCommand="${BO_AGENT_COMMAND:-claude}"
+agentPluginName="${BO_AGENT_PLUGIN:-binary-obelisk}"
 
 declare -A planAgentOf=(
     [epic]=plan-epic
@@ -56,7 +57,7 @@ runPlanAgent() {
     requireBeadsProject
     requireAgentCommand
     echo "plan-agent: running the $agentName planner through '$agentCommand' in $PWD" >&2
-    exec $agentCommand --agent "$agentName" "$@"
+    exec $agentCommand --agent "$agentPluginName:$agentName" "$@"
 }
 
 unknownPlanKind() {

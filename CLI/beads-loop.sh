@@ -13,6 +13,8 @@ engineDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$engineDir/user-env.sh"
 loadObeliskEnv
 
+agentPluginName="${BO_AGENT_PLUGIN:-binary-obelisk}"
+
 declare -A AGENT=(
     [backend-logic]=engineer
     [frontend-ui]=frontend
@@ -515,7 +517,7 @@ spawnWorker() {
         && BO_TICKET="$ticketId" BO_BRANCH="$branch" BO_PR_TARGET="$prTarget" \
            BO_AGENT="$agentName" BO_LABEL="$label" \
            BO_PROJECT_DIR="$towerDir" BO_LOG_DIR="$logDir" BO_DONE_FILE="$doneFile" \
-           $agentCommand --bg --agent "$agentName" --permission-mode bypassPermissions \
+           $agentCommand --bg --agent "$agentPluginName:$agentName" --permission-mode bypassPermissions \
            "$(buildWorkerPrompt "$ticketId" "$branch" "$doneFile" "$agentName")" ) >"$spawnFile" 2>&1
 }
 

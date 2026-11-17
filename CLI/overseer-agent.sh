@@ -12,6 +12,7 @@ source "$here/user-env.sh"
 loadObeliskEnv
 
 agentCommand="${BO_AGENT_COMMAND:-claude}"
+agentPluginName="${BO_AGENT_PLUGIN:-binary-obelisk}"
 
 usage() {
     cat <<'USAGE'
@@ -55,7 +56,7 @@ runOverseer() {
     requireBeadsProject
     requireAgentCommand
     echo "overseer: reading $PWD through '$agentCommand'" >&2
-    exec $agentCommand --agent overseer --disallowedTools 'Bash(bo:*)' "$@"
+    exec $agentCommand --agent "$agentPluginName:overseer" --disallowedTools 'Bash(bo:*)' "$@"
 }
 
 case "${1:-}" in

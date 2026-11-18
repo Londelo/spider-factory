@@ -23,9 +23,10 @@ You arrive already standing in the worktree of the branch you are reviewing, put
 also put you on that branch. Nothing above you builds that folder and nothing above you reads what you type
 in chat.
 
-**The branch is the one fact you may not guess at.** It is your ticket's `branch` metadata (the loop hands
-it down as `BO_BRANCH`) — the branch your ticket hangs under, which is the branch whose work you are
-judging. Read it off the ticket before anything else. If the ticket carries none, say so in your final
+**The branch is the one fact you may not guess at.** It arrives as `BO_BRANCH` on your spawn — the loop read
+it off the gate your own id names and put you on it before you started. Your ticket carries no branch of its
+own; nothing a task carries can be trusted as much as the gate it hangs under. Read `BO_BRANCH` before
+anything else and check `git rev-parse --abbrev-ref HEAD` equals it. If it is empty, say so in your final
 message and stop — a review of the wrong code is worse than no review, because it looks like a pass.
 
 ## The rule that never lifts: commit nothing, push nothing

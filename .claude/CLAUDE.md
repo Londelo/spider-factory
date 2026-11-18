@@ -74,19 +74,25 @@ hands that tier to the `lead` agent, which the loop spawns for a ready gate each
 agent; nothing is ever spawned for the person.
 
 ### Branches — one per epic, one per feature; a task is a commit
-No branch per ticket and none per worker. Three metadata keys, and two are the plan's: **`branch`** (written
-by the plan agent that owns the tier, copied verbatim down every row of it), **`base`** (the base branch of
-that branch's PR — `main` on every epic-tier ticket and on the epic gate, the epic's own branch on every
-feature-tier ticket and on the feature gate), and **`pr`** (the url, written by the loop or the Stop hook —
-never by a plan agent). A gate carries a third, **`tier`** (`epic` or `feature`); nothing else may. With no
-parent chain there is nowhere to *walk* to find a base, so `base` is the only answer and a ticket without it is
-left claimed, unworked, on purpose. The worktree is `.claude/worktrees/<branch with / → +>`, and it belongs to
+No branch per ticket and none per worker. Two metadata keys exist and one is the plan's: **`branch`**, on a
+**gate only** — the epic gate and each feature gate carry their own and nobody else's, no task or suite or
+review carries any — and **`pr`** (the url, written by the loop or the Stop hook, never by a plan agent).
+Everything else about a ticket's git world is **derived from its id**, which is the point: for
+`kachalka-1vz.5.1`, `${id%.*}` is the feature gate `kachalka-1vz.5` whose `branch` the work lands on, and
+`${id%%.*}` is the epic gate `kachalka-1vz` whose `branch` is the **`prTarget`** — `main` when the owner is
+the epic gate itself. There is no `base` key and no `tier` key; a copy of either is a fact that can disagree
+with the gate that decides it. A dotless id that is not a gate, or one whose truncation at the first dot is
+not a gate, belongs to no tower: the loop refuses it, logs `ERROR reason=no-epic-gate ticket=<id>`, and
+leaves it claimed, unworked, on purpose; an id of three or more dots is refused the same way. Which tier a
+gate is comes from the graph, never a key — nothing depends on it → epic, anything depends on it → feature.
+That is why every ticket below the epic is created with an explicit `--id`: a bare `bd create` mints a flat
+id, and a flat id reaches no gate. The worktree is `.claude/worktrees/<branch with / → +>`, and it belongs to
 the *branch*, not the ticket.
 
 ### The moving parts, and who owns what
 | Part | Owns |
 |---|---|
-| `CLI/beads-loop.sh` | the tick: read the busy branches, dispatch any ready gate its tier flag opens, `bd ready --claim`, match the one dispatching label, read `branch` and `base` off the claim, publish the epic branch and PR if there is none, build the worktree, spawn the worker **with cwd inside it**, log one line |
+| `CLI/beads-loop.sh` | the tick: read the busy branches, dispatch any ready gate its tier flag opens, `bd ready --claim`, match the one dispatching label, derive `branch` and `prTarget` off the ticket's id, publish the epic branch and PR if there is none, build the worktree, spawn the worker **with cwd inside it**, log one line |
 | `hooks/worker-stop.sh` | **fail-closed on `$BO_DONE_FILE`**: no marker → no commit, no push, no PR, no close. Then it closes the *task*; on a gate claim (`kind=gate`) it commits and pushes, finds that branch's PR at any state, and closes the **gate** without ever opening a new PR |
 | `hooks/worker-fail.sh` | parks a dead worker's ticket in `failed-agent` with the reason, and commits nothing |
 | `CLI/commit.sh` | **the only way anything commits in this plugin** — `bo commit` = `git add -A`, one commit subject `agent:branch:message`, `git push -u origin <branch>` |

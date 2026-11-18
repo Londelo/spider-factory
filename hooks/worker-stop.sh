@@ -160,7 +160,7 @@ requireTicketStillInWork() {
 
 requireSpawnEnvironment() {
     if [[ -z "$branch" ]]; then
-        alarmAndExit "reason=no-branch msg=\"BO_BRANCH was not on the spawn; the ticket's metadata should carry a 'branch' key\""
+        alarmAndExit "reason=no-branch msg=\"BO_BRANCH was not on the spawn; the loop reads it off the gate the ticket's id names, so that gate carries no 'branch' key\""
     fi
     if [[ -z "$prTarget" ]]; then
         alarmAndExit "reason=no-pr-target msg=\"BO_PR_TARGET was not on the spawn; the loop reads the target off the ticket's epic gate, and says main when the ticket sits under the epic itself\""

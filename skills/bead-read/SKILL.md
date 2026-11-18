@@ -102,9 +102,9 @@ its epic, and one task's acceptance criteria can always be satisfied while the f
 A tower shaped like the real one, drawn as edges rather than as a tree:
 
 ```
-Epic · "Tally — personal spending tracker"                    (gate)  base main
+Epic · "Tally — personal spending tracker"                    (gate)  branch epic/notes-sync
   ↑ blocked by  epic e2e suite  →  blocked by  epic review
-  ↑ blocked by  Feature gate "F1 — Recurring bills"           (gate)  base epic/notes-sync
+  ↑ blocked by  Feature gate "F1 — Recurring bills"           (gate)  branch feature/recurring-bills
                     ↑ blocked by  backend-logic — BillRecurrence engine   ← YOU HOLD THIS
                     ↑ blocked by  frontend-ui — BillForm / schedule screen
                     ↑ blocked by  unit-tests — bill-recurrence.spec
@@ -116,9 +116,10 @@ three reads, in order:
 
 1. **Self** — `bd show --json <self> --long` → `.description` + `## Scope`: you implement the
    recurrence engine, compute next dates and payments, and its `## Owned Elsewhere` forbids you to
-   reach into `modules/bills` or `components`. Its `.metadata` carries `branch` (where your commit
-   lands) and `base` (what your pull request aims at) — those are facts, not hints, and the loop put
-   you in this worktree by reading them.
+   reach into `modules/bills` or `components`. Its `.metadata` carries **nothing** — a task holds no
+   branch of its own. The branch your commit lands on is the one **F1** carries, and your pull request
+   aims at the branch the epic gate carries; the loop read both off your id before it put you in this
+   worktree. They are facts, not hints, they are just not in your row.
 2. **Gate (up)** — `bd dep list <self> --direction up -t blocks --json` → among the tickets this one
    blocks is **F1**, `issue_type: gate`, so **F1 is the source of truth**. `bd show --json F1 --long`
    → its `## Scope`: the bill computes its next date and *surfaces it to the user*. Without this read

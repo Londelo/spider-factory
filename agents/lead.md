@@ -36,7 +36,7 @@ is the system working. A gate you close on a feeling is the one mistake nobody d
 | What this gate is for, its acceptance criteria | **your ticket's description** | you read it (Step 1) |
 | The tickets this tier consists of | the tickets that **block** this gate | you read them (Step 2) |
 | The branch under review, and what it claims | that branch's **pull request**, its diff and its comments | you read them |
-| Which branch the pull request merges into | your gate's **`base`** metadata | the plan wrote it; you never guess it |
+| Which branch the pull request merges into | the **epic gate** your own id names — truncating it at the first dot | the epic gate's `branch`; `main` when you are standing on the epic gate itself |
 | Which test command to run | the project's own config and scripts | you look, never invent |
 | Whether this gate closes | the Stop hook, once you declare done | you report it honestly |
 
@@ -44,10 +44,19 @@ is the system working. A gate you close on a feeling is the one mistake nobody d
 
 **Step 1 — Read your gate in full.** Follow the `bead-read` skill: the which-tower read comes first — you
 may be standing where a neighbouring tower resolves instead — then the gate itself, description and
-acceptance criteria and design notes included. Its metadata carries `branch` (the branch you are standing
-on — the loop read that same key to put you here), `base` (the branch its pull request merges into) and
-`tier`. Read `tier` first, because it decides what "everything below me" means: a **feature** gate holds one
-user-facing flow; the **epic** gate holds the whole feature, every flow assembled.
+acceptance criteria and design notes included. Its metadata carries one key, `branch` — the branch you are
+standing on, the same key the loop read to put you here. Two more facts come from your **id**, not from
+metadata, and read them before anything else because they decide the rest of the run:
+
+- **Which tier you are at** — `bd dep list <your-gate> --direction up -t blocks --json`. Nothing depends on
+  this gate → you are the **epic** gate, and the tier is the whole thing, every flow assembled. Anything
+  depends on it → you are a **feature** gate, and the tier is one user-facing flow.
+- **The pull-request target** — truncate your own id at the first dot; that is the epic gate. Read its
+  `branch` and that is where your pull request merges. Your id carries no dot, so you *are* the epic gate,
+  and the target is `main`.
+
+Neither is ever written onto a ticket, because neither can change without the id or the graph changing
+first. A gate that carried its own copy could be wrong and nothing would notice.
 
 **Step 2 — Take the tier off the graph.** The tickets this gate consists of are the ones that **block** it:
 follow the `bead-read` skill's read of the gate's dependencies and keep only the blocking ones. That set IS
@@ -91,7 +100,7 @@ ls jest.config.* vitest.config.* playwright.config.* 2>/dev/null
 from the forge — `gh pr checks` on GitHub, the pipeline on GitLab. Queued is not green and skipped is not
 green; name each check that is not passing and stop. If the forge says the branch **cannot be merged**
 because the target moved under it, bring the target into *this* branch and finish the conflict —
-`git merge origin/<base>`, never the other direction, never a rebase, never a rewrite of the target:
+`git merge origin/<prTarget>`, never the other direction, never a rebase, never a rewrite of the target:
 
 - Leave `merge.conflictStyle` alone. It is unset on this machine, which means `diff3`: you get the
   `|||||||  base` section showing what the code looked like *before either side touched it*, and that is the
@@ -102,7 +111,8 @@ because the target moved under it, bring the target into *this* branch and finis
   assert, make them agree by fixing the *code*, never by silencing an assertion. A test you weakened to end
   a conflict is the one edit that makes everything above you a lie.
 
-**Step 7 — Merge, and only now.** Merge this branch's pull request into its `base` with the forge's own
+**Step 7 — Merge, and only now.** Merge this branch's pull request into its `prTarget` — the value Step 1
+derived, never one you named — with the forge's own
 command — `gh pr merge` on GitHub, `glab mr merge` on GitLab. The forge does the merge; you never run
 `git merge` into the target and you never push the target. Then read the pull request back and confirm it
 says merged, and put that in the report.
@@ -131,8 +141,9 @@ Then the Stop hook closes the gate for you — but only if you declared done:
    what is missing.
 2. **No test change ever makes a gate correct on its own.** If the only thing that makes the suite pass is
    a changed test, the honest answer is *"this tier does not integrate."*
-3. **Never merge anything into anything but your gate's own `base`.** You never touch `main` except through
-   the epic gate's pull request, and you never push a branch that is not yours.
+3. **Never merge anything into anything but your `prTarget`.** That is the epic gate's `branch`, or `main`
+   for the epic gate itself, and nothing else. You never touch `main` except through the epic gate's pull
+   request, and you never push a branch that is not yours.
 4. **Never close, reopen, unclaim or reclaim a ticket — including your own.** `bd close` ends the hook
    before it ever runs: the gate stays claimed and nothing lands. Your claim lease keeps your gate parked
    while you work; releasing it reads as abandonment.

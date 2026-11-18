@@ -34,10 +34,10 @@ the only two types are `gate` and `task`.
 
 | Step | Run by a human | What appears |
 |---|---|---|
-| 1 | `bo plan:epic <idea>` | one **epic gate** (type `gate`, zero labels, metadata `branch`, `base: main`, `tier: epic`) plus the two tickets that make the epic shippable, in run order: its **e2e suite**, its **review**. There is no merge ticket — the lead agent merges |
-| 2 | `bo plan:feature <epic-id>` | one **feature gate** per complete user-facing flow, each carrying metadata `branch: feature/<slug>`, `base` = the epic's branch, `tier: feature`, plus its **feature-test** suite then its **review**; each feature gate blocks the epic's e2e ticket |
-| 3 | `bo plan:task <feature-id>` | that feature's worker tasks in **one linked line, never a fan** — the logic, its micro test immediately behind it, the UI last, then polish — each carrying the feature's `branch` and `base`. Every task blocks the feature's gate; the tail of the chain also blocks the feature's `feature-test` ticket |
-| 4 | `bo loop` | each tick: first any **ready gate** whose tier flag is on goes to the **lead** agent, then it claims one ready task with `bd ready --claim`, matches the ticket's one dispatching label to a worker, builds the worktree for that ticket's `branch`, spawns the worker with cwd inside it |
+| 1 | `bo plan:epic <idea>` | one **epic gate** (type `gate`, zero labels, metadata `branch` and nothing else) plus the two tickets that make the epic shippable, in run order: its **e2e suite**, its **review**. There is no merge ticket — the lead agent merges |
+| 2 | `bo plan:feature <epic-id>` | one **feature gate** per complete user-facing flow, each carrying metadata `branch: feature/<slug>` and nothing else, plus its **feature-test** suite then its **review**; each feature gate blocks the epic's e2e ticket |
+| 3 | `bo plan:task <feature-id>` | that feature's worker tasks in **one linked line, never a fan** — the logic, its micro test immediately behind it, the UI last, then polish — none of them carrying any metadata at all. Every task blocks the feature's gate; the tail of the chain also blocks the feature's `feature-test` ticket |
+| 4 | `bo loop` | each tick: first any **ready gate** whose tier flag is on goes to the **lead** agent, then it claims one ready task with `bd ready --claim`, matches the ticket's one dispatching label to a worker, reads the work branch and the pull-request target off the gates its **id** names, builds the worktree, spawns the worker with cwd inside it |
 | 5 | the worker, then its Stop hook | the worker does the unit and `bo commit`s as it goes, then touches its done file; the Stop hook commits, pushes, opens the PR, writes `pr` metadata onto the ticket, and closes the **task** |
 | 6 | the epic tier | the e2e suite, then the review, then the **epic gate** — which a human closes, or the lead agent when `BO_AGENT_EPIC_GATES=1` |
 
@@ -89,7 +89,7 @@ owns plus the two whole-tower reads nobody else makes:
 bd where                                        # which database am I actually reading
 bd status                                       # open / in-progress / blocked / ready totals
 bd ready --explain                              # WHY each ticket is or is not on the frontier
-bd list --include-gates --type gate --limit 0 --json | jq -r '.[] | "\(.id) \(.status) \(.metadata.tier // "-") \(.metadata.branch // "-") \(.title)"'    # every checkpoint, shut or waiting
+bd list --include-gates --type gate --limit 0 --json | jq -r '.[] | "\(.id) \(.status) \(.metadata.branch // "-") \(.title)"'    # every checkpoint, shut or waiting — the one with nothing depending on it is the epic gate
 bd list --include-gates --ready --type gate --limit 0 --json   # the exact read the loop makes for a gate to hand the lead
 bd show --json <id> --long                      # the brief: description, design, acceptance, labels, type, metadata
 bd dep list <id> -t blocks --json               # what blocks it — its predecessors, with statuses
@@ -181,11 +181,12 @@ The loop is alive and idle is not the same as stalled: `waiting` says which. A w
   A real fault; see the checks below.
 - `branch_busy held=<n>` — the next ticket sits on a branch already being worked. Correct behaviour, and
   it is also what a gate says when its own branch is under a worker: the line carries `gate=<id>`.
-- `gate_unworkable gate=<id> key=branch|base` — a ready gate is missing the metadata the loop needs to
-  stand a lead on it. A plan agent writes both keys; a hand-made or hand-edited gate usually lacks them.
+- `gate_unworkable gate=<id> step=<why>` — a ready gate whose id reaches no usable pair of branches, so the
+  loop cannot stand a lead on it. `step` is `owner-carries-no-branch` (the gate carries no `branch` — a
+  hand-made or hand-edited gate; a plan agent always writes it), `epic-carries-no-branch` (the epic gate
+  above it carries none, so nothing beneath it has a pull-request target), `not-a-gate` (truncating the id
+  at the first dot lands on something that is not a gate), or `too-deep` (the id carries three or more dots).
   The gate stays open and unclaimed, and is re-tried every tick.
-- `gate_tier_missing gate=<id>` — the gate carries no `tier` key, so the loop cannot tell which flag
-  governs it, and will not guess. `tier` is gate-only metadata (`epic` or `feature`).
 - `frontier_empty` / `tower_stalled waiting=<n>` — nothing is claimable. See the gate check.
 
 ## Every alarm, and what it means
@@ -197,12 +198,13 @@ one line per dead worker: `from=<state> kind=<error> msg="<its last words>"`.
 |---|---|---|
 | `bd-failure exit=N` | a `bd` call died — read the last line of `bd-stderr` | usually the wrong database or an unregistered type/status |
 | `label-ambiguous` | the ticket carried zero or two dispatching labels, so no worker was chosen | the plan mis-labelled it; fix the label, the ticket is still claimed |
-| `metadata-missing` | no `branch` or no `base` key on the claimed ticket | a hand-made or hand-edited ticket; the plan agents always write both, and with no parent chain to climb the loop has nowhere else to aim that branch's PR |
+| `no-epic-gate ticket=…` | the claimed ticket's id reaches no epic gate — it carries no dot, or truncating it at the first dot lands on something that is not a gate, or `step=too-deep` says it carries three or more dots | **the one a human has to fix**: this ticket was never put in a tower. The id is in the line, nothing was dispatched, and it stays claimed |
+| `gate-unworkable ticket=…` | the gate its id names carries no `branch`, or the epic gate above it carries none, so the loop has nowhere to put the work or nothing to aim its PR at | a gate made by hand or edited after the plan; `bd update <gate> --set-metadata branch=<name>` fixes it |
 | `epic-pr-failed step=…` | the epic branch or its PR could not be published (`gate-branch` · `forge` · `missing-tool` · `push` · `seed` · `pr` · `annotate`) | `missing-tool` → `gh`/`glab` absent or unauthenticated; `gate-branch` → no gate carries the branch this ticket's PR aims at, so no epic was found to publish |
 | `gate-claim-lost gate=…` | the gate was no longer `open` the moment the loop reached for it, so no lead was spawned | another loop or a human took it — with two loops on one tower, say that first |
-| `worktree-failed step=no-start` | neither `origin/<branch>` nor its target resolves | the branch was never pushed and its base is gone |
+| `worktree-failed step=no-start` | neither `origin/<branch>` nor its target resolves | the branch was never pushed and its `prTarget` is gone |
 | `worktree-failed step=stray-folder` | the branch folder exists, is not a registered worktree, and would not move | inspect `<tower>/.claude/worktrees/` |
-| `worktree-failed step=gate gate=…` | the gate's branch folder could not be made from `origin/<branch>` or from its `base`; the loop rolled the gate back to `open` | the epic branch was never published, or its `base` is gone |
+| `worktree-failed step=gate gate=…` | the gate's branch folder could not be made from `origin/<branch>` or from its `prTarget`; the loop rolled the gate back to `open` | the epic branch was never published, or its `prTarget` is gone |
 | `worktree-failed` (no step) | the folder could not be made at all | `git worktree prune`, then look again |
 | `branch-has-unpushed-commits` | the local branch holds commits origin has never seen; the loop refused to reset it | **the work is only on this machine** — recover with `git reflog` or push it |
 | `worktree-folder-moved-aside` | an interrupted build's files were kept as `<folder>.stale-<epoch>` | not a fault; the run continued |
@@ -253,7 +255,8 @@ Run these when the human asks you to spot trouble, or when a waiting reason does
 6. **The loop reading a different tower than you are.** `run=`/`repo=` in the log vs `bd where` in your
    own shell. A mismatch means you are reporting on somebody else's tower.
 7. **A gate closed with nothing merged.** A closed gate is a claim that its tier was proved. Read its
-   `branch` and `base` off its metadata, then `gh pr list --head <branch> --base <base> --state all
+   `branch` off its own metadata and derive its `prTarget` — the epic gate is that id truncated at the first
+   dot, `main` when the gate carries no dot — then `gh pr list --head <branch> --base <prTarget> --state all
    --json url,mergedAt` — a closed gate whose PR is still open was closed by a hand, not a lead, and the
    tier behind it is now building on a branch nobody merged.
 

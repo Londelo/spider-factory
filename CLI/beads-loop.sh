@@ -176,8 +176,11 @@ numberOfBusyWorkers() {
 }
 
 branchesCurrentlyAtWork() {
+    local id
     bd list --status in_progress --limit 0 --json 2>/dev/null \
-        | jq -r '.[] | .metadata.branch // empty' | sort -u
+        | jq -r '.[].id' | while read -r id; do
+            ( resolveTicketBranches "$id" && printf '%s\n' "$branch" ) 2>/dev/null
+        done | sort -u
 }
 
 worktreePathFor() { echo "$worktreesRoot/${1//\//+}"; }
@@ -205,12 +208,12 @@ remoteShaOfBranch() {
 
 branchSeedFailure=""
 
-ensureBranchAheadOfBase() {
-    local branch="$1" baseSha="$2" remoteSha seedSha
+ensureBranchAheadOfTarget() {
+    local branch="$1" targetSha="$2" remoteSha seedSha
     branchSeedFailure=""
     remoteSha="$(remoteShaOfBranch "$branch")"
-    [[ -z "$remoteSha" || "$remoteSha" == "$baseSha" ]] || return 0
-    seedSha="$(git -C "$towerDir" commit-tree "${baseSha}^{tree}" -p "$baseSha" \
+    [[ -z "$remoteSha" || "$remoteSha" == "$targetSha" ]] || return 0
+    seedSha="$(git -C "$towerDir" commit-tree "${targetSha}^{tree}" -p "$targetSha" \
         -m "chore: open $branch" 2>/dev/null)" || {
         branchSeedFailure="commit-tree-failed"
         return 1
@@ -274,11 +277,71 @@ readFieldOf() {
         | jq -r --arg k "$key" 'if type == "array" then .[0] else . end | ((.metadata // {})[$k] // empty)' 2>/dev/null
 }
 
-gateOwningBranch() {
-    local wanted="$1"
-    [[ -n "$wanted" ]] || return 1
-    bd -C "$towerDir" list --include-gates --type gate --limit 0 --json 2>/dev/null \
-        | jq -r --arg b "$wanted" '.[] | select((.metadata // {}).branch == $b) | .id' 2>/dev/null | head -1
+epicGateOf() {
+    local id="$1"
+    [[ "$id" == *.* ]] || return 1
+    printf '%s' "${id%%.*}"
+}
+
+featureGateOf() {
+    local id="$1"
+    [[ "$id" == *.*.* ]] || return 1
+    printf '%s' "${id%.*}"
+}
+
+issueTypeOf() {
+    local id="$1"
+    [[ -n "$id" ]] || return 1
+    bd -C "$towerDir" show --json "$id" 2>/dev/null \
+        | jq -r 'if type == "array" then .[0] else . end | .issue_type // empty' 2>/dev/null
+}
+
+gateIsTopOfTower() {
+    local dependents
+    dependents="$(bd -C "$towerDir" dep list "$1" --direction up -t blocks --json 2>/dev/null \
+        | jq -r 'length' 2>/dev/null)"
+    [[ "${dependents:-0}" -eq 0 ]]
+}
+
+gateTierOf() { gateIsTopOfTower "$1" && printf 'epic' || printf 'feature'; }
+
+# The branch a ticket's work lands on and the branch its pull request aims at, both read off the
+# gates its id names. The owner is the gate whose `branch` the work lands on: a gate owns its own
+# branch, a task owns its feature gate's, an epic-tier ticket owns the epic gate's. The pull
+# request aims at main when the owner is the epic gate, and at the epic gate's branch otherwise.
+# Fails when the id reaches no gate — a ticket belonging to no tower is not work.
+branchResolveFailure=""
+
+resolveTicketBranches() {
+    local id="$1" epicGate owner
+    branch=""
+    prTarget=""
+    branchResolveFailure=""
+    if [[ "$id" != *.* ]]; then
+        [[ "$(issueTypeOf "$id")" == gate ]] || { branchResolveFailure="no-dot"; return 1; }
+        epicGate="$id"
+    elif [[ "$id" == *.*.*.* ]]; then
+        branchResolveFailure="too-deep"
+        return 1
+    else
+        epicGate="$(epicGateOf "$id")"
+        [[ "$(issueTypeOf "$epicGate")" == gate ]] || { branchResolveFailure="not-a-gate"; return 1; }
+    fi
+    gateId="$epicGate"
+    owner="$epicGate"
+    if [[ "$(issueTypeOf "$id")" == gate ]]; then
+        owner="$id"
+    elif featureGateOf "$id" >/dev/null; then
+        owner="$(featureGateOf "$id")"
+    fi
+    branch="$(readFieldOf "$owner" branch)"
+    if [[ "$owner" == "$epicGate" ]]; then
+        prTarget="main"
+    else
+        prTarget="$(readFieldOf "$epicGate" branch)"
+    fi
+    [[ -n "$branch" ]] || { branchResolveFailure="owner-carries-no-branch"; return 1; }
+    [[ -n "$prTarget" ]] || { branchResolveFailure="epic-carries-no-branch"; return 1; }
 }
 
 ensureEpicGatePr() {
@@ -288,7 +351,7 @@ ensureEpicGatePr() {
 
     gateBranch="$(readFieldOf "$gateId" branch)"
     if [[ -z "$gateBranch" ]]; then
-        logTo errors "reason=epic-pr-failed step=gate-branch gate=$gateId msg=\"the epic gate carries no branch metadata, so nothing beneath it has a base branch\""
+        logTo errors "reason=epic-pr-failed step=gate-branch gate=$gateId msg=\"the epic gate carries no branch, so nothing beneath it has a pull-request target\""
         return 1
     fi
     forge="$(detectForge "$towerDir")"
@@ -306,7 +369,7 @@ ensureEpicGatePr() {
         logTo errors "reason=epic-pr-failed step=push gate=$gateId gateBranch=$gateBranch msg=\"the epic branch could not be published off main\""
         return 1
     }
-    if ! ensureBranchAheadOfBase "$gateBranch" "$start"; then
+    if ! ensureBranchAheadOfTarget "$gateBranch" "$start"; then
         if [[ "$branchSeedFailure" == commit-tree-failed ]]; then
             logTo errors "reason=epic-pr-failed step=seed gate=$gateId gateBranch=$gateBranch msg=\"the epic branch could not be given its own first commit — git has no user.name and user.email to sign one with\""
         else
@@ -407,9 +470,6 @@ readTicketIdentityFromClaim() {
 
 readClaimFields() {
     mapfile -t ticketLabels < <(jq -r '.[0].labels // [] | .[]' <<< "$claimJson" 2>/dev/null)
-    branch="$(jq -r '.[0].metadata.branch // empty' <<< "$claimJson" 2>/dev/null)"
-    claimBase="$(jq -r '.[0].metadata.base // empty' <<< "$claimJson" 2>/dev/null)"
-    boIdent branch "$branch"
 }
 
 claimCarriesExactlyOneDispatchLabel() {
@@ -423,12 +483,6 @@ claimCarriesExactlyOneDispatchLabel() {
         return 0
     fi
     logTo errors "reason=label-ambiguous matched=\"${matchedLabels[*]-}\" labels=\"${ticketLabels[*]-}\""
-    return 1
-}
-
-claimCarriesBranch() {
-    [[ -n "$branch" ]] && return 0
-    logTo errors "reason=metadata-missing msg=\"the plan agents create every ticket with --metadata carrying a branch; with no branch key the loop has nowhere to put this work\""
     return 1
 }
 
@@ -458,20 +512,27 @@ reportEmptyFrontier() {
     fi
 }
 
-claimCarriesBase() {
-    [[ -n "$claimBase" ]] && return 0
-    logTo errors "reason=metadata-missing msg=\"the plan agents create every ticket with --metadata carrying a base; with no base key the loop has nowhere to aim this branch's pull request\""
+claimBelongsToATower() {
+    local why
+    if resolveTicketBranches "$ticketId"; then
+        boIdent branch "$branch"
+        boIdent target "$prTarget"
+        return 0
+    fi
+    why="$branchResolveFailure"
+    case "$why" in
+        no-dot)
+            logTo errors "reason=no-epic-gate ticket=$ticketId msg=\"the id carries no dot, so there is no gate above it and no tower this ticket belongs to — nothing was dispatched and the ticket stays claimed until a human puts it in one\"" ;;
+        not-a-gate)
+            logTo errors "reason=no-epic-gate ticket=$ticketId gate=${ticketId%%.*} msg=\"truncating the id gives ${ticketId%%.*}, which is not a gate, so this ticket belongs to no tower — nothing was dispatched and the ticket stays claimed until a human puts it in one\"" ;;
+        too-deep)
+            logTo errors "reason=no-epic-gate ticket=$ticketId step=too-deep msg=\"the id carries three or more dots, deeper than a tower has levels, so it names no ticket in one — nothing was dispatched and the ticket stays claimed until a human fixes the id\"" ;;
+        owner-carries-no-branch)
+            logTo errors "reason=gate-unworkable ticket=$ticketId msg=\"the gate this id names carries no branch, so the loop has nowhere to put this work — nothing was dispatched and the ticket stays claimed\"" ;;
+        *)
+            logTo errors "reason=gate-unworkable ticket=$ticketId gate=$gateId msg=\"the epic gate carries no branch, so this ticket's pull request has nothing to aim at — nothing was dispatched and the ticket stays claimed\"" ;;
+    esac
     return 1
-}
-
-resolvePullRequestTarget() {
-    prTarget="$claimBase"
-    gateId="$(gateOwningBranch "$([[ "$claimBase" == "main" ]] && echo "$branch" || echo "$claimBase")")"
-    [[ -n "$gateId" ]] || {
-        logTo errors "reason=epic-pr-failed step=gate-branch msg=\"no gate carries the branch this ticket's pull request aims at, so the loop cannot find the epic to publish\""
-        return 1
-    }
-    boIdent target "$prTarget"
 }
 
 buildWorkerPrompt() {
@@ -587,19 +648,18 @@ dispatchWorker() {
 
 readyGates() {
     bd -C "$towerDir" list --include-gates --ready --type gate --limit 0 --json 2>/dev/null \
-        | jq -r '.[] | "\(.id)\t\((.metadata // {}).tier // "")"' 2>/dev/null
+        | jq -r '.[].id' 2>/dev/null
 }
 
 moveGateTo() { bd -C "$towerDir" update "$1" --status "$2" --if-status "$3" >/dev/null 2>&1; }
 
 dispatchOneGate() {
     local gateId="$1" tier="$2"
-    local gateBranch gateBase worktreePath worktreeAside worktreeFailure doneFile spawnFile contextFile
+    local gateBranch gatePrTarget worktreePath worktreeAside worktreeFailure doneFile spawnFile contextFile
 
-    gateBranch="$(readFieldOf "$gateId" branch)"
-    gateBase="$(readFieldOf "$gateId" base)"
-    [[ -n "$gateBranch" ]] || { waiting gate_unworkable "gate=$gateId key=branch"; return 1; }
-    [[ -n "$gateBase" ]] || { waiting gate_unworkable "gate=$gateId key=base"; return 1; }
+    resolveTicketBranches "$gateId" || { waiting gate_unworkable "gate=$gateId step=$branchResolveFailure"; return 1; }
+    gateBranch="$branch"
+    gatePrTarget="$prTarget"
     if [[ "$busyBranches" == *$'\n'"$gateBranch"$'\n'* ]]; then
         waiting branch_busy "held=1 gate=$gateId"
         return 1
@@ -613,10 +673,10 @@ dispatchOneGate() {
     boIdent agent "$leadAgentName"
     boIdent label "gate:$tier"
     boIdent branch "$gateBranch"
-    boIdent target "$gateBase"
-    if ! ensureWorktree "$gateBranch" "$gateBase" || [[ -z "$worktreePath" ]]; then
+    boIdent target "$gatePrTarget"
+    if ! ensureWorktree "$gateBranch" "$gatePrTarget" || [[ -z "$worktreePath" ]]; then
         moveGateTo "$gateId" open in_progress
-        logTo errors "reason=worktree-failed step=gate gate=$gateId msg=\"the gate's branch folder could not be made from origin/$gateBranch or from its target $gateBase\""
+        logTo errors "reason=worktree-failed step=gate gate=$gateId msg=\"the gate's branch folder could not be made from origin/$gateBranch or from its target $gatePrTarget\""
         return 1
     fi
     boIdent worktree "$worktreePath"
@@ -624,7 +684,7 @@ dispatchOneGate() {
     spawnFile="$(spawnFileFor "$gateId")"
     contextFile="$(contextFileFor "$gateBranch")"
     rm -f "$doneFile"
-    if ! spawnWorker "$worktreePath" "$gateId" "$leadAgentName" "$gateBranch" "$gateBase" \
+    if ! spawnWorker "$worktreePath" "$gateId" "$leadAgentName" "$gateBranch" "$gatePrTarget" \
             "gate:$tier" "$doneFile" "$spawnFile" "$contextFile" gate; then
         moveGateTo "$gateId" open in_progress
         logTo errors "reason=worker-not-dispatched gate=$gateId msg=\"$(lastLineOf "$spawnFile")\""
@@ -638,12 +698,10 @@ dispatchOneGate() {
 dispatchReadyGates() {
     local gateId tier
     [[ "$agentHandlesFeatureGates" == "1" || "$agentHandlesEpicGates" == "1" ]] || return 0
-    while IFS=$'\t' read -r gateId tier; do
+    while IFS= read -r gateId; do
         [[ -n "$gateId" ]] || continue
-        if ! gateTierIsSwitchedOn "$tier"; then
-            [[ -n "$tier" ]] || waiting gate_tier_missing "gate=$gateId"
-            continue
-        fi
+        tier="$(gateTierOf "$gateId")"
+        gateTierIsSwitchedOn "$tier" || continue
         atDispatchCapacity && return
         dispatchOneGate "$gateId" "$tier"
     done < <(readyGates)
@@ -664,14 +722,12 @@ claimAndDispatchOneTicket() {
     fi
     readClaimFields
     claimCarriesExactlyOneDispatchLabel || return
-    claimCarriesBranch || return
-    claimCarriesBase || return
+    claimBelongsToATower || return
     if claimedBranchIsAlreadyAtWork; then
         skipClaimedTicketForThisTick
         tryNextClaim=1
         return
     fi
-    resolvePullRequestTarget || return
     ensureEpicGatePr "$gateId" || {
         releaseClaim "$ticketId"
         return 1
@@ -681,7 +737,7 @@ claimAndDispatchOneTicket() {
 
 tick() {
     local -A skippedTicket=()
-    local busyBranches claimAttempts claimJson claimExitCode ticketId ticketLabels matchedLabels branch claimBase prTarget gateId
+    local busyBranches claimAttempts claimJson claimExitCode ticketId ticketLabels matchedLabels branch prTarget gateId
 
     busyBranches=$'\n'"$(branchesCurrentlyAtWork)"$'\n'
     dispatchReadyGates

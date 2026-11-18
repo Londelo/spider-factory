@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# bo — the binary-obelisk CLI. Six commands, all foreground, each one an engine beside it in CLI/.
+#   bo loop          the dispatcher, ../beads-loop.sh; Ctrl-C stops dispatching.
+#   bo plan:epic     the planner, ../plan-agent.sh, epic kind
+#   bo plan:feature  the planner, ../plan-agent.sh, feature kind
+#   bo plan:task     the planner, ../plan-agent.sh, task kind
+#   bo overseer      the watcher, ../overseer-agent.sh; reads the run, writes nothing
+#   bo commit        the committer, ../commit.sh; stages everything, subject is agent:branch:message, then pushes
+#   BO_AGENT_COMMAND (claude) — the command every agent runs through, the planners, the watcher and the workers alike
+#   The contracts are .claude/CLAUDE.md §The dispatcher and §Plan agents.
+set -uo pipefail
+
+declare -A planKindOf=(
+    [plan:epic]=epic
+    [plan:feature]=feature
+    [plan:task]=task
+)
+
+usage() {
+    cat <<'USAGE'
+bo — binary-obelisk CLI
+
+  bo loop          run the dispatcher over the tower in the current directory
+  bo plan:epic     run the epic planner
+  bo plan:feature  run the feature planner
+  bo plan:task     run the task planner
+  bo overseer      read the tower here and report on it — reads only
+  bo commit        stage everything here, commit it, push the branch
+
+`bo loop` prints every tick, so the log is on screen the whole time. Ctrl-C stops
+dispatching — the tickets it claimed stay claimed, and any worker already spawning
+keeps running. Run `bo loop` again to resume.
+
+The three plan commands each run one planner in the foreground, and hand it anything
+you type after the command as the prompt:
+
+  bo plan:epic a record box for my diary entries
+  bo plan:feature BO-12
+  bo plan:task BO-31
+
+`bo overseer` runs the reader in the foreground, over the tower in this directory. It
+reads the beads database, the run logs under BO_LOG_ROOT and git, and reports: alive or
+not, how far along the tower is, what is wrong. It has no Write, Edit or Agent tools and
+`bo` is denied to it — it never runs the loop or a plan — so where the fix is a mutation
+it hands you the command to run yourself:
+
+  bo overseer
+  bo overseer why has nothing been claimed for ten minutes
+
+`bo commit` stages everything in this repo and commits it with the subject
+`agent:branch:message` — the agent the loop spawned you as, or 'manual' when you
+typed it yourself, then the branch you are on, then your own line:
+
+  bo commit the record box saves a diary entry
+
+It commits, then pushes the branch to origin.
+
+BO_AGENT_COMMAND (claude) — the command that runs an agent. Point it at your own
+build and the three planners and the loop's workers all run through that instead;
+it is split on spaces, so it may carry its own arguments. The loop also asks it for
+`agents --json` to count the workers already running, so your build has to answer
+that too or the loop will spawn past BO_MAX_PARALLEL.
+
+Every setting — BO_AGENT_COMMAND, BO_MAX_PARALLEL, BO_POLL_S, BO_MAX_TICKETS, BO_LOG_ROOT,
+BO_ALLOWED_LABELS — lives in ~/.obelisk.env, which the installer wrote there with its
+defaults. Edit that file; something you export yourself still wins for one run.
+
+The loop, the three planners and the watcher run from inside a tower project (one with a
+beads DB). `bo commit` only needs a git repo.
+USAGE
+}
+
+locateEngines() {
+    here="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+    dispatcher="$here/../beads-loop.sh"
+    planner="$here/../plan-agent.sh"
+    watcher="$here/../overseer-agent.sh"
+    committer="$here/../commit.sh"
+}
+
+requireEngine() {
+    [[ -f "$1" ]] || {
+        echo "bo: the engine is missing at $1 — this install is broken. Re-run its CLI/install-cli.sh." >&2
+        exit 1
+    }
+}
+
+requireBeadsProject() {
+    bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 || {
+        echo "bo: no beads DB found from $PWD — cd into a tower project and re-run." >&2
+        exit 1
+    }
+}
+
+dispatchOverCurrentTower() {
+    requireEngine "$dispatcher"
+    requireBeadsProject
+    echo "bo: dispatching $PWD — Ctrl-C to stop."
+    bash "$dispatcher"
+    echo "bo: the engine ended (exit $?)."
+}
+
+dispatchPlanAgent() {
+    local kind="$1"
+    shift
+    requireEngine "$planner"
+    exec bash "$planner" "$kind" "$@"
+}
+
+dispatchCommitter() {
+    requireEngine "$committer"
+    exec bash "$committer" "$@"
+}
+
+dispatchOverseerAgent() {
+    requireEngine "$watcher"
+    exec bash "$watcher" "$@"
+}
+
+unknownCommand() {
+    echo "bo: unknown command '$1' — there are six: 'bo loop', 'bo plan:epic', 'bo plan:feature', 'bo plan:task', 'bo overseer', 'bo commit'. Try 'bo --help'." >&2
+    exit 1
+}
+
+runRequestedCommand() {
+    local requested="${1:-}"
+    if [[ -n "$requested" && -n "${planKindOf["$requested"]+set}" ]]; then
+        dispatchPlanAgent "${planKindOf["$requested"]}" "${@:2}"
+    fi
+    case "$requested" in
+        ""|-h|--help|help)
+            usage
+            exit 0
+            ;;
+        loop)
+            dispatchOverCurrentTower
+            ;;
+        overseer)
+            dispatchOverseerAgent "${@:2}"
+            ;;
+        commit)
+            dispatchCommitter "${@:2}"
+            ;;
+        *)
+            unknownCommand "$requested"
+            ;;
+    esac
+}
+
+locateEngines
+runRequestedCommand "$@"

@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# overseer-agent.sh — runs the overseer agent, in the foreground, through BO_AGENT_COMMAND.
+#   overseer-agent.sh [prompt]
+#   BO_AGENT_COMMAND (claude) the command that runs an agent — it may live in ~/.obelisk.env
+#   bo overseer is this file; the contract is agents/overseer.md.
+#   The watcher is denied 'bo' outright — --disallowedTools Bash(bo:*), which stops bo commit, bo loop and
+#   bo plan:* while leaving bd, git and every other read alone. Verified: bd and git still run under it.
+set -uo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$here/user-env.sh"
+loadObeliskEnv
+
+agentCommand="${BO_AGENT_COMMAND:-claude}"
+agentPluginName="${BO_AGENT_PLUGIN:-binary-obelisk}"
+
+usage() {
+    cat <<'USAGE'
+overseer — read a tower and report on it
+
+  overseer-agent.sh [prompt]   the reader, foreground, talking back to you
+
+Run it from inside the tower you want read. Anything after the command is handed to
+it as the prompt:
+
+  overseer-agent.sh is this tower making progress
+
+It reads the beads database of this directory and the run logs under BO_LOG_ROOT,
+and reports: is the loop alive, how far along the tower is, and whether anything is
+wrong. It has no Write, Edit or Agent tools, and 'bo' is denied to it outright —
+where the fix is a mutation it hands you the command to run.
+
+BO_AGENT_COMMAND (claude) — the command that runs an agent; it is split on spaces,
+so it may carry its own arguments. Set it in ~/.obelisk.env, or export it for one run.
+
+Run it from inside a tower project (one with a beads DB).
+USAGE
+}
+
+requireBeadsProject() {
+    bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 || {
+        echo "overseer: no beads DB found from $PWD — cd into a tower project and re-run." >&2
+        exit 1
+    }
+}
+
+requireAgentCommand() {
+    local commandWord="${agentCommand%% *}"
+    command -v "$commandWord" >/dev/null 2>&1 || {
+        echo "overseer: the agent command '$commandWord' is not on PATH — fix BO_AGENT_COMMAND, or leave it unset to get 'claude'." >&2
+        exit 1
+    }
+}
+
+runOverseer() {
+    requireBeadsProject
+    requireAgentCommand
+    echo "overseer: reading $PWD through '$agentCommand'" >&2
+    exec $agentCommand --agent "$agentPluginName:overseer" --disallowedTools 'Bash(bo:*)' "$@"
+}
+
+case "${1:-}" in
+    -h|--help|help)
+        usage
+        exit 0
+        ;;
+    *)
+        runOverseer "$@"
+        ;;
+esac

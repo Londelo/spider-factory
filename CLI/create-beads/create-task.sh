@@ -21,11 +21,11 @@ create-task — print the id of the next ticket under a gate, create nothing
 Every ticket below a gate reads task in its id — the epic's e2e suite, the epic's review, a
 feature's suite, its review, and its worker tasks all of them:
 
-  kachalka-task-a7f3c9-0.1     the epic's e2e suite
-  kachalka-task-a7f3c9-0.2     the epic's review
-  kachalka-task-a7f3c9-1.1     feature 1's suite
-  kachalka-task-a7f3c9-1.2     feature 1's review
-  kachalka-task-a7f3c9-1.3     feature 1's first worker task
+  foobar-task-a7f3c9-0.1     the epic's e2e suite
+  foobar-task-a7f3c9-0.2     the epic's review
+  foobar-task-a7f3c9-1.1     feature 1's suite
+  foobar-task-a7f3c9-1.2     feature 1's review
+  foobar-task-a7f3c9-1.3     feature 1's first worker task
 
 The two structural tickets are fixed numbers, so name the role and this hands the same number
 back every time; ask for a second suite and it refuses rather than writing a dupe. A plain task

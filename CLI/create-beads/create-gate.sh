@@ -20,12 +20,12 @@ create-gate — print the id of the next gate, create nothing
 
 Without a gate above it this writes a brand new tower: a fresh uuid and the hierarchy 0, as in
 
-  kachalka-epic-a7f3c9-0
+  foobar-epic-a7f3c9-0
 
 With an epic gate named it copies that gate's uuid, counts the feature gates already standing
 under it, and hands back the next number, as in
 
-  kachalka-feature-a7f3c9-3
+  foobar-feature-a7f3c9-3
 
 The repo must be this database's own issue prefix. The gate above must be a real row, of type
 gate, and must be the epic one — a feature gate named here is refused, because a feature gate

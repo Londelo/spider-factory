@@ -85,9 +85,14 @@ There is no place to declare at create time. A ticket's position **is** its edge
 `bd dep add` the moment the row exists:
 
 ```bash
-bd dep add "$task" "$gate" --type blocks      # this task is one of the gate's tier
-bd dep add "$next" "$task" --type blocks      # and the next one waits on it
+bd dep add "$gate" "$task" --type blocks      # the gate waits on this task — it is one of the gate's tier
+bd dep add "$next" "$task" --type blocks      # and the next task waits on this one
 ```
+
+**The second id is always the one that comes first**, the one that must be finished before the first may
+start. Read an edge aloud as "`<first id>` waits on `<second id>`" before you run it. Wiring a tier the other
+way round — `bd dep add "$task" "$gate"` — makes the gate block its own tier: nothing in the tier ever
+reaches `bd ready`, the loop reports `tower_stalled`, and every command still exits `0`.
 
 At create time `--deps <type:id>` writes the same edge: bare `id`, `depends-on:` and `blocked-by:` make
 **this** issue wait on it; `blocks:` reverses it (that issue waits on this one).

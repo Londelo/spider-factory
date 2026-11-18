@@ -154,11 +154,16 @@ the agent standing next to both ids is the only one that can ever wire them. For
 create, three edges, and one more if there is an epic:
 
 ```bash
-bd dep add "$suite"  "$gate" --type blocks    # the suite is part of the feature's tier
-bd dep add "$review" "$gate" --type blocks    # so is the review
-bd dep add "$review" "$suite" --type blocks   # and the review waits on the suite
-bd dep add "$e2e"    "$gate" --type blocks    # the epic's suite waits on this feature being merged
+bd dep add "$gate"   "$suite"  --type blocks  # the gate waits on the suite — it is part of the feature's tier
+bd dep add "$gate"   "$review" --type blocks  # the gate waits on the review too
+bd dep add "$review" "$suite"  --type blocks  # and the review waits on the suite
+bd dep add "$e2e"    "$gate"   --type blocks  # the epic's suite waits on this feature being merged
 ```
+
+**The second id is always the one that comes first** — read every edge as "`<first>` waits on `<second>`".
+The tier edges point *into* the gate; the last line points *out* of it, because that one is a phase edge and
+not a tier edge. Wire a tier edge the other way round and the gate blocks its own tier: the suite and the
+review never reach `bd ready`, and every command still exits `0`.
 
 - **every ticket of the tier blocks the gate** — that set of blockers IS the tier, and it is what the lead
   agent reads when it asks whether the feature is proved

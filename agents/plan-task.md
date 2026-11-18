@@ -143,8 +143,11 @@ chain**, which is the whole of your job with edges:
   `feature-test` ticket** as well as the gate. One extra edge, yours, and the
   suite proves nothing until the whole chain of commits exists.
 
-So per task: `bd dep add "$task" "$gate" --type blocks`, plus `bd dep add "$task" "$previous" --type blocks`
-unless it is the first. Beads keeps **one edge per pair** whatever its type, so read `.dependencies` back
+So per task: `bd dep add "$gate" "$task" --type blocks` — the gate waits on the task — plus
+`bd dep add "$task" "$previous" --type blocks` unless it is the first, the task waiting on the one before it.
+**The second id is always the one that comes first**; read each edge as "`<first>` waits on `<second>`".
+Wire a tier edge the other way and the gate blocks its own tier: no task of the chain ever reaches
+`bd ready`, the loop reports `tower_stalled`, and every command still exits `0`. Beads keeps **one edge per pair** whatever its type, so read `.dependencies` back
 after wiring — an edge that silently isn't there is a task that belongs to no tier.
 
 What is **not** yours: the suite's and review's edges to each other and to the gate (`plan-feature` wired

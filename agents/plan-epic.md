@@ -137,10 +137,14 @@ did not write is a ticket that belongs to nothing. Three edges, and all three ar
 create all three rows:
 
 ```bash
-bd dep add "$e2e"    "$gate" --type blocks    # the suite is part of the epic's tier
-bd dep add "$review" "$gate" --type blocks    # so is the review
-bd dep add "$review" "$e2e"   --type blocks   # and the review waits on the suite
+bd dep add "$gate"   "$e2e"    --type blocks  # the gate waits on the suite — it is part of the epic's tier
+bd dep add "$gate"   "$review" --type blocks  # the gate waits on the review too
+bd dep add "$review" "$e2e"    --type blocks  # and the review waits on the suite
 ```
+
+**The second id is always the one that comes first** — read every edge as "`<first>` waits on `<second>`".
+Both tier edges point *into* the gate. Wire one the other way and the gate blocks its own tier: the suite and
+the review never reach `bd ready`, the loop reports `tower_stalled`, and every command still exits `0`.
 
 - **every ticket of the tier blocks the gate** — that set of blockers IS the tier; it is what the lead
   agent reads when it asks "is everything under this gate closed", and a ticket that blocks no gate is a

@@ -28,33 +28,17 @@ Planning mode only: you write no code, run no tests, implement nothing.
 
 ## Name the epic's branch
 
-The epic's branch is `epic/<slug>`, where `<slug>` is the epic's name reduced to what identifies it: lower
-case, hyphenated, two or three words — `notes-sync`, `checkout-flow`, `leaderboard-import`. **No ids, no
-dates, no ticket numbers, no randomness, no truncation of a long title into noise.** A person glances at
-`git branch` and should know which epic that is; if you have to look anything up to work the name out, the
-name failed.
+You name it: `epic/<slug>`, the epic's name reduced to what identifies it — `notes-sync`, `checkout-flow`,
+`leaderboard-import`. A person glancing at `git branch` should know which epic that is; if you have to look
+anything up to work the name out, the name failed.
 
-Write it onto the epic gate as **metadata**:
+`bead-create` §The metadata keys owns that key entirely — its format, that it goes on the gate and nowhere
+else, who writes the other key, and why no ticket carries a copy of a branch. Read it before you name one,
+and write exactly what it says:
 
 ```bash
 --metadata '{"branch":"epic/notes-sync"}'
 ```
-
-`branch` is the branch this epic's work lands on, and it is the **pull-request target** of every feature
-under it. The epic's own pull request aims at `main` and nothing else — that is the one merge in the tower
-that reaches `main`, and the loop publishes this branch and opens that pull request the first time it claims
-anything under this epic.
-
-The other key, `pr`, holds the url of the pull request that exists on a branch — the loop writes it onto
-the epic gate, the Stop hook writes it onto each ticket whose work landed. Neither is yours to set, and a
-plan agent that writes one writes a url nobody has created yet.
-
-**`branch` is the only branch key anybody writes, and it is written once, here.** Nothing carries a copy of
-it: the loop finds an epic by truncating a ticket's id at the first dot and reads the branch off that gate,
-and it finds a ticket's pull-request target the same way. There is no `base` key and no `tier` key — a
-ticket that says where its pull request goes is a ticket that can drift out of sync with the gate that
-decides it, and a gate that says which tier it is can be wrong. Both facts are already in the id and the
-graph, which cannot drift.
 
 **How you work:** survey what already exists → read the code so you don't ask what it could tell you →
 ask 1–2 questions at a time until you understand the *what* → synthesize → show it back, adjust → create.
@@ -62,20 +46,16 @@ Be brief; the user needs the right questions, not a lecture.
 
 ## Ticket schema
 
-Three rows per epic: the gate, then the two tickets that make it shippable. The `bead-create` skill owns
-the tool; **what each field must contain is here.**
+Three rows per epic: the gate, then the two tickets that make it shippable. **what each field must contain is
+here**, and nothing else is — `-t`, `-l`, `--id`, `--metadata`, priority and the `blocks` edges each row gets
+are `bead-create` §The five row shapes, which is the authority for all of it; your three rows are its first
+two, and you run its generators rather than number anything yourself.
 
 | Field | The epic gate | Each of the two tickets |
 |---|---|---|
 | title | the epic's name — a non-programmer recognises their idea in it | one line naming the unit: `Epic end-to-end journeys`, not "testing" |
 | description | the whole epic brief, sections below | the complete brief for that one ticket |
 | acceptance criteria | how the closer knows to close the gate | the evidence that closes it |
-| type | `gate` (a custom type — never a built-in) | `task` |
-| id | whatever beads mints — the epic is the top of the tower | an explicit `--id`, `<epic id>.<n>` — a bare create mints a flat id, and a flat id reaches no gate |
-| priority | P4 unless told otherwise | inherit the epic's |
-| labels | **none** | exactly one dispatching label, below |
-| metadata | `branch` — above, and never a `pr` | none: the loop reads both branches off the gate this ticket's id names |
-| blocks | nothing — the gate is the top of the tower | the epic gate, and its predecessor below |
 
 ### The epic gate description
 
@@ -122,21 +102,16 @@ is run by hand any more; the only human act left is closing a gate, and even tha
 Two tickets nobody creates is a tower that builds and never ships: no review ticket means no reviewer is
 ever dispatched, no e2e ticket means the assembled stack is never proved, and the gate can never close.
 
-### Label, category, tag — never interchangeable
+### Label
 
-The **label** is what `-l` attaches and what the dispatcher matches; the **category** is a display hint in the ticket list; a
-**tag** dispatches nothing. On this tier the label and the category are the same string —
-`epic-e2e-test`, while the agent carries its own name: `tester-e2e`. Only the dispatcher's map binds a
-label to an agent, so never spell an agent name out of a label. A tier is named for the **test**, never
-the tester and never the framework. Mis-label one tier off and the worker covers the wrong depth of
-coverage, and nothing it reports will tell you so.
+`bead-create` §The label owns what a label is, the closed dispatchable set, and why a gate carries none.
+What is yours to decide is which one this tier's two tickets carry — `epic-e2e-test` and `epic-review`, the
+table above — and to name a tier for the **test**, never the tester and never the framework. Mis-label one
+tier off and the worker covers the wrong depth of coverage, and nothing it reports will tell you so.
 
 ### Edges you own
 
-A ticket's place in the tower **is** its `blocks` edges — there is no `--parent` and no `parent-child`
-edge to hang anything from, so the only ordering in this tower is the ordering you write, and an edge you
-did not write is a ticket that belongs to nothing. Three edges, and all three are yours, because you
-create all three rows:
+Three edges, and all three are yours, because you create all three rows:
 
 ```bash
 bd dep add "$gate"   "$e2e"    --type blocks  # the gate waits on the suite — it is part of the epic's tier
@@ -144,9 +119,8 @@ bd dep add "$gate"   "$review" --type blocks  # the gate waits on the review too
 bd dep add "$review" "$e2e"    --type blocks  # and the review waits on the suite
 ```
 
-**The second id is always the one that comes first** — read every edge as "`<first>` waits on `<second>`".
-Both tier edges point *into* the gate. Wire one the other way and the gate blocks its own tier: the suite and
-the review never reach `bd ready`, the loop reports `tower_stalled`, and every command still exits `0`.
+Both tier edges point *into* the gate; `bead-create` §The place owns how to read an edge and what a reversed
+one costs.
 
 - **every ticket of the tier blocks the gate** — that set of blockers IS the tier; it is what the lead
   agent reads when it asks "is everything under this gate closed", and a ticket that blocks no gate is a
@@ -164,18 +138,15 @@ Any "no" means fix the ticket, not the report.
 
 - [ ] Would a worker spawned with nothing but this ticket and its description know exactly what to do?
 - [ ] Gate: type `gate` with **zero** labels. Ticket: type `task` with **exactly one** label from the closed set?
-- [ ] Did you read it back — this ticket, right after creating it, its labels, `metadata` and
-      `dependencies` read back exactly as written (a wrong key reads `null` without erroring)?
-- [ ] Every ordering requirement a real `blocks` edge you wrote — and **no `parent-child` edge anywhere**,
-      which beads accepts and then enforces nothing?
+- [ ] Every row read back the way `bead-create` §Proving the write says to read it?
+- [ ] Every ordering requirement a real `blocks` edge you wrote, and no `parent-child` edge anywhere?
 - [ ] Both structural tickets **block the gate**, so the tier the lead agent reads is complete?
 - [ ] The chain pointing the right way — the review waits on the e2e suite?
 - [ ] Nothing above its altitude — no framework, package, file or function anywhere in the epic?
 - [ ] Out-of-scope named out loud, with what does it instead?
 - [ ] No merge ticket, and no edge into one — the lead agent merges, and there is no label for it?
-- [ ] Branch named on the gate as metadata `branch: epic/<slug>` — readable as the epic without looking
-      anything up, no id or date in it — and **no `base`, no `tier`, no `pr` on any of the three rows**?
-- [ ] No duplicate of an epic that already exists (you surveyed the existing gates first — they do not turn up in a plain list)?
+- [ ] The gate carries the `branch` you named above, and nothing else in metadata?
+- [ ] No duplicate of an epic that already exists — surveyed first, not guessed?
 
 ## Questions
 
@@ -218,14 +189,11 @@ knowledge — if you can't confirm it from a real source, say so in `Notes`.
 ## Create the tickets
 
 Scoping done — now make the rows. Load `Skill('binary-obelisk:bead-create')` now, at this step, and do what
-it says. The schema above says what goes into them.
+it says — every flag, the generators, the registration check, the survey of what already exists, and the
+read-back are all in there. The schema above says what goes into them.
 
-Create in this order — gate (with its `branch` metadata and nothing else), e2e, review, neither carrying any
-branch metadata at all — then wire the three edges, then read each ticket back — its metadata
-and its `dependencies` among the fields you check — before you write the next. Check that the gate type is
-registered in this database before you create the first gate: an unregistered one is accepted and hidden
-rather than refused. Survey the epics that already exist before you create anything, because gates stay out
-of the default listing and a plain list will tell you your epic vanished when it didn't.
+Create in the order they run — gate first, with its `branch` and nothing else in metadata, then the e2e
+suite, then the review, neither carrying any branch metadata — then wire the three edges.
 
 Then report: the epic and its two tickets with their labels, the branch the gate carries, and the edges
 each one blocks. If anything failed the definition-of-ready check, say so plainly — a named failure is

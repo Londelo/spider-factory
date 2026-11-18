@@ -41,9 +41,10 @@ There is no merge ticket at this tier or any other. Nothing runs yet.
       title "The one row that carries the epic's branch name"
       notes """
 The gate goes in before any ticket, because it is the only row anywhere that carries a branch name, and the
-two rows below reach it by truncating their own ids. It carries one key, `branch: epic/record-box`, and nothing
+two rows below reach it through their own ids, which copy its uuid. It carries one key,
+`branch: epic/record-box`, and nothing
 else: not where its pull request goes (`main`, derived — it is its own top of tower) and not which tier it is
-(nothing depends on it, derived from the graph).
+(the kind word of its own id says `epic`, and nothing is read from the database to work that out).
 """
     }
 
@@ -64,8 +65,8 @@ own gate closes.
       title "One epic in, its features out — this epic needs only one"
       notes """
 It runs off an epic id; given none it asks one question, and "there is no epic" is a legal answer — though a
-feature with no epic gate above it is not work: the loop truncates its id, finds no gate, refuses it and logs
-the ticket id, so the planner says so in its report rather than shipping a tower nothing will run. A feature
+feature with no epic gate above it is not work: the loop reads the epic out of its id, finds no such gate,
+refuses it and logs the ticket id, so the planner says so in its report rather than shipping a tower nothing will run. A feature
 is one complete thing a user can do, never a layer of the app. It phases them foundations → core → dependent → polish, and **features are the unit of
 parallelism**: siblings run side by side on their own branches, and the only thing that stops them is an
 edge someone wrote because one genuinely needs the other.
@@ -76,9 +77,9 @@ edge someone wrote because one genuinely needs the other.
       title "The one row that carries feature/add-record"
       notes """
 Per feature it writes three rows and no merge ticket — there is none at this tier either. This gate names one
-thing, its own branch; where its pull request goes is never written, because the loop truncates this id at the
-first dot and reads `epic/record-box` off the epic gate above. The two tickets below it carry no metadata at
-all.
+thing, its own branch; where its pull request goes is never written, because the loop takes this id's uuid,
+names the epic gate of that tower, and reads `epic/record-box` off it. The two tickets below it carry no
+metadata at all.
 """
     }
 
@@ -268,24 +269,28 @@ another way, later.
       title "The ticket says who does it and where it lands"
       notes """
 - label `backend-logic` → the engineer
-- id `box-7f3a.3.3` truncated at the last dot → the feature gate `box-7f3a.3`, whose `branch`
-  `feature/add-record` is the folder it works in
-- the same id truncated at the first dot → the epic gate `box-7f3a`, whose `branch` `epic/record-box` is what
-  its pull request aims at
+- id `box-task-7f3a9c-1.3` — the uuid `7f3a9c` binds it to one tower; kind word swapped to `feature` and the
+  hierarchy cut at the last dot → the feature gate `box-feature-7f3a9c-1`, whose `branch` `feature/add-record`
+  is the folder it works in
+- the same id, kind word swapped to `epic` and hierarchy `0` → the epic gate `box-epic-7f3a9c-0`, whose
+  `branch` `epic/record-box` is what its pull request aims at
 The ticket itself carries no metadata; the loop does this arithmetic and reads the two branches off the gates.
 Nothing else was unblocked, which is the only reason this ticket came up.
 """
     }
 
-    machine.dispatcher -> tower.epic "the epic gate is the id, truncated at the first dot" {
-      title "The epic gate is the ticket's own id, truncated — never walked to, never searched for"
+    machine.dispatcher -> tower.epic "the epic gate is the ticket's own id with its kind word swapped" {
+      title "The epic gate is the ticket's own id, re-kinded — never walked to, never searched for"
       notes """
 Before any ticket works, the epic branch and its pull request have to exist. There is no parent chain to walk
-and no listing to search: `box-7f3a.3.3` truncated at the first dot is `box-7f3a`, and the loop checks that is
-a real gate of type `gate`. That gate is where the epic's branch and its pull request url live.
-If the id carries no dot, or its truncation is not a gate, the ticket is refused on the spot —
-`ERROR reason=no-epic-gate ticket=<id>` — and left claimed, so its lease parks it out of the queue. If the epic
-gate carries no `branch`, the claim goes back untouched instead: no target, no worker.
+and no listing to search: take `box-task-7f3a9c-1.3`, swap its kind word to `epic`, set its hierarchy to `0`,
+and you hold `box-epic-7f3a9c-0` — the loop checks that is a real gate of type `gate`. That gate is where the
+epic's branch and its pull request url live.
+If the id does not read `<repo>-<kind>-<uuid>-<hierarchy>`, if a task's hierarchy carries no gate number, or if
+the epic gate it names is not a gate, the ticket is refused on the spot —
+`ERROR reason=no-epic-gate ticket=<id>` — and left claimed, so its lease parks it out of the queue. If the gate
+it names carries no `branch`, that is `reason=gate-unworkable`, and it is left claimed the same way: no target,
+no worker.
 """
     }
 
@@ -565,7 +570,8 @@ start. It opens one tier and nothing else: `BO_AGENT_FEATURE_GATES` is the featu
       title "A gate is listed, never claimed off the frontier"
       notes """
 `bd ready` never shows a gate, so the loop asks a different question: list the gates whose blockers are all
-closed. Each one comes back with its `tier`, and a tier that is not switched on is left alone.
+closed. The listing returns ids and nothing else; the tier is the kind word of each id, and a tier that is not
+switched on is left alone.
 """
     }
 
@@ -573,8 +579,9 @@ closed. Each one comes back with its `tier`, and a tier that is not switched on 
       title "The one worker no label reaches"
       notes """
 No label is consulted — this ticket has none — and the map is not involved. Which tier the gate is comes from
-the graph (`bd dep list <gate> --direction up -t blocks`: empty means epic), and its branch and pull-request
-target come from its own id, same arithmetic as any ticket; a gate whose id reaches no usable branch writes a
+the kind word of its own id, `epic` or `feature` — nothing is read from the database to work it out — and its
+branch and pull-request
+target come from that same id, same arithmetic as any ticket; a gate whose id reaches no usable branch writes a
 waiting line, `gate_unworkable gate=<id> step=<why>`, rather than guessing. It then moves the
 gate to `in_progress` itself, guarded so a second loop cannot take it too, and starts the session with
 `agent=lead`, `label=gate:feature`.
@@ -968,9 +975,10 @@ having none.
     machine.dispatcher -> alarms.tickAlarms.noEpicGate "ERROR reason=no-epic-gate ticket=<id> · LEFT CLAIMED" {
       title "The ticket's id reaches no gate"
       notes """
-The whole git world of a ticket is its id truncated twice, and truncation only reaches a gate when the id is
-shaped like a tower's. No dot at all, a first dot that lands on something that is not a gate, or three dots and
-more — one reason, three forms, and the ticket's own id printed on every one of them so a person can find the
+The whole git world of a ticket is read off its id, and that only reaches a gate when the id is shaped like a
+tower's, reading `<repo>-<kind>-<uuid>-<hierarchy>`. An id that does not read that grammar, a task whose
+hierarchy carries no gate number, or the epic gate its uuid names turning out not to be a gate — one reason,
+three forms, and the ticket's own id printed on every one of them so a person can find the
 row. The loop never invents a gate and never goes hunting for one; a plan bug stays a plan bug where you can
 see it.
 """
@@ -999,7 +1007,7 @@ tower that was never chained.
     machine.dispatcher -> alarms.tickAlarms.epicPrFailed "ERROR reason=epic-pr-failed step=push · UNCLAIMED" {
       title "The epic's branch or pull request could not be published"
       notes """
-The gate was already found two lines earlier, by truncating the claim's id at the first dot — nothing walks up a
+The gate was already found two lines earlier, read off the claim's own id — nothing walks up a
 graph here. The `step=` names where it died after that: the epic gate's own `branch`, the forge, its command line
 tool, the branch's first commit, the push, the pull request, or writing the url back on the gate. A pull request
 whose head and base are the same commit is no pull request at all, so the branch is born one commit ahead of

@@ -277,16 +277,44 @@ readFieldOf() {
         | jq -r --arg k "$key" 'if type == "array" then .[0] else . end | ((.metadata // {})[$k] // empty)' 2>/dev/null
 }
 
+# An id reads <repo>-<kind>-<uuid>-<hierarchy>, as in foobar-task-a7f3c9-1.3. The kind word is
+# epic or feature on a gate and task on everything else; one uuid binds a whole tower; the
+# hierarchy is 0 for the epic gate, 1 2 3 for its features, and <gate number>.<m> for a ticket
+# below a gate. The repo may itself carry dashes, so everything is read off the right.
+towerIdPattern='^(.+)-(epic|feature|task)-([0-9a-f]+)-([0-9]+(\.[0-9]+)*)$'
+
+idRepo=""
+idKind=""
+idUuid=""
+idHierarchy=""
+
+splitTowerId() {
+    local id="$1"
+    idRepo=""
+    idKind=""
+    idUuid=""
+    idHierarchy=""
+    [[ "$id" =~ $towerIdPattern ]] || return 1
+    idRepo="${BASH_REMATCH[1]}"
+    idKind="${BASH_REMATCH[2]}"
+    idUuid="${BASH_REMATCH[3]}"
+    idHierarchy="${BASH_REMATCH[4]}"
+}
+
 epicGateOf() {
     local id="$1"
-    [[ "$id" == *.* ]] || return 1
-    printf '%s' "${id%%.*}"
+    splitTowerId "$id" || return 1
+    printf '%s-epic-%s-0' "$idRepo" "$idUuid"
 }
 
 featureGateOf() {
-    local id="$1"
-    [[ "$id" == *.*.* ]] || return 1
-    printf '%s' "${id%.*}"
+    local id="$1" head
+    splitTowerId "$id" || return 1
+    [[ "$idKind" == task ]] || return 1
+    head="${idHierarchy%%.*}"
+    [[ "$head" != "$idHierarchy" ]] || return 1
+    [[ "$head" != 0 ]] || return 1
+    printf '%s-feature-%s-%s' "$idRepo" "$idUuid" "$head"
 }
 
 issueTypeOf() {
@@ -296,14 +324,11 @@ issueTypeOf() {
         | jq -r 'if type == "array" then .[0] else . end | .issue_type // empty' 2>/dev/null
 }
 
-gateIsTopOfTower() {
-    local dependents
-    dependents="$(bd -C "$towerDir" dep list "$1" --direction up -t blocks --json 2>/dev/null \
-        | jq -r 'length' 2>/dev/null)"
-    [[ "${dependents:-0}" -eq 0 ]]
+gateTierOf() {
+    local id="$1"
+    [[ "$id" =~ ^(.+)-(epic|feature)-([0-9a-f]+)-([0-9]+)$ ]] || return 1
+    printf '%s' "${BASH_REMATCH[2]}"
 }
-
-gateTierOf() { gateIsTopOfTower "$1" && printf 'epic' || printf 'feature'; }
 
 # The branch a ticket's work lands on and the branch its pull request aims at, both read off the
 # gates its id names. The owner is the gate whose `branch` the work lands on: a gate owns its own
@@ -317,16 +342,13 @@ resolveTicketBranches() {
     branch=""
     prTarget=""
     branchResolveFailure=""
-    if [[ "$id" != *.* ]]; then
-        [[ "$(issueTypeOf "$id")" == gate ]] || { branchResolveFailure="no-dot"; return 1; }
-        epicGate="$id"
-    elif [[ "$id" == *.*.*.* ]]; then
-        branchResolveFailure="too-deep"
+    splitTowerId "$id" || { branchResolveFailure="malformed"; return 1; }
+    if [[ "$idKind" == task && "$idHierarchy" != *.* ]]; then
+        branchResolveFailure="task-not-below-a-gate"
         return 1
-    else
-        epicGate="$(epicGateOf "$id")"
-        [[ "$(issueTypeOf "$epicGate")" == gate ]] || { branchResolveFailure="not-a-gate"; return 1; }
     fi
+    epicGate="$(epicGateOf "$id")"
+    [[ "$(issueTypeOf "$epicGate")" == gate ]] || { branchResolveFailure="not-a-gate"; return 1; }
     gateId="$epicGate"
     owner="$epicGate"
     if [[ "$(issueTypeOf "$id")" == gate ]]; then
@@ -521,12 +543,12 @@ claimBelongsToATower() {
     fi
     why="$branchResolveFailure"
     case "$why" in
-        no-dot)
-            logTo errors "reason=no-epic-gate ticket=$ticketId msg=\"the id carries no dot, so there is no gate above it and no tower this ticket belongs to — nothing was dispatched and the ticket stays claimed until a human puts it in one\"" ;;
+        malformed)
+            logTo errors "reason=no-epic-gate ticket=$ticketId msg=\"the id does not read <repo>-<kind>-<uuid>-<hierarchy>, so it names no ticket in any tower — nothing was dispatched and the ticket stays claimed until a human puts it in one\"" ;;
+        task-not-below-a-gate)
+            logTo errors "reason=no-epic-gate ticket=$ticketId step=not-below-a-gate msg=\"a task's hierarchy is <gate number>.<m> and this one carries no gate number, so it hangs below no gate — nothing was dispatched and the ticket stays claimed until a human fixes the id\"" ;;
         not-a-gate)
-            logTo errors "reason=no-epic-gate ticket=$ticketId gate=${ticketId%%.*} msg=\"truncating the id gives ${ticketId%%.*}, which is not a gate, so this ticket belongs to no tower — nothing was dispatched and the ticket stays claimed until a human puts it in one\"" ;;
-        too-deep)
-            logTo errors "reason=no-epic-gate ticket=$ticketId step=too-deep msg=\"the id carries three or more dots, deeper than a tower has levels, so it names no ticket in one — nothing was dispatched and the ticket stays claimed until a human fixes the id\"" ;;
+            logTo errors "reason=no-epic-gate ticket=$ticketId gate=$(epicGateOf "$ticketId") msg=\"the epic gate this id names is not a gate, so this ticket belongs to no tower — nothing was dispatched and the ticket stays claimed until a human puts it in one\"" ;;
         owner-carries-no-branch)
             logTo errors "reason=gate-unworkable ticket=$ticketId msg=\"the gate this id names carries no branch, so the loop has nowhere to put this work — nothing was dispatched and the ticket stays claimed\"" ;;
         *)
@@ -701,6 +723,10 @@ dispatchReadyGates() {
     while IFS= read -r gateId; do
         [[ -n "$gateId" ]] || continue
         tier="$(gateTierOf "$gateId")"
+        if [[ -z "$tier" ]]; then
+            logTo errors "reason=gate-unworkable gate=$gateId msg=\"the id does not read <repo>-<epic|-feature>-<uuid>-<number>, so this row is no gate of any tower — no lead agent was spawned for it\""
+            continue
+        fi
         gateTierIsSwitchedOn "$tier" || continue
         atDispatchCapacity && return
         dispatchOneGate "$gateId" "$tier"

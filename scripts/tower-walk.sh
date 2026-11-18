@@ -3,13 +3,19 @@
 # against a throwaway beads DB: the tower is `blocks` edges and nothing else — no `--parent`, no
 # `parent-child` edge anywhere. A gate's tier is the set of tickets that block it, so every ticket
 # of a tier blocks its gate; the next tier is blocked by the gate itself so the tower stalls until a
-# human closes it; one feature's tasks are one chained line; and every ticket's id is dotted under its
-# gates, because that id is the only thing the loop reads to find a branch.
+# human closes it; one feature's tasks are one chained line; and every ticket's id reads
+# <repo>-<kind>-<uuid>-<hierarchy>, because that id is the only thing the loop reads to find a branch.
+# Every id here comes out of CLI/create-beads/ and none is typed by hand — a hand-typed id is exactly
+# the thing the loop refuses.
 #
 # Usage: rm -rf /tmp/bo-tower-walk2 && ./tower-walk.sh   (fresh run)
 set -euo pipefail
 
 export BD_NO_DEP_TYPE_WARNING=1
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+newGateId="$here/../CLI/create-beads/create-gate.sh"
+newTaskId="$here/../CLI/create-beads/create-task.sh"
 
 root="${1:-/tmp/bo-tower-walk2}"
 walkLog="$root/walk-log.txt"
@@ -23,7 +29,11 @@ newDatabaseAtRoot() {
     cd "$root"
     : > "$walkLog"
     BD_NON_INTERACTIVE=1 bd init >/dev/null 2>&1
-    echo "tower-walk v3: DB at $(bd where | head -1)"
+    repo="$(bd config list 2>/dev/null \
+        | sed -n 's/^[[:space:]]*issue_prefix[[:space:]]*=[[:space:]]*//p' \
+        | tr -d '[:space:]')"
+    [[ -n "$repo" ]] || { echo "tower-walk: could not read this database's issue_prefix" >&2; exit 1; }
+    echo "tower-walk v3: DB at $(bd where | head -1), prefix $repo"
 }
 
 probeCloseTicketBehindABlocker() {
@@ -45,47 +55,49 @@ createTower() {
     EPIC=$(bd create "Epic: Bookshelf — personal reading log" -t gate --silent \
       -d "The reading-log epic. A user keeps a personal bookshelf: import an existing library from a Goodreads-style CSV, add books by hand, and search the shelf. This gate stands until every feature under it has shipped and its PR is merged." \
       --acceptance "All feature gates under this epic are closed. The epic e2e suite (journeys across import + manual add + search) runs green on the epic branch." \
-      --metadata "$epicMeta")
+      --metadata "$epicMeta" \
+      --id "$("$newGateId" "$repo")")
 
-    FEAT=$(bd create "Feature: import a library from Goodreads-style CSV" --id "$EPIC.1" -t gate --silent \
+    FEAT=$(bd create "Feature: import a library from Goodreads-style CSV" -t gate --silent \
       -d "One complete user-facing flow: the user uploads a Goodreads-style CSV (title, author, rating, dates read), sees a parsed preview with duplicates flagged, confirms, and the books land on their shelf with tags from the CSV's 'bookshelves' column. Covers the parser service, the import page, and the wiring between them." \
       --acceptance "Upload → preview → confirm → shelf works end to end on the real stack. Duplicate rows (same isbn13) are flagged, not inserted twice. A row missing title AND author is rejected with a line number." \
-      --metadata "$featMeta")
+      --metadata "$featMeta" \
+      --id "$("$newGateId" "$repo" "$EPIC")")
 
     BE=$(bd create "POST /api/import — parse Goodreads-style CSV into shelf entries" -t task -l backend-logic --silent \
       -d "Pure service function parseLibraryCsv(text) plus the POST /api/import endpoint that wires it to the shelf store. Dedupe on isbn13; a row missing title AND author is rejected with its line number; the 'bookshelves' column becomes tags. No UI here — the page is a sibling ticket." \
       --acceptance "parseLibraryCsv is pure and unit-testable alone. Endpoint returns the preview payload {rows, rejected}. Duplicate isbn13 rows come back flagged, never inserted twice." \
-      --id "$EPIC.1.1")
+      --id "$("$newTaskId" "$repo" "$FEAT")")
 
     UT1=$(bd create "Unit tests: parseLibraryCsv — every branch, boundary, empty/null, error" -t task -l unit-tests --silent \
       -d "The parser function ALONE, no HTTP, no DOM: header row, missing columns, duplicate isbn13, row missing title AND author (and each alone), CRLF line endings, BOM prefix, empty file, whitespace-only file, a 10k-row fixture for the boundary. Every branch and boundary in parseLibraryCsv gets a test here. No component is tested on this tier." \
       --acceptance "Every branch/boundary of parseLibraryCsv covered; suite green; nothing that belongs to the feature tier re-asserted here." \
-      --id "$EPIC.1.2")
+      --id "$("$newTaskId" "$repo" "$FEAT")")
 
     FE=$(bd create "Import page — file picker, parsed preview, confirm" -t task -l frontend-ui --silent \
       -d "The /import page: FileDrop (drag or pick a .csv), PreviewTable (parsed rows, duplicates flagged, rejected lines listed), ConfirmBar (count summary + confirm). Empty, loading, error, and partial-rejection states all exist. Talks to POST /api/import only — no parsing logic in components. Built after the parser and its tests landed, so the page is built against a function that already holds." \
       --acceptance "Page renders all four states (empty/loading/preview-with-rejections/error). Confirm sends the preview payload and routes to /shelf on success. No parser logic lives in components." \
-      --id "$EPIC.1.3")
+      --id "$("$newTaskId" "$repo" "$FEAT")")
 
     FT=$(bd create "Feature tests: the import flow wired — upload → preview → confirm → shelf" -t task -l feature-test --silent \
       -d "One feature's pieces proved WIRED on the feature branch, where every task of this feature has landed as a commit: real CSV fixture through the real endpoint into the real store, then the page against it. Successes and failures of THIS feature surface here: happy path, duplicate-flagged file, all-rejected file, and the shelf's state after confirm (tags landed, duplicates not doubled)." \
       --acceptance "Flow proven end to end for one success and one failure per surface; nothing re-asserts a unit-tier case; runs against the real stack, no mocked parser." \
-      --id "$EPIC.1.4")
+      --id "$("$newTaskId" "$repo" "$FEAT" suite)")
 
     FREV=$(bd create "Review: import feature — trace the change, run the suites, certify" -t task -l feature-review --silent \
       -d "Trace every change this feature's commits made on its branch, instrument if needed, run the unit and feature suites, and certify the feature or name exactly what is broken. Certifying means the feature does what its gate's acceptance criteria demand — not that files merely exist." \
       --acceptance "Suites run and counted (not just exit codes); any test that had to change to pass is named as a defect, not fixed silently; certification or defect list lands on the ticket." \
-      --id "$EPIC.1.5")
+      --id "$("$newTaskId" "$repo" "$FEAT" review)")
 
     E2E=$(bd create "E2E tests: reading-log journeys across import, manual add, and search" -t task -l epic-e2e-test --silent \
       -d "Journeys that CROSS features on the real stack: import a CSV then search within what landed; add by hand then import over the top (duplicates flag against hand-added rows); search a tag that only exists in the CSV's bookshelves column. One success and one failure path per feature, plus cross-feature state." \
       --acceptance "Journeys run on the real stack against the merged features; cross-feature state proven both directions; one success + one failure per feature at minimum." \
-      --id "$EPIC.2")
+      --id "$("$newTaskId" "$repo" "$EPIC" suite)")
 
     EREV=$(bd create "Review: the whole epic — certify the epic branch" -t task -l epic-review --silent \
       -d "Trace the epic branch — every feature branch already merged into it by that feature's own lead agent — top to bottom, run the e2e journeys, and certify the epic or name what is broken. A feature certified alone is NOT proof the features fit together — that is what this ticket exists to find." \
       --acceptance "E2E suite run with counts; any cross-feature break named with the two tickets at the seam; certification or defect list lands on the ticket." \
-      --id "$EPIC.3")
+      --id "$("$newTaskId" "$repo" "$EPIC" review)")
 }
 
 wireDependencies() {
@@ -129,7 +141,12 @@ walk() { # walk <phase> <max-ticks> — claim+close until frontier empty
         row="$(bd ready --claim --json)"
         [[ -z "$row" || "$row" == "[]" ]] && { echo "[$phase] frontier empty after $n claims"; return 0; }
         ID="$(jq -r '.[0].id' <<< "$row")"; TYPE="$(jq -r '.[0].issue_type' <<< "$row")"; LABELS="$(jq -r '.[0].labels // [] | join(",")' <<< "$row")"
-        GATE="${ID%.*}"; EPIC="${ID%%.*}"
+        if [[ "$ID" =~ ^(.+)-(epic|feature|task)-([0-9a-f]+)-([0-9]+(\.[0-9]+)*)$ ]]; then
+            GATE="${BASH_REMATCH[1]}-feature-${BASH_REMATCH[3]}-${BASH_REMATCH[4]%%.*}"
+            EPIC="${BASH_REMATCH[1]}-epic-${BASH_REMATCH[3]}-0"
+        else
+            GATE="no-epic-gate"; EPIC="no-epic-gate"
+        fi
         echo "[$phase tick $n] claimed $ID (type=$TYPE labels=$LABELS gate=$GATE epic=$EPIC)" | tee -a "$walkLog"
         bd close "$ID" --reason "experiment: flow probe only, no work performed" >>"$walkLog"
         n=$((n+1))

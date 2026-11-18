@@ -77,16 +77,21 @@ agent; nothing is ever spawned for the person.
 No branch per ticket and none per worker. Two metadata keys exist and one is the plan's: **`branch`**, on a
 **gate only** — the epic gate and each feature gate carry their own and nobody else's, no task or suite or
 review carries any — and **`pr`** (the url, written by the loop or the Stop hook, never by a plan agent).
-Everything else about a ticket's git world is **derived from its id**, which is the point: for
-`kachalka-1vz.5.1`, `${id%.*}` is the feature gate `kachalka-1vz.5` whose `branch` the work lands on, and
-`${id%%.*}` is the epic gate `kachalka-1vz` whose `branch` is the **`prTarget`** — `main` when the owner is
-the epic gate itself. There is no `base` key and no `tier` key; a copy of either is a fact that can disagree
-with the gate that decides it. A dotless id that is not a gate, or one whose truncation at the first dot is
-not a gate, belongs to no tower: the loop refuses it, logs `ERROR reason=no-epic-gate ticket=<id>`, and
-leaves it claimed, unworked, on purpose; an id of three or more dots is refused the same way. Which tier a
-gate is comes from the graph, never a key — nothing depends on it → epic, anything depends on it → feature.
-That is why every ticket below the epic is created with an explicit `--id`: a bare `bd create` mints a flat
-id, and a flat id reaches no gate. The worktree is `.claude/worktrees/<branch with / → +>`, and it belongs to
+Everything else about a ticket's git world is **derived from its id**, which is the point. An id reads
+`<repo>-<kind>-<uuid>-<hierarchy>`, as in `foobar-task-a7f3c9-5.3`: `kind` is `epic` or `feature` **on a
+gate only** and `task` on everything else, one lowercase-hex `uuid` binds a whole tower, and the hierarchy is
+`0` for the epic gate, `1 2 3` for its features, `<gate number>.<m>` for a ticket below a gate — `.1` always
+that gate's suite, `.2` always its review, the worker chain from `.3`. Swap the kind word to `feature` and
+cut the hierarchy at the last dot and you hold the feature gate whose `branch` the work lands on; swap it to
+`epic` and set the hierarchy to `0` and you hold the epic gate whose `branch` is the **`prTarget`** — `main`
+when the owner is the epic gate itself. There is no `base` key and no `tier` key; a copy of either is a fact
+that can disagree with the gate that decides it, and which tier a gate is is its own kind word — read off the
+id, never a graph walked. An id that does not read that grammar, a task whose hierarchy carries no gate
+number, or an epic gate that is not a gate row belongs to no tower: the loop refuses it, logs
+`ERROR reason=no-epic-gate ticket=<id>`, and leaves it claimed, unworked, on purpose. That is why every
+ticket in a tower is created with an explicit `--id`, and why every id comes out of
+`CLI/create-beads/create-gate.sh` or `CLI/create-beads/create-task.sh` and never from an eye: a bare
+`bd create` mints a flat id, and a flat id reaches no gate. The worktree is `.claude/worktrees/<branch with / → +>`, and it belongs to
 the *branch*, not the ticket.
 
 ### The moving parts, and who owns what

@@ -3,9 +3,9 @@ name: bead-read
 description: >
   How to READ a beads (`bd`) system: that you are working inside a ticket database, what it is, and
   every command for reading a ticket's details, the tier it belongs to, and the gate above it. Reading
-  a ticket means three reads, always: the ticket itself in full, the gate above it — found by walking
-  the `blocks` edges upward, since there is no parent link to follow — and the whole tier that gate
-  stands for, which is the set of tickets blocking it. An epic reads every feature and the tier under
+  a ticket means three reads, always: the ticket itself in full, the gate above it — read off the
+  ticket's own id, since there is no parent link to walk — and the whole tier that gate stands for,
+  which is the set of tickets blocking it, read off the gate's `blocks` edges. An epic reads every feature and the tier under
   each, a feature reads every task of its tier, a worker reads its own ticket plus the gate that gives
   it its reason. Use it before running any `bd show` / `bd list` / `bd dep` / `bd graph`, and whenever
   an instruction says "read the ticket" and you would otherwise guess a flag: a truncated read, a
@@ -37,12 +37,19 @@ stale:
 
 | Question | Answer | Read |
 |---|---|---|
-| What tier am I in, and what is my reason for existing? | the gate that **this ticket** blocks, nearest above | `bd dep list <id> --direction up -t blocks --json` |
+| Which gate is above me, and which tier am I in? | the **feature gate** your own id names; the epic above that is the same uuid re-kinded | the id, and nothing else |
 | What is this gate's whole tier? | the set of tickets that **block this gate** | `bd dep list <gate> -t blocks --json` |
 
-A ticket's `issue_type` is the only thing that says what kind of node it is — `gate` at the top and in the
-middle, `task` at the bottom. **An id tells you nothing**: with no parent link, ids are flat and a
-dotted-looking id is a coincidence, not a position. Read the type and the edges, never the string.
+**The id is the position; `issue_type` is what a row is.** An id reads
+`<repo>-<kind>-<uuid>-<hierarchy>`, as in `foobar-task-a7f3c9-5.3`: one lowercase-hex `uuid` binds a whole
+tower, the kind word is `epic` or `feature` **on a gate only** and `task` on everything else, and the
+hierarchy says where it hangs — `0` the epic gate, `1 2 3` its features, `<gate number>.1` that gate's suite,
+`.2` its review, the worker chain from `.3`. Swap the kind word to `feature` and cut the hierarchy at the last
+dot and you hold the feature gate above you; swap it to `epic` and set the hierarchy to `0` and you hold the
+epic gate. Which tier a gate is comes off its own kind word — the loop reads nothing else, and no graph is
+walked to work it out. `issue_type` still decides whether a row really *is* a gate: an id can name a gate that
+the row disagrees with, and that disagreement is the `reason=gate-unworkable` alarm. Nothing about position
+comes from a parenthood link, because there is none.
 
 Nothing else is read at runtime. No stdout, no chat summary, no memory of a previous session survives
 the handoff — **the ticket is the brief, and the report you write on it (or in your final message) is
@@ -71,11 +78,13 @@ for.**
 task's `## Scope` block caps its ambition). This same read carries its edges: `.dependencies` is an
 array of the tickets that **block it**, each a full record with `.id`, `.dependency_type` and `.status`.
 
-**2. The gate above you** — *the source of truth*. You have no parent to name it; you find it by walking
-up the graph: `bd dep list <id> --direction up -t blocks --json` lists every ticket **your** ticket
-blocks, and the `gate`-typed one among them is your tier's gate. Read it in full — the ticket you hold
-never carries the whole reason it exists; the flow it serves lives on the gate. A task that blocks no
-gate has no gate above it: say so on the ticket rather than inventing a purpose.
+**2. The gate above you** — *the source of truth*. You have no parent to name it, and you do not need to
+walk anything: your id's kind word swapped to `feature` with its hierarchy cut at the last dot **is** your
+feature gate, and the same uuid with kind `epic` at hierarchy `0` is the epic above it. Then
+`bd show --json <gate> --long` on that id, and `bd dep list <id> --direction up -t blocks --json` is the
+cross-check that the edge is actually there — the id says where you hang, the edge is what puts you in a
+tier, and a task whose upward read comes back `[]` is a broken plan the loop will not work. Read the gate in
+full — the ticket you hold never carries the whole reason it exists; the flow it serves lives on the gate.
 
 **3. The tier** — the set of tickets that block that gate, `bd dep list <gate> -t blocks --json`. This is
 what "everything under this gate" means, and it is the only thing that means it. Read their titles,
@@ -90,7 +99,8 @@ its epic, and one task's acceptance criteria can always be satisfied while the f
 |---|---|---|
 | any ticket | itself, in full, before touching code | `bd show --json <id> --long` |
 | any ticket | what blocks it (its predecessors), with each one's status | `bd dep list <id> -t blocks --json` |
-| any ticket | **the gate above it** — the `gate`-typed thing it blocks | `bd dep list <id> --direction up -t blocks --json` |
+| any ticket | **the gate above it** — its id re-kinded, no query needed | swap the kind word, cut the hierarchy |
+| any ticket | proof that gate is really wired above it | `bd dep list <id> --direction up -t blocks --json` |
 | any **gate** | **its whole tier** — every ticket that blocks it | `bd dep list <gate> -t blocks --json` |
 | any ticket | its siblings — the gate's tier, minus itself | the gate's tier read above, filtered |
 | anything | every gate in the tower (epics and features) | `bd list -t gate --json` |
@@ -120,11 +130,13 @@ three reads, in order:
    branch of its own. The branch your commit lands on is the one **F1** carries, and your pull request
    aims at the branch the epic gate carries; the loop read both off your id before it put you in this
    worktree. They are facts, not hints, they are just not in your row.
-2. **Gate (up)** — `bd dep list <self> --direction up -t blocks --json` → among the tickets this one
-   blocks is **F1**, `issue_type: gate`, so **F1 is the source of truth**. `bd show --json F1 --long`
-   → its `## Scope`: the bill computes its next date and *surfaces it to the user*. Without this read
-   you would write a pure date calculator with no way to prove it right; with it, you know your engine
-   must expose what the form and the test tickets beside you will need.
+2. **Gate (up)** — your id is `tally-task-3c9a1f-1.3`, so the kind word swapped to `feature` with the
+   hierarchy cut at the last dot is `tally-feature-3c9a1f-1` = **F1**, and the same uuid re-kinded `epic` at
+   `0` is the epic gate. `bd show --json F1 --long` → its `## Scope`: the bill computes its next date and
+   *surfaces it to the user*. Without this read you would write a pure date calculator with no way to prove
+   it right; with it, you know your engine must expose what the form and the test tickets beside you will
+   need. Then `bd dep list <self> --direction up -t blocks --json` and confirm **F1** is among the tickets
+   this one blocks, `issue_type: gate` — the id says where you hang, that edge is what puts you in the tier.
 3. **Tier (the gate's blockers)** — `bd dep list F1 -t blocks --json` → the feature's whole tier with
    each one's status and label. The `unit-tests` ticket is right there and already open: that is who
    owns your spec, and `## Owned Elsewhere` says don't duplicate it.
@@ -140,7 +152,7 @@ bd status                                  # totals: open / in-progress / blocke
 bd show --json <id> --long                 # THE BRIEF: description, design, acceptance, labels, type,
                                            #   metadata, and .dependencies (the tickets blocking it)
 bd dep list <id> -t blocks --json          # what blocks it — array of full records, `.status` included
-bd dep list <id> --direction up -t blocks --json   # what it blocks — walk up to find its gate
+bd dep list <id> --direction up -t blocks --json   # what it blocks — the cross-check on the gate its id names
 bd list -t gate --json                     # every gate in the tower (epics and features)
 bd list --include-gates --json             # ordinary issues AND gates, in one listing
 bd graph <id> --compact                    # the connected component, layered: layer 0 = nothing blocking it
@@ -176,7 +188,7 @@ survives in an old tower is a lie you should see clearly, not one you silently o
    features. `bd list -t gate`, `--include-gates`, or `bd graph`.
 2. **There is no `parent` and no `children` worth reading.** `bd show --json <id>` has no populated
    `parent` on a real tower, and `bd list --parent` / `bd show --children` come back empty — a *correct*
-   tower looks empty to them. The tier is the gate's blockers; the gate above is `--direction up`.
+   tower looks empty to them. The tier is the gate's blockers; the gate above is your own id re-kinded.
 3. **A `blocks` edge you did not write is invisible forever.** A ticket blocking nothing is on the
    frontier from the first tick, and a ticket that blocks no gate belongs to no tier — no lead agent will
    ever count it. `bd dep list <id> --direction up -t blocks --json` returning `[]` on a task is a

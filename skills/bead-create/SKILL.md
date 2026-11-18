@@ -15,7 +15,7 @@ description: >
 
 **Beads** is the issue tracker this toolkit plans and ships on: one local database per repository,
 driven by the `bd` command-line tool. Every unit of work — epic, feature, task — is a real row in that
-database: an id (`kachalka-task-a7f3c9-1.3`), a title, a description, acceptance criteria, a priority, a type, labels, a
+database: an id (`foobar-task-a7f3c9-1.3`), a title, a description, acceptance criteria, a priority, a type, labels, a
 status (`open` → `in_progress` → `closed`, with `blocked`/`deferred` off the frontier) and an owner.
 
 It is not a markdown file and not a scratchpad. The database **is** the plan, and it is the only thing
@@ -48,10 +48,10 @@ a tower reads `<repo>-<kind>-<uuid>-<hierarchy>`, four pieces and no other separ
 | `<hierarchy>` | where it lives: `0` is the epic gate, `1 2 3` are its feature gates, and `<gate number>.<m>` is a ticket belonging to that gate |
 
 ```
-kachalka-epic-a7f3c9-0              kachalka-feature-a7f3c9-1         kachalka-task-a7f3c9-1.3
-kachalka-task-a7f3c9-0.1              the epic's e2e suite              kachalka-task-a7f3c9-1.4
-kachalka-task-a7f3c9-0.2              the epic's review                 kachalka-task-a7f3c9-1.5
-                                    kachalka-feature-a7f3c9-2         kachalka-task-a7f3c9-2.3
+foobar-epic-a7f3c9-0              foobar-feature-a7f3c9-1         foobar-task-a7f3c9-1.3
+foobar-task-a7f3c9-0.1              the epic's e2e suite              foobar-task-a7f3c9-1.4
+foobar-task-a7f3c9-0.2              the epic's review                 foobar-task-a7f3c9-1.5
+                                    foobar-feature-a7f3c9-2         foobar-task-a7f3c9-2.3
 ```
 
 The loop reads a ticket's whole git world off that id and nothing else: the kind word swapped to `feature`
@@ -77,11 +77,11 @@ stdout and nothing else**; every failure writes to stderr, prints nothing on std
 failed run can never feed a half id into a `bd create` command line. Run them from inside the tower.
 
 ```bash
-EPIC=$(CLI/create-beads/create-gate.sh kachalka)                    # kachalka-epic-a7f3c9-0
-FEAT=$(CLI/create-beads/create-gate.sh kachalka "$EPIC")            # kachalka-feature-a7f3c9-1
-SUITE=$(CLI/create-beads/create-task.sh kachalka "$FEAT" suite)     # kachalka-task-a7f3c9-1.1
-REVIEW=$(CLI/create-beads/create-task.sh kachalka "$FEAT" review)   # kachalka-task-a7f3c9-1.2
-TASK=$(CLI/create-beads/create-task.sh kachalka "$FEAT")            # kachalka-task-a7f3c9-1.3
+EPIC=$(CLI/create-beads/create-gate.sh foobar)                    # foobar-epic-a7f3c9-0
+FEAT=$(CLI/create-beads/create-gate.sh foobar "$EPIC")            # foobar-feature-a7f3c9-1
+SUITE=$(CLI/create-beads/create-task.sh foobar "$FEAT" suite)     # foobar-task-a7f3c9-1.1
+REVIEW=$(CLI/create-beads/create-task.sh foobar "$FEAT" review)   # foobar-task-a7f3c9-1.2
+TASK=$(CLI/create-beads/create-task.sh foobar "$FEAT")            # foobar-task-a7f3c9-1.3
 ```
 
 | Script | Takes | Prints |
@@ -204,8 +204,8 @@ The dispatchable set is closed and the loop owns it (`CLI/beads-loop.sh`, the `A
 `backend-logic` · `frontend-ui` · `unit-tests` · `feature-test` · `epic-e2e-test` ·
 `feature-review` · `epic-review`. Anything the map does not name dispatches nothing, however
 plausible it reads. Two things have no label because no label reaches them: **a gate** (the loop dispatches
-a ready gate to the `lead` agent by type and the graph, never by a label — and a gate carrying a label is a
-checkpoint pretending to be work), and **the human**, who has no agent and is never spawned.
+a ready gate to the `lead` agent by its type and its tier's flag, never by a label — and a gate carrying a
+label is a checkpoint pretending to be work), and **the human**, who has no agent and is never spawned.
 
 ## The metadata keys
 
@@ -216,15 +216,14 @@ Two keys exist in this system, and a plan agent writes one of them.
 | `branch` | the plan agent that owns the tier | that gate's own branch — the worktree the loop enters (creating it only for the tier's first ticket), the commit's branch, the pull request's head | **gates only** — the epic gate and each feature gate, each carrying its own and nobody else's |
 | `pr` | the loop, then the Stop hook | the url of the pull request that exists on that branch | **never written by a plan agent**: it is a url of something that does not exist yet |
 
-Everything else about a ticket's git world is **derived**, from the two things that cannot drift — its id
-and the graph:
+Everything else about a ticket's git world is **derived**, from the one thing that cannot drift — its id:
 
 - **Where the work lands** — the branch of the gate its id names. A task works on its feature gate's branch;
   an epic-tier ticket, and the epic gate itself, on the epic gate's own.
 - **What its pull request aims at** — `main` when that owner is the epic gate, otherwise the epic gate's
   `branch`. The loop calls this value `prTarget`, and nothing on a ticket ever says it.
-- **Which tier a gate is** — the graph, not a key. Nothing depends on it → the epic gate; anything depends
-  on it → a feature gate.
+- **Which tier a gate is** — the kind word of its own id, `epic` or `feature`. Read off the string; no graph
+  is walked and no key says it. The graph says only which tickets are *in* the tier — the ones that block it.
 
 ```bash
 bd create "Feature: checkout flow" \
@@ -269,7 +268,8 @@ An epic or a feature is `-t gate`: a **custom** type, registered once per databa
 - `bd create -t gate` **does not refuse** an unregistered type — it accepts it and hides it, so a broken
   gate and a working gate look identical. Register it first, check `bd types`, then create.
 - **A gate carries no label at all**, and carries `branch` in its metadata. Labels are how a worker gets
-  chosen; a gate is a checkpoint and no worker is chosen for it. Which tier it is comes from the graph.
+  chosen; a gate is a checkpoint and no worker is chosen for it. Which tier it is comes from the kind word of
+  its own id.
 - Gates are invisible to the default queries. `bd list` reported *no issues* while two gates existed.
   Surveying them takes `bd list -t gate --json`, and any listing that must show one alongside ordinary
   tasks takes `--include-gates`. A bare `bd list` will convince you your epic vanished.

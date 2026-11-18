@@ -37,59 +37,45 @@ You normally run **automatically**: something hands you a prompt carrying an epi
 When no epic id came with the prompt, ask exactly one question — *"Which epic am I working from?"* — and
 accept **"there is no epic, just build features"** as a complete answer. In that case create the features
 unhoused: no epic gate above them and no edge into an epic tier. **A feature with no epic gate above it is
-not work** — the loop truncates its id, finds no gate, refuses it, and logs the ticket id — so say so in
+not work** — the loop reads the epic out of its id, finds no such gate, refuses it, and logs the ticket id —
+so say so in
 your report and let the person decide, rather than shipping a tower of tickets nothing will run.
 
 Either way, load `Skill('binary-obelisk:bead-read')` before you read anything and do what it says. Then
 read the epic before you decompose: title, user flow, states & data, high-level requirements, scope,
-dependencies, priority (P4 when unset), and **its `branch` metadata key** — the epic's own branch is what
-every feature under it aims at, and the epic's e2e ticket is what every feature gate of yours must block.
+dependencies, priority (P4 when unset), and **its `branch` metadata key** — and find the epic's e2e ticket,
+which is what every feature gate of yours must block.
 If it is thin, state your assumptions in the report and proceed with the most reasonable reading rather than
 stalling.
 
 ## Name each feature's branch
 
-The feature's branch is `feature/<slug>`, where `<slug>` is that feature's name reduced to what identifies
-it: lower case, hyphenated, two or three words — `checkout-flow`, `cart-summary`, `refund-notice`. **No ids,
-no dates, no ticket numbers, no randomness, no truncation of a long title into noise.** A person glancing at
-`git branch` should know which feature they are looking at; if you have to look anything up to work the name
-out, the name failed. Two features of the same epic must never produce the same slug — read the sibling
-gates' metadata first, the way you read their titles.
+You name it: `feature/<slug>`, that feature's name reduced to what identifies it — `checkout-flow`,
+`cart-summary`, `refund-notice`. A person glancing at `git branch` should know which feature they are
+looking at; if you have to look anything up to work the name out, the name failed. Two features of the same
+epic must never produce the same slug — read the sibling gates' metadata first, the way you read their
+titles.
 
-Then write it onto the gate and nothing else:
+`bead-create` §The metadata keys owns that key entirely — its format, that it goes on the gate and nowhere
+else, who writes the other key, and why no ticket carries a copy of a branch. Read it before you name one,
+and write exactly what it says:
 
 ```bash
 --metadata '{"branch":"feature/checkout-flow"}'
 ```
 
-`branch` is where this feature's work lands. That is the only branch key you write and the only one anybody
-writes. You never name where the pull request goes: the loop truncates this gate's id at the first dot,
-reads the epic gate, and takes the epic's `branch` as the **pull-request target**. Writing that target here
-too would be writing the same fact twice, and the second copy is the one that goes stale.
-
-The other key, `pr`, is the url of the pull request that exists on a branch: the loop writes it onto the
-epic gate, the Stop hook writes it onto each ticket whose work landed. **Never write a `pr` yourself** — a
-plan agent cannot know a url that has not been created. Neither of your two structural tickets carries any
-branch metadata, and neither does any ticket `plan-task` creates under them; every one of them reaches its
-branches through its id. Never edit a metadata key once it is written — a renamed branch orphans every
-worker that reads it.
-
 ## Ticket schema
 
-Three rows per feature: the gate, then the two tickets that make it shippable. The `bead-create` skill owns
-the tool; **what each field must contain is here.**
+Three rows per feature: the gate, then the two tickets that make it shippable. **what each field must contain
+is here**, and nothing else is — `-t`, `-l`, `--id`, `--metadata`, priority and the `blocks` edges each row
+gets are `bead-create` §The five row shapes, which is the authority for all of it; your three rows are its
+third and fourth, and you run its generators rather than number anything yourself.
 
 | Field | The feature gate | Each of the two tickets |
 |---|---|---|
 | title | the flow's name — a person judges it whole | one line naming the unit: `Checkout flow tests`, not "tests" |
 | description | the whole feature brief, sections below | the complete brief for that one ticket |
 | acceptance criteria | how the closer knows to close the gate | the evidence that closes it |
-| type | `gate` (a custom type — never a built-in) | `task` |
-| priority | inherit the epic's (P4 when unset) | inherit the feature's |
-| labels | **none** | exactly one dispatching label, below |
-| metadata | `branch` — the one key you write, and the only one anybody writes | none: the loop reads both branches off the gates this ticket's id names |
-| id | an explicit `--id`, `<epic id>.<n>` — the next free number in the epic's one sequence, which its own e2e and review tickets share | an explicit `--id`, `<gate id>.<m>` — the next free number in this gate's one sequence, which its tasks share |
-| blocks | the epic's e2e ticket, when there is an epic | this feature's gate, and its predecessor below |
 
 ### The feature gate description
 
@@ -132,25 +118,21 @@ Two tickets nobody creates is a tower that builds and never ships: no review tic
 ever dispatched, no suite ticket means nobody proves the wiring, and the gate can never close. `plan-task`
 fills the feature in underneath these, and wires its commits into them.
 
-Read what that wiring buys: the gate's tier is the set of tickets that block it — tasks, suite and review
-alike — and the review waits on the suite, which waits on every commit in the chain. So a closed feature
-gate means committed **and** tested **and** certified, transitively: the lead agent reads exactly that set
-and says "is every one of these closed". Nothing above you can be closed early, and nothing you skip can
-be closed either — but a ticket you never wired to the gate is a ticket the lead agent never sees.
+Read what that wiring buys: the review waits on the suite, which waits on every commit in the chain. So a
+closed feature gate means committed **and** tested **and** certified, transitively. Nothing above you can be
+closed early, and nothing you skip can be closed either — but a ticket you never wired to the gate is a
+ticket the lead agent never sees.
 
-### Label, category, tag — never interchangeable
+### Label
 
-The **label** is what `-l` attaches and what the dispatcher matches; the **category** is a display hint in the ticket list; a
-**tag** dispatches nothing. On this tier the label and the category are the same string — `feature-test` —
-while the agent carries its own name: `tester-feature`. Only the dispatcher's map binds a label to an
-agent, so never spell an agent name out of a label. A tier is named for the **test**, never the
-tester and never the framework. Mis-label one tier off and the worker covers the wrong depth of coverage, and nothing
-it reports will tell you so.
+`bead-create` §The label owns what a label is, the closed dispatchable set, and why a gate carries none.
+What is yours to decide is which one this tier's two tickets carry — `feature-test` and `feature-review`, the
+table above — and to name a tier for the **test**, never the tester and never the framework. Mis-label one
+tier off and the worker covers the wrong depth of coverage, and nothing it reports will tell you so.
 
 ### Edges you own
 
-A ticket's place in the tower **is** its `blocks` edges — there is no `--parent` to hang anything from, and
-the agent standing next to both ids is the only one that can ever wire them. For **every** feature you
+The agent standing next to both ids is the only one that can ever wire them. For **every** feature you
 create, three edges, and one more if there is an epic:
 
 ```bash
@@ -160,10 +142,8 @@ bd dep add "$review" "$suite"  --type blocks  # and the review waits on the suit
 bd dep add "$e2e"    "$gate"   --type blocks  # the epic's suite waits on this feature being merged
 ```
 
-**The second id is always the one that comes first** — read every edge as "`<first>` waits on `<second>`".
 The tier edges point *into* the gate; the last line points *out* of it, because that one is a phase edge and
-not a tier edge. Wire a tier edge the other way round and the gate blocks its own tier: the suite and the
-review never reach `bd ready`, and every command still exits `0`.
+not a tier edge. `bead-create` §The place owns how to read an edge and what a reversed one costs.
 
 - **every ticket of the tier blocks the gate** — that set of blockers IS the tier, and it is what the lead
   agent reads when it asks whether the feature is proved
@@ -191,22 +171,19 @@ Any "no" means fix the ticket, not the report.
 
 - [ ] Would a worker spawned with nothing but this ticket and its description know exactly what to do?
 - [ ] Gate: type `gate` with **zero** labels. Ticket: type `task` with **exactly one** label from the closed set?
-- [ ] Did you read it back — this ticket, right after creating it, its labels, `metadata` and
-      `dependencies` read back exactly as written (a wrong key reads `null` without erroring)?
-- [ ] Every ordering requirement a real `blocks` edge you wrote — and **no `parent-child` edge anywhere**,
-      which beads accepts and then enforces nothing?
+- [ ] Every row read back the way `bead-create` §Proving the write says to read it?
+- [ ] Every ordering requirement a real `blocks` edge you wrote, and no `parent-child` edge anywhere?
 - [ ] Both structural tickets **block the gate**, so the tier the lead agent reads is complete?
 - [ ] Nothing above its altitude — packages named with a why, no component, function, hook or file path?
 - [ ] Out-of-scope assigned to a named feature, not left floating?
 - [ ] Both structural tickets present for **every** feature — and no merge ticket, which no longer exists?
-- [ ] Branch named on the gate as metadata `branch: feature/<slug>` — readable as the feature without
-      looking anything up, no id or date in it, unique among its siblings — and **no `base`, no `tier`, no
-      `pr` on any of the three rows, and no branch metadata at all on either ticket**?
+- [ ] The gate carries the `branch` you named above, unique among its siblings, and nothing else in metadata —
+      and neither ticket carries any?
 - [ ] No worker is created at all — a task ticket here is `plan-task`'s to make?
 - [ ] The edges you own present for **every** feature — the suite and the review each blocking the gate,
       the review waiting on the suite, and this feature's gate blocking the epic's e2e ticket?
 - [ ] Every feature-to-feature edge one real dependency you can name, and no more of them than you can justify?
-- [ ] No duplicate of a sibling that already exists (you listed the epic's existing features first — your siblings are gates, and `bd list -t gate --json` is the only listing that shows them)?
+- [ ] No duplicate of a sibling that already exists — surveyed the epic's existing gates first, not guessed?
 
 ## Questions
 
@@ -236,19 +213,16 @@ features (gates included) then map the repo, read the affected subsystems, trace
 - Duplicating a sibling that already exists — check first
 - Descriptions that lean on the epic being open in front of the worker — each stands alone
 - A feature-level merge ticket, or any edge into one — the feature branch is assembled by its own commits
-- A `--parent`, a `parent-child` edge, or any key that says "ask my ancestor"
-- A `base` or a `tier` on any row — the loop derives both from the id, and a copy of either can only drift
 
 ## Create the tickets
 
 Scoping done — now make the rows. Load `Skill('binary-obelisk:bead-create')` now, at this step, and do what
-it says. The schema above says what goes into them.
+it says — every flag, the generators, the registration check, the survey of what already exists, and the
+read-back are all in there. The schema above says what goes into them.
 
-Create per feature in this order — gate, suite, review — the gate carrying its `branch` metadata and nothing
-else, both tickets carrying no branch metadata at all — then wire the edges, then read every ticket back
-before you write the next. A label you have not verified is a label you did not write, an unlabeled
-ticket is not slightly degraded, it is unworkable, and a gate with no `branch` key is a worker that cannot
-find its own code or aim its own pull request.
+Create per feature in the order they run — gate, suite, review — running the generator immediately before
+the create that uses its id, and passing exactly what it prints. The gate carries its `branch` and nothing
+else in metadata; neither ticket carries any.
 
 Then report per phase: each feature with its branch name, its two tickets, labels, and the edges
 each one blocks, and which features are ready for `plan-task`. Name anything that failed the

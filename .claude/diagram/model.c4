@@ -104,7 +104,7 @@ One tick, in the order the code runs it (`tick()`):
 | 2 | capacity check | `$BO_AGENT_COMMAND agents --json`, background sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled` |
 | 3 | **claim** | `bd ready --claim --json` — atomic: assignee + `in_progress` + a 5-minute lease | `bd-failure`; an empty answer is a waiting line, not an error |
 | 4 | match labels against the `AGENT` map — **exactly one** may match | `.[0].labels` | `label-ambiguous`, left claimed |
-| 5 | derive the branch and the PR target off the **id** | `resolveTicketBranches <id>` — `${id%.*}` is the feature gate whose `branch` the work lands on, `${id%%.*}` the epic gate whose `branch` is `prTarget`; `prTarget` is `main` when the owner is the epic gate itself. Nothing is walked and no key on the ticket is read | `no-epic-gate ticket=…` (`no-dot` · `not-a-gate` · `step=too-deep`), `gate-unworkable ticket=…` (`owner-carries-no-branch` · `epic-carries-no-branch`), left claimed |
+| 5 | derive the branch and the PR target off the **id** | `resolveTicketBranches <id>` — `splitTowerId` reads `<repo>-<kind>-<uuid>-<hierarchy>` off the right; the uuid names the tower, the kind word swapped to `feature` with the hierarchy cut at the last dot is the feature gate whose `branch` the work lands on, the kind word swapped to `epic` at hierarchy `0` the epic gate whose `branch` is `prTarget`; `prTarget` is `main` when the owner is the epic gate itself. Nothing is walked and no key on the ticket is read | `no-epic-gate ticket=…` (id does not read the grammar · `step=not-below-a-gate` · `gate=<the epic it names>`), `gate-unworkable ticket=…` (`owner-carries-no-branch` · `epic-carries-no-branch`), left claimed |
 | 6 | one pair of hands per branch | is `branch` in the busy set? | `bd unclaim`, try the next claim, at most `BO_MAX_PARALLEL + 2` attempts a tick |
 | 7 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
 | 8 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
@@ -118,7 +118,7 @@ ready list until its lead agent dies.
 
 | Step | Reads | On failure |
 |---|---|---|
-| the tier is worked out, then switched on | `gateTierOf` — `bd dep list <gate> --direction up -t blocks --json`: nothing depends on it → `epic`, anything → `feature`; matched against the two flags | a tier whose flag is `0` is skipped in silence |
+| the tier is worked out, then switched on | `gateTierOf` — the kind word of the gate's own id: `epic` or `feature`, nothing read from the database; matched against the two flags | a tier whose flag is `0` is skipped in silence; an id carrying neither word logs `gate-unworkable gate=…` |
 | derive the gate's branch and target | `resolveTicketBranches <gate>` — the gate's own `branch`, and the epic gate's `branch` (or `main`) as the target | waiting `gate_unworkable gate=… step=…` |
 | one pair of hands per branch | is the gate's branch in the busy set? | waiting `branch_busy held=1 gate=…` |
 | **claim it** | `bd update <gate> --status in_progress --if-status open` | `gate-claim-lost`, no lead agent spawned |
@@ -420,17 +420,20 @@ that read and write it are in the toolbelt; what lives here is the **state**, an
 | `branch` | on a **gate only** — the epic gate and each feature gate carry their own, written once by the `plan-*` agent that owns the tier. No task, suite or review carries one | the loop, through `readFieldOf <gate> branch`, on the gate the ticket's id names — then handed down as `BO_BRANCH`; nothing parses text for it |
 | `pr` | the url, written by the loop (onto the epic gate) or the Stop hook (onto any ticket whose work landed) — never by a plan agent | a human, and the hook when it looks for the PR already on a branch |
 
-**Everything else about a ticket's git world is derived, never stored.** For `bd-cub.2.1`: `${id%.*}` is the
-feature gate whose `branch` the work lands on, and `${id%%.*}` the epic gate whose `branch` is the
-**`prTarget`** — `main` when the owner is the epic gate itself. Which tier a gate is comes from the graph:
-`bd dep list <gate> --direction up -t blocks` empty → epic, anything → feature. A stored copy of either is a
+**Everything else about a ticket's git world is derived, never stored.** An id reads
+`<repo>-<kind>-<uuid>-<hierarchy>`; for `box-task-7f3a9c-1.3` the uuid names its tower, the kind word
+swapped to `feature` with the hierarchy cut at the last dot names the feature gate whose `branch` the work
+lands on, and the kind word swapped to `epic` with hierarchy `0` names the epic gate whose `branch` is the
+**`prTarget`** — `main` when the owner is the epic gate itself. Which tier a gate is is the kind word of its
+own id, `epic` or `feature` — nothing is read from the database to work it out. A stored copy of either is a
 fact that can disagree with the gate that decides it, which is why neither is a key.
 
 **There is no `parent` key, no `parent-child` edge, and no `--parent` at create time.** Parenthood is what
 made a gate unenforceable: beads refuses a `blocks` edge from an ancestor to its own descendant. With nothing
-to walk, the id is the only thing pointing at a gate — so every ticket below the epic is created with an
-explicit dotted `--id`, and a flat one reaches no gate: the loop refuses it, `ERROR reason=no-epic-gate
-ticket=<id>`, and leaves it claimed on purpose. A gate is a **custom type** and must be registered
+to walk, the id is the only thing pointing at a gate — so every ticket of a tower is created with an explicit
+`--id`, and a flat one reaches no gate: the loop refuses it, `ERROR reason=no-epic-gate ticket=<id>`, and
+leaves it claimed on purpose. Every id comes out of `CLI/create-beads/create-gate.sh` or
+`CLI/create-beads/create-task.sh` and never from an eye. A gate is a **custom type** and must be registered
 (`bd config set types.custom \"gate\"`), as is the parking status
 (`bd config set status.custom \"failed-agent:frozen\"`): `bd` does not reject an unregistered type or status, it
 **accepts it silently and then refuses it**, so a broken gate and a working one look identical. Check
@@ -470,13 +473,15 @@ a branch to the wrong forge.
 | `bd heartbeat <id>` | the worker keeps its lease alive; it never closes its own ticket |
 | `bd list --status in_progress --limit 0 --json` | the `.id`s of everything in progress, each through `resolveTicketBranches` → the branches currently at work, read before the claim so the ticket in hand is never counted against itself |
 | `bd list --status open,blocked --limit 0 --json` | the probe that tells `frontier_empty` from `tower_stalled` |
-| `bd show --json <id>` | read one ticket back — its status, its title (`--long`, the commit message), its `issue_type` (is the id's truncation a gate?), and a gate's `branch` |
+| `bd show --json <id>` | read one ticket back — its status, its title (`--long`, the commit message), its `issue_type` (is this row a gate?), and a gate's `branch` |
 | `bd update <id> --set-metadata k=v` | **merges** — which is why writing `pr` never disturbs the plan's `branch` |
 | `bd update <id> --status <s> --if-status <from>` | **the gate claim**, and the only conditional write in the system: `moveGateTo <gate> in_progress open` is the take, `moveGateTo <gate> open in_progress` is the put-back, and a non-zero exit (the gate was no longer in `<from>`) is the `gate-claim-lost` alarm. A gate never reaches `bd ready`, so this is the only way it moves |
 | `bd close <id> --session <id> --reason …` | only the Stop hook, only on the done marker — a task or a gate, never by the worker itself |
-| `bd list --include-gates --ready --type gate --limit 0 --json` | the ready gates, `.id` alone — the only listing that shows a gate at all, and the input to `dispatchReadyGates`. The tier is not on the row; `gateTierOf` works it out |
-| `bd dep list <gate> --direction up -t blocks --json` | the gate's **dependents** — empty means nothing waits on it, so it is the epic gate; anything means a feature gate. The only way the system knows a tier |
-| `bd create -t gate --id <epic>.<n> --metadata '{"branch":…}'` / `bd create -t task -l <label> --id <gate>.<m>` | the plan agents' build: a gate carries **zero** labels and the `branch` key alone, a task exactly one dispatching label and **no metadata at all**. Every ticket below the epic carries an explicit dotted `--id` — a flat one reaches no gate. There is **no `--parent`** anywhere in a tower |
+| `bd list --include-gates --ready --type gate --limit 0 --json` | the ready gates, `.id` alone — the only listing that shows a gate at all, and the input to `dispatchReadyGates`. The tier is not on the row; `gateTierOf` reads it off the id's kind word |
+| `CLI/create-beads/create-gate.sh <repo> [<epicGateId>]` then `bd create -t gate --id <what it printed> --metadata '{"branch":…}'` | a plan agent mints a gate id and nothing else: no gate id is ever typed. With an epic gate id in hand it numbers the next feature, with none it mints the epic and its one uuid |
+| `CLI/create-beads/create-task.sh <repo> <gateId> [suite\|review]` then `bd create -t task -l <label> --id <what it printed>` | a plan agent mints a task id and nothing else: a gate carries **zero** labels and the `branch` key alone, a task exactly one dispatching label and **no metadata at all**. `.1` and `.2` are fixed to a gate's suite and review, and asking for a second one refuses; above `.2` it takes
+the highest of that gate's existing task ids and adds one — counted off the database, not off the graph, so a
+ticket whose edge was never written still holds its number. Every ticket of a tower carries an explicit `--id` — a flat one reaches no gate. There is **no `--parent`** anywhere in a tower |
 | `bd dep add <blocked> <blocker> --type blocks` | the **one edge type in a tower**, read "blocker blocks blocked"; what a tier *is* = the tickets that block its gate |
 | `bd where` | which DB a directory resolves — `bd` walks **up** and ignores `BEADS_DIR` |
 
@@ -703,9 +708,10 @@ then the UI — never a fan); **the tier of a test ticket** (the label carries t
 plan agent writes **one** metadata key and only one: `branch`, and only ever onto **its own gate**. The epic
 planner names `epic/<slug>` on the epic gate, the feature planner names `feature/<slug>` on its own — and
 nothing below a gate carries a copy of either, because a copy is a fact that can disagree with the gate that
-decides it. The other half of what a plan agent writes is the **id**: every ticket below the epic is created
-with an explicit dotted `--id`, because that id is the only thing the loop reads to find the two gates above
-it. Nothing below recomputes a branch, and there is no parent chain to walk.
+decides it. The other half of what a plan agent writes is the **id**: every ticket of a tower is created with
+an explicit `--id`, because that id is the only thing the loop reads to find the two gates above it — and no
+plan agent ever numbers one itself, it runs `CLI/create-beads/create-gate.sh` or `create-task.sh` and passes
+what comes back. Nothing below recomputes a branch, and there is no parent chain to walk.
 
 Each is one foreground command — `bo plan:epic`, `bo plan:feature`, `bo plan:task` — and anything you type
 after it goes to the planner as the prompt. What runs them is on the agent-command node.
@@ -715,8 +721,10 @@ after it goes to the planner as the prompt. What runs them is on the agent-comma
       description """
 Vague idea → clarifying questions → research → **exactly one** epic gate plus its `epic-e2e-test` and
 `epic-review` tickets, and nothing else: **there is no merge ticket** and no label for one, because the lead
-agent merges from the gate. It writes one key, `branch: epic/<slug>`, onto the gate alone; its two tickets
-carry no metadata at all and are created with an explicit `--id`, `<epic>.<n>`, so their ids reach this gate.
+agent merges from the gate. Its gate's id comes from `create-gate.sh <repo>` — a fresh uuid and hierarchy `0`;
+it writes one key, `branch: epic/<slug>`, onto the gate alone; its two tickets
+carry no metadata at all and are created with an explicit `--id` from `create-task.sh <repo> <epicGate> suite`
+and `… review`, so their ids read `0.1` and `0.2` under this gate.
 The epic's own pull request aims at `main` — that is derived, not written, and it is the one merge in the tower
 that reaches `main`. Then three edges: the suite blocks the gate, the review blocks the gate, the review waits
 on the suite. Builds the tower and does no work in it.
@@ -727,10 +735,12 @@ on the suite. Builds the tower and does no work in it.
       summary "An epic into complete user-facing flows, each with its own branch, suite and review."
       description """
 Epic → feature-sized features (complete user-facing flows). Each gets its own `feature/<slug>`, written onto
-its gate and nowhere else; its `feature-test` and `feature-review` tickets carry no metadata and are created
-with an explicit `--id`, `<gate>.<m>`. Where a feature's pull request merges is never written here — the loop
-truncates this gate's id at the first dot and reads the epic gate's `branch`; a feature with no epic gate above
-it is not aimed at `main`, it is refused (`ERROR reason=no-epic-gate`). **No merge
+its gate and nowhere else. Its gate's id comes from `create-gate.sh <repo> <epicGateId>`, which copies the
+epic's uuid and numbers the next feature; its `feature-test` and `feature-review` tickets carry no metadata and
+are created with an explicit `--id` from `create-task.sh <repo> <gate> suite|review`. Where a feature's pull
+request merges is never written here — the loop takes this gate's uuid, names the epic gate of that tower, and
+reads its `branch`; a feature whose id names no epic gate is not aimed at `main`, it is refused
+(`ERROR reason=no-epic-gate`). **No merge
 ticket at this tier**: a feature has one branch and its tasks are the commits onto it. Four edges per feature —
 the suite and the review each blocking the gate, the review waiting on the suite, and this feature's gate
 blocking the epic's `epic-e2e-test`, which is what holds the epic tier off the frontier until every feature has
@@ -742,8 +752,9 @@ merged.
       summary "One feature into its tasks, chained one to the next, every one blocking the feature's gate."
       description """
 One feature → its tasks, **labelled at creation** with `bd create -l <label>`, each one created with an
-explicit `--id`, `<gate>.<m>`, and **no metadata at all** — not even a `branch`: the loop truncates that id
-twice and reads both branches off the two gates it names (a plan agent never invents a branch below its own
+explicit `--id` from `create-task.sh <repo> <featureGate>`, run once per task in chain order, and **no metadata
+at all** — not even a `branch`: the loop reads the uuid off that id and takes both branches off the two gates it
+names (a plan agent never invents a branch below its own
 tier, and refuses with `ERROR reason=metadata-missing` when the feature's gate carries no `branch` of its own).
 Each task gets **two** edges —
 onto the feature's gate, making it part of that tier, and onto the single task before it, ordering the build —
@@ -770,7 +781,7 @@ trip, its `dependencies` among the fields checked.
 when `BO_AGENT_EPIC_GATES=1`.
 
 ```
-id:       box-7f3a                     ← no dot: this is the top of the tower
+id:       box-epic-7f3a9c-0          ← the kind word says epic, the hierarchy 0 says top of the tower
 type:     gate                       (custom type: bd config set types.custom \"gate\")
 labels:   none — a gate carries zero labels, so no label can ever dispatch anything to it
 branch:   epic/record-box            ← plan-epic's key, and the only key this row carries
@@ -780,8 +791,8 @@ waits on: the epic review ticket      — an explicit blocked-by edge onto the g
 
 Two things about this row are **derived and never stored**. Its pull request aims at `main`, because the gate
 its own id names is itself — `prTarget` is `main` exactly when the owner is the epic gate. And it is the
-**epic** tier because nothing depends on it: `bd dep list box-7f3a --direction up -t blocks` comes back empty,
-which is the only way the system knows a tier.
+**epic** tier because its id says so: the kind word between the repo and the uuid is `epic`, which is the only
+way the system knows a tier — no edge is walked to work it out.
 
 Every ticket of the tier blocks this gate — that set of blockers **is** the tier, and it is the list the lead
 agent reads when it asks whether the epic is proved. What holds the *next* tier off the frontier is an explicit
@@ -794,9 +805,9 @@ invisible, so there is nothing to exclude, and the loop claims it by status inst
         description """
 ```
 title:    journeys across the whole app in a real browser
-id:       box-7f3a.1               ← the next free number in the epic's one sequence; plan-epic ran first
+id:       box-task-7f3a9c-0.1      ← create-task.sh printed it: the epic's suite is always .1
 label:    epic-e2e-test        → AGENT → tester-e2e
-metadata: none                     ← the loop truncates this id and reads both branches off the epic gate
+metadata: none                     ← the loop reads the uuid off this id and lands on the epic gate for both branches
 depends:  blocked-by every feature gate — one edge per feature, written by plan-feature
 blocks:   the epic gate (its tier) and the epic review ticket
 skill:    framework-playwright
@@ -812,7 +823,7 @@ which is exactly why this ticket waits on the feature gates and not on a merge r
         description """
 ```
 title:    the three questions over the whole epic
-id:       box-7f3a.2
+id:       box-task-7f3a9c-0.2
 label:    epic-review          → AGENT → review
 metadata: none                 ← same: its id reaches the epic gate, and the epic gate is its own target
 depends:  blocked-by the end-to-end ticket
@@ -829,7 +840,7 @@ the tier and merging `epic/record-box` into `main` through the forge.
       summary "One complete flow — a user writes a record and sees it in the box; five tasks, one line."
       description """
 ```
-id:       box-7f3a.3                   ← one dot: this row is its own feature, and it is below the epic
+id:       box-feature-7f3a9c-1     ← the kind word says feature; 1 is this feature's number under the epic
 type:     gate
 labels:   none — a gate carries zero labels
 branch:   feature/add-record           ← plan-feature's key, and the only key this row carries
@@ -837,10 +848,9 @@ pr:       https://github.com/…/pull/2  ← written by the Stop hook onto the t
 waits on: the feature review ticket
 ```
 
-Again nothing here says where its pull request goes: the loop truncates `box-7f3a.3` at the first dot, reads
-`epic/record-box` off that epic gate, and uses it as the **`prTarget`**. Nor does anything say it is a
-**feature** gate — the epic's e2e ticket is blocked by it, so `bd dep list box-7f3a.3 --direction up -t blocks`
-is non-empty, and that is the whole of the tier test.
+Again nothing here says where its pull request goes: the loop takes this id's uuid, names
+`box-epic-7f3a9c-0`, reads `epic/record-box` off that epic gate, and uses it as the **`prTarget`**. Nor is there
+any other record of it being a **feature** gate — the kind word in its own id is the whole of the tier test.
 One complete user-facing flow: a user writes a record and sees it in the box. Its five tasks are **one linked
 line, never a fan**, so the frontier can only ever hand out one task per feature and this branch is never
 written by two workers at once. Every one of them blocks this gate, and so do the suite and the review — that
@@ -854,7 +864,7 @@ through the forge, which is what closing this gate means.
 title:    validateRecord + saveRecord — pure functions
 label:    backend-logic        → AGENT → engineer
 category: backend-logic
-id:       box-7f3a.3.3             ← the next free number under this gate; its number is a place, not an order
+id:       box-task-7f3a9c-1.3      ← create-task.sh printed it; a number is a place, not an order
 metadata: none                     ← the loop reads both branches off the gates this id names
 depends:  none — the first task, and the only ticket claimable when the run starts
 blocks:   the feature gate (its tier) and the unit-tests ticket
@@ -875,7 +885,7 @@ blocks:   the feature gate (its tier) and the unit-tests ticket
 title:    exhaustive coverage for validateRecord
 label:    unit-tests           → AGENT → tester-unit
 category: unit-tests
-id:       box-7f3a.3.4
+id:       box-task-7f3a9c-1.4
 metadata: none
 depends:  blocked-by the back-end ticket — the ticket it tests, its one and only predecessor
 blocks:   the feature gate (its tier) and the front-end ticket
@@ -893,7 +903,7 @@ body.
 title:    RecordForm + RecordCard against proved functions
 label:    frontend-ui          → AGENT → frontend
 category: frontend-ux          ← the CATEGORY; the LABEL is frontend-ui
-id:       box-7f3a.3.5
+id:       box-task-7f3a9c-1.5
 metadata: none
 depends:  blocked-by the unit tests ticket
 blocks:   the feature gate (its tier) and the feature's suite — the tail of the chain hands to it
@@ -909,7 +919,7 @@ styling only — the logic is already proved by the micro tier. This ticket land
 title:    the add-record pieces are wired
 label:    feature-test         → AGENT → tester-feature
 category: feature-test
-id:       box-7f3a.3.1             ← a lower number than the tasks it waits on: plan-feature made this row first
+id:       box-task-7f3a9c-1.1      ← always .1: a lower number than the tasks it waits on
 metadata: none
 depends:  blocked-by the front-end ticket — the LAST task; nothing is proved against half a feature
 blocks:   the feature gate (its tier) and the feature's review ticket
@@ -925,7 +935,7 @@ skill:    framework-playwright
 title:    the three questions over feature/add-record
 label:    feature-review       → AGENT → review
 category: review
-id:       box-7f3a.3.2
+id:       box-task-7f3a9c-1.2
 metadata: none
 depends:  blocked-by the feature's suite — no review before the suite
 blocks:   the feature gate (its tier)
@@ -1041,14 +1051,14 @@ The commonest cause is a ticket labelled with its **category** instead of its la
         summary "The ticket's id reaches no gate: it belongs to no tower. The id is in the line."
         description """
 Three forms, one reason, and the ticket's own id on every one of them — that is the point of the alarm, so a
-person can find the row. The loop derives a ticket's whole git world by truncating its id, and truncation only
-reaches a gate when the id is shaped like a tower's:
+person can find the row. The loop derives a ticket's whole git world off its id, and that only reaches a gate
+when the id is shaped like a tower's, reading `<repo>-<kind>-<uuid>-<hierarchy>`:
 
 | form | when |
 |---|---|
-| (no `step=`) | the id carries **no dot** at all — a `bd create` with no `--id` mints exactly this |
-| `gate=<id%%.*>` | truncating at the first dot gives a real ticket that is **not** a gate |
-| `step=too-deep` | the id carries **three or more dots** — deeper than a tower has levels, so it names nothing |
+| (no `step=`) | the id does not read that grammar at all — a `bd create` with no `--id` mints exactly this |
+| `step=not-below-a-gate` | it reads, and calls itself a `task`, but its hierarchy carries no gate number — a task hangs below a gate or nowhere |
+| `gate=<the epic id it names>` | the epic gate its uuid names is a real ticket that is **not** a gate |
 
 Nothing was dispatched and the ticket is LEFT CLAIMED, so its five-minute lease parks it off the frontier
 instead of the loop spinning on it. It is a plan bug, and it stays a plan bug where you can see it: the loop
@@ -1097,8 +1107,8 @@ beneath the epic has a pull-request target until this succeeds. Seven steps name
 | `pr` | no URL matching `/(pull\|merge_requests)/[0-9]+` came back |
 | `annotate` | `bd update --set-metadata pr=` refused |
 
-Nothing is walked to find the epic: the claim's id was already truncated into `$gateId` by
-`resolveTicketBranches`, two lines earlier, and that is the gate this function is handed. So `gate-branch` is
+Nothing is walked to find the epic: the claim's id was already read into `$gateId` by `resolveTicketBranches`,
+two lines earlier, and that is the gate this function is handed. So `gate-branch` is
 the only plan-bug step here, and it is the same bug `gate-unworkable` raises one step earlier — a gate nobody
 gave a branch.
 
@@ -1223,7 +1233,7 @@ anything else (`not-found`, `open`) is an alarm.
         summary "The spawn carried no pull-request target, so the hook refuses to aim blind."
         description """
 `BO_PR_TARGET` was not on the spawn. The loop derived that
-target off the ticket's epic gate — the id truncated at the first dot, `main` when the owner is the epic gate
+target off the ticket's epic gate — the gate its uuid names, `main` when the owner is the epic gate
 itself — and carried it through the claims line as `target=` and the spawn as `BO_PR_TARGET`; the hook reads the
 claims line first and the spawn variable after it. An absent target means the hook would be aiming blind, and it
 refuses to.
@@ -1413,9 +1423,10 @@ every other gate failure this one never moves the gate's status at all.
       summary "A ready gate's id reaches no usable branch and target, so no lead agent can be placed or aimed."
       description """
 A gate reached the frontier and `resolveTicketBranches` refused its id. `step=owner-carries-no-branch` — the gate
-carries no `branch` of its own, so nowhere to put the tier's work; `epic-carries-no-branch` — the epic gate above
-it carries none, so its pull request has nothing to aim at; `not-a-gate` — truncating the id at the first dot
-lands on something that is not a gate; `too-deep` — the id carries three or more dots. Same rule as the ticket
+carries no `branch` of its own, so nowhere to put the tier's work; `epic-carries-no-branch` — the epic gate its
+uuid names carries none, so its pull request has nothing to aim at; `not-a-gate` — the epic gate its uuid names
+is a row that is not a gate; `malformed` — the id does not read
+`<repo>-<epic|-feature>-<uuid>-<number>` at all. Same rule as the ticket
 path, same refusal: the loop never invents a branch and never guesses a target. The consequence is quieter here —
 with no lead agent spawned the gate is never claimed, so it stays `open`, shows up ready again next tick, and the
 tier behind it simply waits. An alarm would fire every tick forever; this is a line, rate-limited to one a minute.

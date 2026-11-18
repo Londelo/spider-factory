@@ -89,8 +89,8 @@ owns plus the two whole-tower reads nobody else makes:
 bd where                                        # which database am I actually reading
 bd status                                       # open / in-progress / blocked / ready totals
 bd ready --explain                              # WHY each ticket is or is not on the frontier
-bd list --include-gates --type gate --limit 0 --json | jq -r '.[] | "\(.id) \(.status) \(.metadata.branch // "-") \(.title)"'    # every checkpoint, shut or waiting — the one with nothing depending on it is the epic gate
-bd list --include-gates --ready --type gate --limit 0 --json   # the exact read the loop makes for a gate to hand the lead
+bd list --include-gates --type gate --limit 0 --json | jq -r '.[] | "\(.id) \(.status) \(.metadata.branch // "-") \(.title)"'    # every checkpoint, shut or waiting — the one whose id reads `epic` is the epic gate
+bd list --include-gates --ready --type gate --limit 0 --json   # the exact read the loop makes for a gate to hand the lead — the tier is each id's kind word, never a graph walked
 bd show --json <id> --long                      # the brief: description, design, acceptance, labels, type, metadata
 bd dep list <id> -t blocks --json               # what blocks it — its predecessors, with statuses
 bd dep list <id> --direction up -t blocks --json   # what it blocks — among these is its gate
@@ -184,8 +184,9 @@ The loop is alive and idle is not the same as stalled: `waiting` says which. A w
 - `gate_unworkable gate=<id> step=<why>` — a ready gate whose id reaches no usable pair of branches, so the
   loop cannot stand a lead on it. `step` is `owner-carries-no-branch` (the gate carries no `branch` — a
   hand-made or hand-edited gate; a plan agent always writes it), `epic-carries-no-branch` (the epic gate
-  above it carries none, so nothing beneath it has a pull-request target), `not-a-gate` (truncating the id
-  at the first dot lands on something that is not a gate), or `too-deep` (the id carries three or more dots).
+  above it carries none, so nothing beneath it has a pull-request target), `not-a-gate` (the epic gate its
+  uuid names is a row that is not a gate), or `malformed` (the id does not read
+  `<repo>-<epic|-feature>-<uuid>-<number>`).
   The gate stays open and unclaimed, and is re-tried every tick.
 - `frontier_empty` / `tower_stalled waiting=<n>` — nothing is claimable. See the gate check.
 
@@ -198,7 +199,7 @@ one line per dead worker: `from=<state> kind=<error> msg="<its last words>"`.
 |---|---|---|
 | `bd-failure exit=N` | a `bd` call died — read the last line of `bd-stderr` | usually the wrong database or an unregistered type/status |
 | `label-ambiguous` | the ticket carried zero or two dispatching labels, so no worker was chosen | the plan mis-labelled it; fix the label, the ticket is still claimed |
-| `no-epic-gate ticket=…` | the claimed ticket's id reaches no epic gate — it carries no dot, or truncating it at the first dot lands on something that is not a gate, or `step=too-deep` says it carries three or more dots | **the one a human has to fix**: this ticket was never put in a tower. The id is in the line, nothing was dispatched, and it stays claimed |
+| `no-epic-gate ticket=…` | the claimed ticket's id reaches no epic gate — it does not read `<repo>-<kind>-<uuid>-<hierarchy>`, or `step=not-below-a-gate` says a task's hierarchy carries no gate number, or `gate=<id>` names the epic gate it points at, which is a row that is not a gate | **the one a human has to fix**: this ticket was never put in a tower. The id is in the line, nothing was dispatched, and it stays claimed |
 | `gate-unworkable ticket=…` | the gate its id names carries no `branch`, or the epic gate above it carries none, so the loop has nowhere to put the work or nothing to aim its PR at | a gate made by hand or edited after the plan; `bd update <gate> --set-metadata branch=<name>` fixes it |
 | `epic-pr-failed step=…` | the epic branch or its PR could not be published (`gate-branch` · `forge` · `missing-tool` · `push` · `seed` · `pr` · `annotate`) | `missing-tool` → `gh`/`glab` absent or unauthenticated; `gate-branch` → no gate carries the branch this ticket's PR aims at, so no epic was found to publish |
 | `gate-claim-lost gate=…` | the gate was no longer `open` the moment the loop reached for it, so no lead was spawned | another loop or a human took it — with two loops on one tower, say that first |
@@ -255,8 +256,8 @@ Run these when the human asks you to spot trouble, or when a waiting reason does
 6. **The loop reading a different tower than you are.** `run=`/`repo=` in the log vs `bd where` in your
    own shell. A mismatch means you are reporting on somebody else's tower.
 7. **A gate closed with nothing merged.** A closed gate is a claim that its tier was proved. Read its
-   `branch` off its own metadata and derive its `prTarget` — the epic gate is that id truncated at the first
-   dot, `main` when the gate carries no dot — then `gh pr list --head <branch> --base <prTarget> --state all
+   `branch` off its own metadata and derive its `prTarget` — the epic gate is that id's uuid with the kind word
+   swapped to `epic` and the hierarchy set to `0`, `main` when the gate's own kind word already reads `epic` — then `gh pr list --head <branch> --base <prTarget> --state all
    --json url,mergedAt` — a closed gate whose PR is still open was closed by a hand, not a lead, and the
    tier behind it is now building on a branch nobody merged.
 

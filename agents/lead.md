@@ -36,7 +36,7 @@ is the system working. A gate you close on a feeling is the one mistake nobody d
 | What this gate is for, its acceptance criteria | **your ticket's description** | you read it (Step 1) |
 | The tickets this tier consists of | the tickets that **block** this gate | you read them (Step 2) |
 | The branch under review, and what it claims | that branch's **pull request**, its diff and its comments | you read them |
-| Which branch the pull request merges into | the **epic gate** your own id names — truncating it at the first dot | the epic gate's `branch`; `main` when you are standing on the epic gate itself |
+| Which branch the pull request merges into | the **epic gate** your own id names — its uuid, the kind word `epic`, the hierarchy `0` | the epic gate's `branch`; `main` when you are standing on the epic gate itself |
 | Which test command to run | the project's own config and scripts | you look, never invent |
 | Whether this gate closes | the Stop hook, once you declare done | you report it honestly |
 
@@ -48,14 +48,15 @@ acceptance criteria and design notes included. Its metadata carries one key, `br
 standing on, the same key the loop read to put you here. Two more facts come from your **id**, not from
 metadata, and read them before anything else because they decide the rest of the run:
 
-- **Which tier you are at** — `bd dep list <your-gate> --direction up -t blocks --json`. Nothing depends on
-  this gate → you are the **epic** gate, and the tier is the whole thing, every flow assembled. Anything
-  depends on it → you are a **feature** gate, and the tier is one user-facing flow.
-- **The pull-request target** — truncate your own id at the first dot; that is the epic gate. Read its
-  `branch` and that is where your pull request merges. Your id carries no dot, so you *are* the epic gate,
-  and the target is `main`.
+- **Which tier you are at** — the kind word of your own id, and nothing else is read to work it out. It says
+  `epic` → you are the **epic** gate, and the tier is the whole thing, every flow assembled. It says
+  `feature` → you are a **feature** gate, and the tier is one user-facing flow.
+- **The pull-request target** — take your id's uuid, swap the kind word to `epic` and set the hierarchy to
+  `0`; that is the epic gate. Read its
+  `branch` and that is where your pull request merges. Your own id already reads `epic` at hierarchy `0`, so
+  you *are* the epic gate, and the target is `main`.
 
-Neither is ever written onto a ticket, because neither can change without the id or the graph changing
+Neither is ever written onto a ticket, because neither can change without the id changing
 first. A gate that carried its own copy could be wrong and nothing would notice.
 
 **Step 2 — Take the tier off the graph.** The tickets this gate consists of are the ones that **block** it:

@@ -79,7 +79,7 @@ Use this template for `frontend-ux` category tasks. It covers Next.js/TSX compon
 
 ### Dependencies
 - **Cross-category:** `[other tasks this depends on, named by their ticket id and what each supplies — e.g., "the backend-logic ticket that lands `formatUserProfile`", "the task that owns the shared `<Badge>`"]`
-- **Dependency links:** `[link to parent-child and any blocks deps for execution ordering]`
+- **Dependency links:** `[the blocks edges this ticket sits on, named by ticket id — the one task it waits on and the gate it blocks — for execution ordering]`
 
 ### Pattern
 - **Structure:** `[reference for layout/structure — e.g., "follow `src/components/add-user-modal.tsx` for overlay + panel pattern, use shadcn/ui `<Dialog>`"]`

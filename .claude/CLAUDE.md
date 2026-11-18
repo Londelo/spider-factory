@@ -45,8 +45,8 @@ plugins/binary-obelisk/
 | Name | What it is | Examples |
 |---|---|---|
 | **category** | a display hint, and the name of a `plan-task` template | `backend-logic`, `frontend-ux`, `unit-tests` |
-| **label** | a string on a ticket, `bd create -l`. Any number may be attached; **exactly one** must be a key of the dispatcher's `AGENT` map — that one decides the worker | `backend-logic`, `frontend-ui`, `unit-tests`, `feature-test`, `epic-e2e-test`, `feature-review`, `epic-review`, `epic-merge-pr` |
-| **agent** | a real file in `agents/` | `engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`, `review`, `merge` |
+| **label** | a string on a ticket, `bd create -l`. Any number may be attached; **exactly one** must be a key of the dispatcher's `AGENT` map — that one decides the worker | `backend-logic`, `frontend-ui`, `unit-tests`, `feature-test`, `epic-e2e-test`, `feature-review`, `epic-review` |
+| **agent** | a real file in `agents/` | `engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`, `review`, `lead` |
 
 The three test labels are three **tiers**, and there the three names collapse to one string — the node key IS
 the label IS the category — while the agent carries its own name: `unit-tests` → `tester-unit` (micro, one
@@ -57,28 +57,37 @@ framework — a tier owns *what to cover and how deep*, and a `framework-*` skil
 ticket description carries framework syntax, and why a mis-labelled ticket silently gets the wrong depth.
 
 ### The tower, in one breath
-Every node is a real beads issue; types are `gate` and `task`. Epic gate (the *what*) → feature gates (one
-complete user-facing flow each) → each feature's tasks in **one linked line, never a fan**: logic, then its
-micro tests, then the UI. Then the composition suite, then the review, then the gate. At the epic: one merge
-ticket assembles the finished feature branches, then the broad suite, then the review, then the gate.
+Every node is a real beads issue; types are `gate` and `task`. The tower is **dependencies and nothing else** —
+one edge type, `blocks`, written `bd dep add <blocked> <blocker> --type blocks`. There is no `parent-child`
+edge in a tower and no `--parent` at create time: beads refuses a `blocks` edge from an ancestor to its own
+descendant, so parenthood is what made gates unenforceable in the first place. What a tier *is* = the tickets
+that block its gate.
 
-**Gates are checkpoints, not work.** `bd ready` never shows one. A gate does not block its own children — what
-holds the next tier off the frontier is an explicit `blocked-by` edge onto the gate itself, and **only a human
-closes a gate**, so the tower waits there until someone verifies it. There is no `human` agent; nothing is ever
-spawned for the person.
+Epic gate (the *what*) → feature gates (one complete user-facing flow each) → each feature's tasks in **one
+linked line, never a fan**: logic, then its micro tests, then the UI. Then the composition suite, then the
+review, then the gate. At the epic: the broad suite, then the review, then the gate. There is no merge ticket.
+
+**Gates are checkpoints, not work.** `bd ready` never shows one. Every ticket of a tier blocks its gate, and
+what holds the *next* tier off the frontier is an explicit `blocks` edge onto the gate itself. **Only a human
+closes a gate** — until `BO_AGENT_FEATURE_GATES=1` / `BO_AGENT_EPIC_GATES=1`
+hands that tier to the `lead` agent, which the loop spawns for a ready gate each tick. There is no `human`
+agent; nothing is ever spawned for the person.
 
 ### Branches — one per epic, one per feature; a task is a commit
-No branch per ticket and none per worker. Two metadata keys, and only one is the plan's: **`branch`** (written
-by the plan agent that owns the tier, copied verbatim down every row of it) and **`pr`** (the url, written by
-the loop or the Stop hook — never by a plan agent). A PR's **base is not a key at all**: it is the epic gate's
-own `branch`, found by walking the parent chain, `main` when the ticket hangs under the topmost gate. The
-worktree is `.claude/worktrees/<branch with / → +>`, and it belongs to the *branch*, not the ticket.
+No branch per ticket and none per worker. Three metadata keys, and two are the plan's: **`branch`** (written
+by the plan agent that owns the tier, copied verbatim down every row of it), **`base`** (the base branch of
+that branch's PR — `main` on every epic-tier ticket and on the epic gate, the epic's own branch on every
+feature-tier ticket and on the feature gate), and **`pr`** (the url, written by the loop or the Stop hook —
+never by a plan agent). A gate carries a third, **`tier`** (`epic` or `feature`); nothing else may. With no
+parent chain there is nowhere to *walk* to find a base, so `base` is the only answer and a ticket without it is
+left claimed, unworked, on purpose. The worktree is `.claude/worktrees/<branch with / → +>`, and it belongs to
+the *branch*, not the ticket.
 
 ### The moving parts, and who owns what
 | Part | Owns |
 |---|---|
-| `CLI/beads-loop.sh` | the tick: read the busy branches, `bd ready --claim`, match the one dispatching label, read `branch` and the PR base off the claim and its gate, publish the epic branch and PR if there is none, build the worktree, spawn the worker **with cwd inside it**, log one line |
-| `hooks/worker-stop.sh` | **fail-closed on `$BO_DONE_FILE`**: no marker → no commit, no push, no PR, no close. Then it closes the *task* |
+| `CLI/beads-loop.sh` | the tick: read the busy branches, dispatch any ready gate its tier flag opens, `bd ready --claim`, match the one dispatching label, read `branch` and `base` off the claim, publish the epic branch and PR if there is none, build the worktree, spawn the worker **with cwd inside it**, log one line |
+| `hooks/worker-stop.sh` | **fail-closed on `$BO_DONE_FILE`**: no marker → no commit, no push, no PR, no close. Then it closes the *task*; on a gate claim (`kind=gate`) it commits and pushes, finds that branch's PR at any state, and closes the **gate** without ever opening a new PR |
 | `hooks/worker-fail.sh` | parks a dead worker's ticket in `failed-agent` with the reason, and commits nothing |
 | `CLI/commit.sh` | **the only way anything commits in this plugin** — `bo commit` = `git add -A`, one commit subject `agent:branch:message`, `git push -u origin <branch>` |
 | `CLI/loop-log.sh` | the one line format, sourced by the engine and both hooks: nine fixed keys, `-` for the unknown |
@@ -93,7 +102,16 @@ worktree is `.claude/worktrees/<branch with / → +>`, and it belongs to the *br
 - **Never work two tickets on one branch at a time.** The chain inside a feature guarantees it; the loop's
   unclaim-and-skip is the fallback, not the mechanism.
 - **Nobody but the Stop hook closes a task, and no worker closes its own** — a ticket already closed makes the
-  hook exit before it commits, so the work never lands. Only a human closes a gate.
+  hook exit before it commits, so the work never lands. Only a human closes a gate, unless its tier's flag is on.
+- **No `parent-child` edge, and no `--parent`, anywhere.** The tower is `blocks` edges only. Parenthood is
+  what made a gate unenforceable: beads refuses a `blocks` edge from an ancestor to its own descendant, so a
+  plan agent with `--parent` in hand could only ever write an edge that nothing enforces.
+- **A gate is claimed by status, never by `bd ready --claim`** — a gate never shows in `bd ready`, so the loop
+  moves it to `in_progress` itself, guarded by `--if-status open` (which is also what takes it off the ready
+  list until its lead agent dies).
+- **The lead agent is the one worker no label reaches.** It is spawned for a ready gate whose
+  `BO_AGENT_FEATURE_GATES` / `BO_AGENT_EPIC_GATES` flag is on, and it merges through the forge — never a local
+  `git merge` into the target.
 - **`failed-agent` and `gate` are per-database custom settings.** `bd` accepts an unknown type or status
   silently and then refuses it, so a broken gate and a working one look identical. `bead-initialize` registers
   both; an older tower needs the two `bd config set` lines run in it.

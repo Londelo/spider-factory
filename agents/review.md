@@ -93,7 +93,9 @@ Load `Skill('binary-obelisk:bead-read')` before you read anything, and do what i
 `Skill('binary-obelisk:bead-comment')` with it — it is how you write what remains on your own ticket, which
 is not the same surface as the findings you post on the pull request.
 
-Read your own ticket in full, then its parent, its children, and what it depends on. The ticket's
+Read your own ticket in full, then the tickets that **block** it, the ones it **blocks**, and the gate it
+**blocks** — a tower is `blocks` edges and nothing else, so the gate above you is the `gate`-typed thing
+among what you block, and it is the source of truth for what was owed. The ticket's
 description is your **source of truth** — it is the statement of what this code was for. You cannot judge
 whether the change achieved its purpose without knowing the purpose, and you cannot know it from the diff.
 The diff only tells you what somebody did; the ticket is the only place that tells you what was owed.

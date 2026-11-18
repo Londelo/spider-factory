@@ -31,8 +31,8 @@ prints the exact `export PATH=` line your shell profile is missing.
 
 **Its second write:** `CLI/default.env` copied to `~/.obelisk.env`, the run's parameters at their
 defaults — yours to edit by hand. The installer touches that file only when it does not exist; delete
-it to get the defaults back. `bo` itself is five commands: `loop`, `plan:epic`, `plan:feature`,
-`plan:task`, `commit`.
+it to get the defaults back. `bo` itself is six commands: `loop`, `plan:epic`, `plan:feature`,
+`plan:task`, `overseer`, `commit`.
 
 **Nothing here runs the loop.** The skill's whole job is to make `bo loop` reachable.
 """
@@ -41,9 +41,9 @@ it to get the defaults back. `bo` itself is five commands: `loop`, `plan:epic`, 
     }
 
     preflight = noteDoc "The checks — everything that must hold before the first tick" {
-      summary "The six checks that must hold before the first tick; five of them refuse the run outright."
+      summary "The seven checks that must hold before the first tick; six of them refuse the run outright."
       description """
-In the order the code runs them (`CLI/beads-loop.sh` bottom of the file). The first four `exit 1` and no tick
+In the order the code runs them (`CLI/beads-loop.sh` bottom of the file). Six of the seven `exit 1` and no tick
 ever happens; a run that cannot report on itself is not a run.
 
 | # | Check | Refuses when |
@@ -51,14 +51,15 @@ ever happens; a run that cannot report on itself is not a run.
 | 1 | `requireToolsOnPath` — `bd jq git` plus the first word of `BO_AGENT_COMMAND` | the first one missing is named on stderr |
 | 2 | `configureAllowedLabels` — `BO_ALLOWED_LABELS` against the `AGENT` map | **not fatal** — a typo'd list matches no ticket, and the tower sits still while waiting lines keep arriving |
 | 3 | `requireNumericSettingsFromEnvironment` | `BO_MAX_PARALLEL` / `BO_POLL_S` / `BO_MAX_TICKETS` set to anything but digits — never defaulted silently, because they govern unattended workers |
-| 4 | `requireUsablePollInterval` — `BO_POLL_S` must divide 60 | the permitted list is printed: `1 2 3 4 5 6 10 12 15 20 30 60`; the waiting lines are rate-limited at one per minute, so a poll that does not divide the minute makes that cadence a lie |
-| 5 | `requireBeadsProject` — `bd list --limit 1 --json` must answer an **array** | `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the environment does not save a wrong directory |
-| 6 | `createRunLogDirectory` — `mkdir -p` the run's dir, then seed `claims errors waiting results closes failures` | fatal on purpose: a run that cannot write its logs cannot raise an alarm |
+| 4 | `requireGateFlagsAreSwitches` — `BO_AGENT_FEATURE_GATES` and `BO_AGENT_EPIC_GATES`, each read by `configureFromEnvironment` | either one is anything but `0` or `1` — the line names the flag and says what each value means: `0` a human closes that gate, `1` the lead agent does. A half-open gate tier is not a state the loop will guess its way through |
+| 5 | `requireUsablePollInterval` — `BO_POLL_S` must divide 60 | the permitted list is printed: `1 2 3 4 5 6 10 12 15 20 30 60`; the waiting lines are rate-limited at one per minute, so a poll that does not divide the minute makes that cadence a lie |
+| 6 | `requireBeadsProject` — `bd list --limit 1 --json` must answer an **array** | `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the environment does not save a wrong directory |
+| 7 | `createRunLogDirectory` — `mkdir -p` the run's dir, then seed `claims errors waiting results closes failures` | fatal on purpose: a run that cannot write its logs cannot raise an alarm |
 
-`bo` itself runs check 5 and one before it — `requireEngine`, that `../beads-loop.sh` is actually there — so a
+`bo` itself runs check 6 and one before it — `requireEngine`, that `../beads-loop.sh` is actually there — so a
 broken install names itself instead of failing deep in a tick.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh#L65-L116 "Source — beads-loop.sh lines 65–116"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh#L53-L155 "Source — beads-loop.sh lines 53–155"
     }
 
     knobs = knobPanel "The run's parameters (env, read once at startup)" {
@@ -74,6 +75,9 @@ to be installed, so it and the engines are kept in step by hand.
 | Knob | Default | What it does |
 |---|---|---|
 | `BO_AGENT_COMMAND` | `claude` | the command that runs an agent — the worker spawn, the worker count, and the three planners all go through it; split on spaces, so it may carry its own arguments |
+| `BO_AGENT_PLUGIN` | `binary-obelisk` | the plugin the agents ship in: every spawn names one as `<plugin>:<agent>`, and a bare name does not resolve to a plugin agent |
+| `BO_AGENT_FEATURE_GATES` | `0` | does the **lead agent** close a feature gate for you. `0` = a human closes it; `1` = the loop dispatches the lead agent at a ready feature gate. Anything else and the run refuses to start |
+| `BO_AGENT_EPIC_GATES` | `0` | the same switch for the epic gate alone — one flag per tier, because a feature gate and the epic gate are different amounts of trust |
 | `BO_MAX_PARALLEL` | `4` | workers spawned at once; the cap is recounted from `$BO_AGENT_COMMAND agents --json` every tick |
 | `BO_POLL_S` | `3` | seconds between ticks; **must divide 60** or the run refuses to start, because the idle rate limit is `60 / BO_POLL_S` ticks |
 | `BO_MAX_TICKETS` | `0` | stop once N tickets have closed this run — counted off the run's `closes` file, so the loop keeps ticking while it waits; 0 = endless |
@@ -84,7 +88,7 @@ to be installed, so it and the engines are kept in step by hand.
     }
 
     dispatcher = dispatcher "beads-loop.sh — the dispatcher" {
-      summary "The engine: a tick claims one ticket, finds its branch and pull request base, spawns that worker."
+      summary "The engine: a tick dispatches any ready gate its tier flag opens, then claims tickets, reads their branch and base, spawns workers."
       description """
 **What it is:** the engine `bo loop` runs. A `while true` loop: test the ticket cap, `tick`, `sleep $BO_POLL_S`,
 again. It ends by itself only when `BO_MAX_TICKETS` tickets have closed this run — the test is against the run's
@@ -96,16 +100,32 @@ One tick, in the order the code runs it (`tick()`):
 | # | Step | Reads | On failure |
 |---|---|---|---|
 | 0 | `branchesCurrentlyAtWork` — the branches already at work, read **before** claiming so the ticket in hand is never counted against itself | `bd list --status in_progress --limit 0 --json` → `.[] \| .metadata.branch \| sort -u` | — |
-| 1 | capacity check | `$BO_AGENT_COMMAND agents --json`, background sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled` |
-| 2 | **claim** | `bd ready --claim --json` — atomic: assignee + `in_progress` + a 5-minute lease | `bd-failure`; an empty answer is a waiting line, not an error |
-| 3 | match labels against the `AGENT` map — **exactly one** may match | `.[0].labels` | `label-ambiguous`, left claimed |
-| 4 | read the branch | `.[0].metadata.branch` | `metadata-missing`, left claimed |
-| 5 | one pair of hands per branch | is `branch` in the busy set? | `bd unclaim`, try the next claim, at most `BO_MAX_PARALLEL + 2` attempts a tick |
-| 6 | find the PR base | `.[0].parent` → `epicGateOf` (≤ 4 hops of `bd show --json` `parent`) → the gate's own `branch`; `main` when the claim's parent **is** that topmost gate | `epic-pr-failed step=walk` |
-| 7 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
-| 8 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
-| 9 | spawn | `$BO_AGENT_COMMAND --bg --agent <agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
-| 10 | one log line, move on | `logTo claims \"reason=dispatched\"` | — |
+| 1 | **dispatch any ready gate its tier flag opens** — `dispatchReadyGates`, before a single ticket is claimed. Returns at once when neither `BO_AGENT_FEATURE_GATES` nor `BO_AGENT_EPIC_GATES` is `1` | `bd list --include-gates --ready --type gate --limit 0 --json` → `.id` + `.metadata.tier` | see the gate rows below |
+| 2 | capacity check | `$BO_AGENT_COMMAND agents --json`, background sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled` |
+| 3 | **claim** | `bd ready --claim --json` — atomic: assignee + `in_progress` + a 5-minute lease | `bd-failure`; an empty answer is a waiting line, not an error |
+| 4 | match labels against the `AGENT` map — **exactly one** may match | `.[0].labels` | `label-ambiguous`, left claimed |
+| 5 | read the branch | `.[0].metadata.branch` | `metadata-missing`, left claimed |
+| 6 | read the PR base | `.[0].metadata.base` — **the ticket's own key, read verbatim**; nothing is walked for it, there is no parent chain to walk | `metadata-missing`, left claimed |
+| 7 | one pair of hands per branch | is `branch` in the busy set? | `bd unclaim`, try the next claim, at most `BO_MAX_PARALLEL + 2` attempts a tick |
+| 8 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
+| 9 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
+| 10 | spawn | `$BO_AGENT_COMMAND --bg --agent <plugin>:<agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
+| 11 | one log line, move on | `logTo claims \"reason=dispatched\"` | — |
+
+**The gate half of the tick** (`dispatchOneGate`, step 1) is the only place a worker is spawned without a
+label. A gate never appears in `bd ready`, so it is claimed **by status**: `bd update <gate> --status
+in_progress --if-status open`, and the `--if-status` is both the race guard and what takes the gate off the
+ready list until its lead agent dies.
+
+| Step | Reads | On failure |
+|---|---|---|
+| the tier is switched on | `tier` off the listing, matched against the two flags | waiting `gate_tier_missing gate=…` (an unlabelled tier is never guessed at) |
+| read the gate's branch and base | `.metadata.branch`, `.metadata.base` | waiting `gate_unworkable gate=… key=branch` / `key=base` |
+| one pair of hands per branch | is the gate's branch in the busy set? | waiting `branch_busy held=1 gate=…` |
+| **claim it** | `bd update <gate> --status in_progress --if-status open` | `gate-claim-lost`, no lead agent spawned |
+| make the branch's folder | `ensureWorktree gateBranch gateBase` | `worktree-failed step=gate`, and the gate is put back `open` |
+| spawn the **lead agent** | `--agent <plugin>:lead`, label on the line is `gate:<tier>` | `worker-not-dispatched gate=…`, the gate put back `open` |
+| one log line | `logTo claims \"reason=dispatched kind=gate gate=… tier=…\"` | — |
 
 **What it never does:** it never polls a worker, never reads worker output, never merges, never ends
 itself, never closes a ticket, and never derives an agent name from a label. It also runs **no
@@ -117,34 +137,37 @@ claims back is the supervisor's job, not the loop's.
     }
 
     agentMap = noteDoc "The AGENT map — the only label→worker binding" {
-      summary "The eight labels that dispatch, each bound to one worker; nothing else picks a worker."
+      summary "The seven labels that dispatch, each bound to one worker; nothing else picks a worker."
       description """
 ```bash
 declare -A AGENT=(
     [backend-logic]=engineer      [frontend-ui]=frontend
     [unit-tests]=tester-unit      [feature-test]=tester-feature
     [epic-e2e-test]=tester-e2e    [feature-review]=review
-    [epic-review]=review          [epic-merge-pr]=merge
+    [epic-review]=review
 )
+
+leadAgentName="lead"   # the one worker no key of this map reaches
 ```
 
 **Three names, never interchangeable** — collapsing any two is how a tower silently dispatches nothing:
 
 | Name | What it is | Examples |
 |---|---|---|
-| **category** | a display hint in `bd list`; names a plan-task template | `backend-logic`, `frontend-ux`, `unit-tests`, `feature-test`, `epic-e2e-test`, `review`, `merge` |
-| **label** | written with `bd create -l`; a ticket may carry any number, but **exactly one** must be a key of this map | the eight keys above, bar none |
-| **agent** | a real file in `agents/` | `engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`, `review`, `merge` |
+| **category** | a display hint in `bd list`; names a plan-task template | `backend-logic`, `frontend-ux`, `unit-tests`, `feature-test`, `epic-e2e-test`, `review` |
+| **label** | written with `bd create -l`; a ticket may carry any number, but **exactly one** must be a key of this map | the seven keys above, bar none |
+| **agent** | a real file in `agents/` | `engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`, `review`, `lead` |
 
 The keys **are** the closed label set: `isLabel` requires membership here *and* in the allowed set.
 Zero or two matches on a claim is the tower's bug, not the loop's — it never guesses a specialist.
 `review` answers two labels; the three test labels are three **tiers**, and the label — never `--agent` —
 is what carries the tier, so a mis-labelled ticket gets the wrong depth of coverage and no worker can
 tell you it did. Note `frontend-ui` is the **label** while `frontend-ux` is only its category: a ticket
-labelled with its category matches nothing. There is no `feature-merge` label — a feature IS a branch,
-so there is nothing to assemble.
+labelled with its category matches nothing. There is no merge label at either tier — nothing assembles a
+feature or an epic, each branch is merged by the **lead agent** standing on the gate above it, and the
+lead agent is reached by the gate dispatch, not by a key of this map.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh#L9-L18 "Source — beads-loop.sh lines 9–18"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh#L20-L30 "Source — beads-loop.sh lines 20–30"
     }
 
     spawnEnv = knobPanel "BO_* — the environment the spawn carries" {
@@ -157,17 +180,23 @@ and what to say about it. Without them the worker just stops and its ticket sits
 |---|---|---|
 | `BO_TICKET` | `the back-end ticket` | both hooks — and it is the **only** test that tells a dispatched worker from any other session in any other project |
 | `BO_BRANCH` | `feature/add-record` | Stop hook: commit here, push here, refuse if `git branch --show-current` disagrees |
-| `BO_PR_TARGET` | `epic/record-box`, or `main` at the epic tier | Stop hook: the base of this branch's PR; never stored on the ticket |
-| `BO_AGENT` | `engineer` | both hooks, so an alarm names who was doing the work |
-| `BO_LABEL` | `backend-logic` | both hooks, so an alarm names the label that chose that worker |
+| `BO_PR_TARGET` | `epic/record-box`, or `main` at the epic tier | Stop hook: the base of this branch's PR — the claim's own `metadata.base`, carried straight through |
+| `BO_AGENT` | `engineer`, or `lead` on a gate dispatch | both hooks, so an alarm names who was doing the work |
+| `BO_LABEL` | `backend-logic`, or `gate:<tier>` on a gate dispatch | both hooks, so an alarm names what chose that worker |
 | `BO_PROJECT_DIR` | the tower root, where `.beads` lives | both hooks — **the worktree is not the tower** |
 | `BO_LOG_DIR` | this run's log dir | both hooks: alarms land in `$BO_LOG_DIR/errors` |
 | `BO_DONE_FILE` | `$BO_LOG_DIR/done-<ticket with / to +>` | the worker touches it; the Stop hook is fail-closed on it |
 
 `BO_LOG_QUIET=1` is set by the hooks before they source the line format: a hook must never print
 into a session. The dispatcher leaves it unset, so its own lines also go to the terminal.
+
+**The tenth argument, `kind`, is not an environment variable.** `spawnWorker` takes it as `${10:-task}` and
+writes it into the dispatch context file beside the other eight — `ticket branch pr_target agent label tower
+done_file kind` — and the Stop hook reads it back as `BO_WORK_KIND="${claimKind:-${kind:-task}}"`, off the
+claims line first and the context file only as a fallback. It is the only thing that tells the hook it is
+finishing a **gate** rather than a task.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh#L427-L435 "Source — beads-loop.sh lines 427–435"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh#L525-L545 "Source — beads-loop.sh lines 525–545"
     }
 
     claim = cliTool "bd ready --claim — the hand that takes one ticket" {
@@ -186,8 +215,13 @@ same statement, stamps an assignee, moves it to `in_progress`, and starts a **fi
 | `bd unclaim` puts a claim back | the loop does it exactly twice: the branch is already at work, or the spawn died |
 
 A claim is a JSON object, and three fields decide everything downstream: `.labels` (which worker, if exactly
-one matches the map), `.metadata.branch` (which folder, which branch, which PR), `.parent` (which epic, so
-which PR base). Anything else on the ticket — title, description, notes — the loop never reads.
+one matches the map), `.metadata.branch` (which folder, which branch, which PR), `.metadata.base` (which
+branch that PR aims at — the ticket's own key, read verbatim, because there is no parent chain to walk).
+Anything else on the ticket — title, description, notes — the loop never reads.
+
+**A gate never appears here.** `bd ready` does not list one, so a gate is never taken by this command; the
+loop moves it to `in_progress` itself with `bd update <gate> --status in_progress --if-status open`, which is
+step 1 of the tick and the only claim in the system made by status.
 """
       link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh "Source — CLI/beads-loop.sh"
     }
@@ -229,6 +263,12 @@ CLAIMS   2026-11-04T09:12:03\trun=2026-11-04_09-12-01 repo=/home/dev/record-box 
 Every ticket taken, and every one put back. `reason=dispatched` on a spawn, `reason=branch-busy unclaimed`
 on a put-back, and `gate=… reason=epic-published gateBranch=… pr=…` when the loop publishes the epic branch —
 that one line names no ticket of its own, because the identity the tick already carries is on it.
+
+A **gate** dispatch is the dispatched line with three keys added: `reason=dispatched kind=gate gate=<id>
+tier=<epic|feature>`, and its fixed identity already reads `ticket=<gate id> agent=lead label=gate:<tier>
+target=<the gate's base>`. Those three keys are the only place a reader can tell a gate dispatch from a task
+dispatch — the nine identity keys look identical either way, and the Stop hook reads `kind=` off this very
+line to decide which path to take.
 """
     }
     fErrors = logFile "errors" {
@@ -248,7 +288,9 @@ The quiet ticks, **one a minute per reason** (`60 / BO_POLL_S` ticks), each carr
     fCloses = logFile "closes" {
       summary "One line per ticket that landed, with its pull request url."
       description """
-The Stop hook's proof of work: one line per ticket that landed, `url=<the PR>`.
+The Stop hook's proof of work: one line per ticket that landed, `url=<the PR>`. A **gate** close carries one
+extra key, `url=<the PR> gate=true` — the same url, because the lead agent merged that branch's own pull
+request rather than opening a new one, and the hook found it whatever state it was in.
 """
     }
     fFailures = logFile "failures" {
@@ -297,7 +339,7 @@ hook refuses to land anything without it.
   }
 
   stopHook = hook "worker-stop.sh — the Stop hook, fail-closed" {
-    summary "The closer: commit, push, the branch's pull request, close — and it refuses fifteen ways first."
+    summary "The closer: commit, push, the branch's pull request, close — and it refuses sixteen ways first."
     description """
 **What it is:** the closer. Registered in `hooks/hooks.json` on the `Stop` event with `timeout: 300`, so it
 fires in **every session of every project** the plugin is enabled in — `BO_TICKET` is what tells a dispatched
@@ -308,7 +350,7 @@ worker says it is done → `bo commit` onto its feature's branch → push → th
 write the PR url onto the ticket's pr metadata → close it
 ```
 
-It refuses **fifteen** ways, each one `exit 0` with the ticket untouched, in the order the code checks them —
+It refuses **sixteen** ways, each one `exit 0` with the ticket untouched, in the order the code checks them —
 they are walked one by one in the second walkthrough. The gate of the whole design is `not-declared-done`:
 no marker, no commit, no push, no PR, no close.
 
@@ -324,6 +366,16 @@ reason; `reason=missing-tool tool=bo` is the alarm when the CLI is not installed
 **One branch, one pull request, forever:** the branch's first task creates the PR, and every later task finds
 it by `gh pr list --head <branch> --base <target> --state open` and reuses it — which is why the branch, not
 the ticket, is the identity of the work.
+
+**Two paths, decided by one key.** Everything above the `BO_WORK_KIND` test is shared: guard, marker, branch,
+commit, push, forge. A claim whose `kind=gate` (read off the dispatched claims line, falling back to the
+context file, defaulting to `task`) then takes a different road: it looks the branch's PR up **at any state**
+— `gh pr list … --state all` / `glab mr list … --all`, not `--state open` — because the lead agent has just
+merged it and an open-only lookup would find nothing. With no PR at all the hook raises
+`reason=pr-not-found` and leaves the gate claimed: there was nothing there to merge. With one, it annotates
+the gate with the url, closes the **gate** as its claimant, writes `closes url=… gate=true`, removes the
+context file and exits. **It never opens a new PR on the gate path** — the lead agent merged the branch
+through the forge, and a second PR off a merged branch is a lie about work nobody did.
 """
     link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/hooks/worker-stop.sh "Source — hooks/worker-stop.sh"
   }
@@ -358,21 +410,26 @@ a ticket parked in failure with nothing said about why is worse than one left `i
     summary "The database holding every gate, ticket and edge — the loop's only runtime input."
     description """
 **What it is:** the loop's **only runtime input**. None of the design docs or CLAUDE.md files are read at
-runtime; the graph — every gate, ticket, `depends-on` edge, and the two metadata keys — lives here. The commands
-that read and write it are in the toolbelt; what lives here is the **state**, and the state is two keys.
+runtime; the graph — every gate, ticket, `blocks` edge, and the metadata keys — lives here. The commands
+that read and write it are in the toolbelt; what lives here is the **state**, and the state is four keys.
 
-**The two metadata keys, and only two:**
+**The four metadata keys, and only four.** Two are the plan's, one is the loop's or the hook's, one belongs to
+a gate alone:
 
 | Fact | Where it lives | Who reads it |
 |---|---|---|
-| `branch` | written by the `plan-*` agents; a ticket copies its own gate's value **verbatim** | the loop reads `.[0].metadata.branch` off the claim and hands it down as `BO_BRANCH` — nothing re-derives it and nothing parses text |
+| `branch` | written by the `plan-*` agent that owns the tier and copied **verbatim** down every row of it | the loop reads `.[0].metadata.branch` off the claim and hands it down as `BO_BRANCH` — nothing re-derives it and nothing parses text |
+| `base` | the base branch of that branch's PR: `main` on every epic-tier ticket and on the epic gate, the epic's own branch on every feature-tier ticket and on the feature gate. Written by the same plan agent, copied verbatim | the loop reads `.[0].metadata.base` off the claim and hands it down as `BO_PR_TARGET`; the lead agent reads it as the branch it may merge into, and nothing else |
 | `pr` | written by the loop (onto the epic gate) or the Stop hook (onto any ticket whose work landed) — never by a plan agent | a human, and the hook when it looks for the PR already on a branch |
-| the PR's **base** | **nowhere on a ticket** — it is the epic gate's own `branch`, named by the parent chain | `tick()` walks `.[0].parent` (`epicGateOf`) and reads it with `readFieldOf`, handing it down as `BO_PR_TARGET` |
+| `tier` | `epic` or `feature`, **on a gate and nowhere else** | `dispatchReadyGates` reads it off `bd list --include-gates --ready --type gate --json` to decide which flag governs that gate, and the lead agent reads it to know what "everything below me" means |
 
-A copy of the base could drift from the gate it copies and nothing compares the two — the loop once published
-one while the hook aimed at the other, so the copy is gone. Gates are a **custom type** that must be registered
-(`bd config set types.custom \"gate\"`): `bd` does not reject an unregistered type, it **accepts and hides it**, so
-a broken gate and a working one look identical. Check `bd types` before you trust one.
+**There is no `parent` key, no `parent-child` edge, and no `--parent` at create time.** With nothing to walk,
+`base` is the only answer there is, and a ticket without it is left claimed unworked on purpose —
+`ERROR reason=metadata-missing`. A gate is a **custom type** and must be registered
+(`bd config set types.custom \"gate\"`), as is the parking status
+(`bd config set status.custom \"failed-agent:frozen\"`): `bd` does not reject an unregistered type or status, it
+**accepts it silently and then refuses it**, so a broken gate and a working one look identical. Check
+`bd types` before you trust one.
 """
     link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/skills/bead-initialize/SKILL.md "Source — the bead-initialize skill"
     link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/.claude/design.yaml "Source — the design model"
@@ -408,10 +465,14 @@ a branch to the wrong forge.
 | `bd heartbeat <id>` | the worker keeps its lease alive; it never closes its own ticket |
 | `bd list --status in_progress --limit 0 --json` | the branches currently at work, read before the claim so the ticket in hand is never counted against itself |
 | `bd list --status open,blocked --limit 0 --json` | the probe that tells `frontier_empty` from `tower_stalled` |
-| `bd show --json <id>` | walk the parent chain to the epic gate; verify a plan round trip |
+| `bd show --json <id>` | read one ticket back — its status, its title (`--long`, the commit message), a metadata key |
 | `bd update <id> --set-metadata k=v` | **merges** — which is why writing `pr` never disturbs the plan's `branch` |
-| `bd close <id> --session <id> --reason …` | only the Stop hook, only on the done marker |
-| `bd create -t gate -l <label> --parent <id>` | the plan agents' build |
+| `bd update <id> --status <s> --if-status <from>` | **the gate claim**, and the only conditional write in the system: `moveGateTo <gate> in_progress open` is the take, `moveGateTo <gate> open in_progress` is the put-back, and a non-zero exit (the gate was no longer in `<from>`) is the `gate-claim-lost` alarm. A gate never reaches `bd ready`, so this is the only way it moves |
+| `bd close <id> --session <id> --reason …` | only the Stop hook, only on the done marker — a task or a gate, never by the worker itself |
+| `bd list --include-gates --ready --type gate --limit 0 --json` | the ready gates, with `.metadata.tier` beside each id — the only listing that shows a gate at all, and the input to `dispatchReadyGates` |
+| `bd list --include-gates --type gate --limit 0 --json` | which gate owns a given `branch` (`gateOwningBranch`), which is how the epic to publish is found without walking anything |
+| `bd create -t gate --metadata '{"branch":…,"base":…,"tier":…}'` / `bd create -t task -l <label> --metadata '{"branch":…,"base":…}'` | the plan agents' build: a gate carries **zero** labels and the `tier` key alone, a task exactly one dispatching label and never a `tier`. There is **no `--parent`** anywhere in a tower |
+| `bd dep add <blocked> <blocker> --type blocks` | the **one edge type in a tower**, read "blocker blocks blocked"; what a tier *is* = the tickets that block its gate |
 | `bd where` | which DB a directory resolves — `bd` walks **up** and ignores `BEADS_DIR` |
 
 A gate is a **custom type** and must be registered (`bd config set types.custom \"gate\"`): `bd` does not reject
@@ -496,17 +557,24 @@ one branch. The tower root (where `.beads` lives) is `BO_PROJECT_DIR`: **the wor
   }  // toolbelt
 
   human = human "Human (Brodie)" {
-    summary "Closes the gates and nothing else: reads the report, verifies the branch, closes the gate."
+    summary "Closes the gates and nothing else — until a tier's flag hands that gate to the lead agent."
     description """
-**What it is:** the only one who closes a **gate**. A *task* is closed by the Stop hook, once its worker touches
-the done marker — the human never reaches for a task, and a worker that closes its own ticket is a bug, because
-the hook walks past an already-closed ticket and lands nothing. The human reads the worker's report, verifies the
-branch and the PR, and closes the gate above it. There is **no `human`
-agent** — the person enters through gates, and nothing is ever spawned for them. A claimable ticket assigned to
-a human is a model bug.
+**What it is:** the one who closes a **gate**, unless that tier's switch says otherwise. A *task* is closed by
+the Stop hook, once its worker touches the done marker — the human never reaches for a task, and a worker that
+closes its own ticket is a bug, because the hook walks past an already-closed ticket and lands nothing. The
+human reads the worker's report, verifies the branch and the PR, and closes the gate above it. There is **no
+`human` agent** — the person enters through gates, and nothing is ever spawned for them. A claimable ticket
+assigned to a human is a model bug.
 
-The gates are the human's interface: `bd ready` never shows one, so a tower **stalls** at an open gate until
-someone verifies it. That is the design, not a bug — it is the only place a claim loop cannot fake understanding.
+Both gates are the human's by default: `BO_AGENT_FEATURE_GATES=0` and `BO_AGENT_EPIC_GATES=0`, and a gate stays
+open until someone verifies it. Setting a tier's flag to `1` hands *that* tier to the **lead agent**, which the
+loop spawns for a ready gate and whose Stop hook closes it — the other tier is still the human's, which is why
+there are two switches and not one. The two are not the same amount of trust: a feature gate merges one flow
+into the epic branch, the epic gate merges the whole thing into `main`.
+
+`bd ready` never shows a gate, so a tower **stalls** at an open one until it is verified — by a person, or by
+the lead agent proving the tier out loud. That is the design, not a bug — it is the only place a claim loop
+cannot fake understanding.
 """
   }
 
@@ -515,7 +583,7 @@ someone verifies it. That is the design, not a bug — it is the only place a cl
   // ═════════════════════════════════════════════════════════════════════════════
 
   workers = layer "The workers" {
-    summary "The seven workers: each is one agent file, each dispatched by exactly one label."
+    summary "The seven workers: six are reached by a label, the seventh — the lead — only by a gate."
     description """
 **Every worker reads its ticket and writes on it.** All seven load `bead-read` to take in the brief and
 `bead-comment` to write what remains onto the ticket — which is a third surface, beside the final message and
@@ -525,15 +593,17 @@ the pull request: the ticket is where a worker leaves what the next reader canno
 five-minute lease alive with `bd heartbeat <ticket>` between long steps, never close your own ticket (the Stop
 hook closes it once you declare done, and a ticket already closed makes the hook walk past it, landing nothing),
 write what remains as a comment, spawn nothing, and `touch $BO_DONE_FILE` as the very last action and only
-when the brief is genuinely complete. `merge` states the same rules inside its own steps rather than in a
-section of that name. No skill holds these rules; the loop's spawn prompt repeats them, which is the
+when the brief is genuinely complete. The `lead` agent states the same rules inside its own steps and hard
+rules rather than in a section of that name — `bd heartbeat <gate>`, never `bd close` not even its own, spawn
+nothing, `touch $BO_DONE_FILE` last. No skill holds these rules; the loop's spawn prompt repeats them, which is the
 safety net for a worker run outside the loop.
 
 **The five that build, commit as they go.** `engineer`, `frontend`, `tester-unit`, `tester-feature` and
 `tester-e2e` each carry a `## Commit As You Go` section running `BO_AGENT=<agent> bo commit <what you just
 did>` after every major change that stands on its own — one commit per piece, so the pull request shows the
 work as it happens instead of one blob at the end. The name is passed rather than inherited, so a worker run
-outside the loop still commits named for itself. `merge` and `review` have no such section: neither commits.
+outside the loop still commits named for itself. `lead` and `review` have no such section: `review` commits
+nothing at all, and the lead commits only what it had to resolve where the target moved under the branch.
 """
     engineer = worker "engineer" {
       summary "Business logic, endpoints, hooks, types, error factories; never tests, JSX or CSS."
@@ -590,16 +660,29 @@ that uses them.
 """
       link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/review.md "Source — agents/review.md"
     }
-    mergeAgent = worker "merge" {
-      summary "Epic tier only: assembles the feature branches onto the epic branch and runs the tests."
+    leadAgent = worker "lead" {
+      summary "The one worker no label reaches: stands on a gate, proves the tier, merges the branch through the forge."
       description """
-**Label `epic-merge-pr` → `merge`.** Epic tier only. Reads the epic's finished feature branches off the feature
-gates' own `branch` keys, assembles them onto the epic branch one at a time in the order the brief gives,
-resolves what collides between them (from the `diff3` base, never from one side), runs the project's own test
-command and reads the count. Writes no code and no tests; **never merges into `main`, never opens a PR** — the
-thumbs-up on that PR is the human's.
+**No label reaches this agent — a gate does.** `leadAgentName=\"lead\"` sits beside the `AGENT` map, not inside
+it: the loop spawns the lead only from `dispatchOneGate`, for a ready gate whose tier flag is on, with the
+identity `agent=lead label=gate:<tier>`. Everything below it has already been committed, pushed, reviewed and
+closed; its whole job is to find out whether any of that is a lie.
+
+**A closed ticket is a claim, not a fact.** Its proof is never the ticket list — it is four checks, each read
+out with its numbers: every ticket that blocks the gate is closed; this tier's review actually reviewed and
+every finding is answered on the branch; the project's own test command exits `0` **with a count above zero**
+(the epic tier runs the end-to-end command too); the pull request's pipeline is green, where queued and skipped
+are not green. Any one of them failing means it says *this gate is not proved*, comments the gate naming what is
+missing, and touches no marker — the gate stays claimed and a human is told why.
+
+**Merge, and only now** — `gh pr merge` / `glab mr merge` on that branch's PR into the gate's own `base`. The
+forge does the merge: never a local `git merge` into the target, never a push to the target, never a rebase.
+Where the target moved under the branch it brings the target *into this branch* (`git merge origin/<base>`),
+commits the resolution with `bo commit` and pushes, so the PR carries it and the pipeline re-runs. Writes no
+code and no tests; never closes, reopens, unclaims or reclaims a ticket — `bd close` would end the hook before
+it ever ran.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/merge.md "Source — agents/merge.md"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/lead.md "Source — agents/lead.md"
     }
   }
 
@@ -610,35 +693,49 @@ The judgments the machine never makes belong here: **what the epic is** (one `ep
 lowercase words saying what the thing *is*); **what counts as a feature** (a complete user-facing flow, phased
 foundations → core → dependent → polish); **the order inside a feature's line** (the logic, then its tests,
 then the UI — never a fan); **the tier of a test ticket** (the label carries the tier, never `--agent`). Each
-plan agent writes one key and only one: its own gate's `branch`, onto its own tier's rows.
+plan agent touches two metadata keys and only two, `branch` and `base`: the epic and feature planners *name*
+them on their own gate and copy them onto that tier's rows, and `plan-task` copies its feature's two down onto
+every task verbatim. A gate alone also carries `tier`. Nothing below recomputes them: a plan agent never
+invents a branch beneath its own tier, and there is no parent chain to walk for a base.
 
 Each is one foreground command — `bo plan:epic`, `bo plan:feature`, `bo plan:task` — and anything you type
 after it goes to the planner as the prompt. What runs them is on the agent-command node.
 """
     planEpic = planner "plan-epic" {
-      summary "A vague idea into exactly one epic gate plus its merge, end-to-end and review tickets."
+      summary "A vague idea into exactly one epic gate plus its end-to-end and review tickets."
       description """
-Vague idea → clarifying questions → research → **exactly one** epic gate plus its `epic-merge-pr`,
-`epic-e2e-test` and `epic-review` tickets. Writes one metadata key — `branch: epic/<slug>` — onto the gate and
-its three tickets. Builds the tower and does no work in it.
+Vague idea → clarifying questions → research → **exactly one** epic gate plus its `epic-e2e-test` and
+`epic-review` tickets, and nothing else: **there is no merge ticket** and no label for one, because the lead
+agent merges from the gate. It names the epic's two keys — `branch: epic/<slug>`, `base: main` (the epic's base
+is `main` and nothing else) — onto the gate as metadata beside `tier: epic`, and copies both **verbatim** onto
+its two tickets, never a `pr`. Then three edges: the suite blocks the gate, the review blocks the gate, the
+review waits on the suite. Builds the tower and does no work in it.
 """
       link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/plan-epic.md "Source — agents/plan-epic.md"
     }
     planFeature = planner "plan-feature" {
       summary "An epic into complete user-facing flows, each with its own branch, suite and review."
       description """
-Epic → feature-sized features (complete user-facing flows), `parent-child` to the epic; each gets its own
-`feature/<slug>`, its `feature-test` and its `feature-review`. An orphaned feature (no epic) aims its PR at
-`main`.
+Epic → feature-sized features (complete user-facing flows). Each gets its own `feature/<slug>` and its own
+`base` — the epic's branch, or `main` when the feature is orphaned and has no epic gate above it — written onto
+its gate beside `tier: feature` and copied onto its `feature-test` and `feature-review` tickets. **No merge
+ticket at this tier**: a feature has one branch and its tasks are the commits onto it. Four edges per feature —
+the suite and the review each blocking the gate, the review waiting on the suite, and this feature's gate
+blocking the epic's `epic-e2e-test`, which is what holds the epic tier off the frontier until every feature has
+merged.
 """
       link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/plan-feature.md "Source — agents/plan-feature.md"
     }
     planTask = planner "plan-task" {
-      summary "One feature into its tasks, chained one to the next and labelled at creation."
+      summary "One feature into its tasks, chained one to the next, every one blocking the feature's gate."
       description """
-One feature → its tasks, each `parent-child` to the feature, **labelled at creation** with `bd create -l <label>`,
-the feature's `branch` copied **verbatim** (a plan agent never invents a branch below its own tier), the tasks
-chained onto their predecessor one to the next, and every ticket verified with a `bd show --json` round trip.
+One feature → its tasks, **labelled at creation** with `bd create -l <label>`, the feature's `branch` **and**
+`base` copied **verbatim** onto every one of them (a plan agent never invents a branch below its own tier, and
+refuses with `ERROR reason=metadata-missing` when the feature carries neither). Each task gets **two** edges —
+onto the feature's gate, making it part of that tier, and onto the single task before it, ordering the build —
+in one linked line, never a fan, and the tail hands to the `feature-test` ticket. Refuses outright without a
+feature in the prompt: `ERROR reason=no-parent-feature`. Every ticket verified with a `bd show --json` round
+trip, its `dependencies` among the fields checked.
 """
       link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/plan-task.md "Source — agents/plan-task.md"
     }
@@ -651,52 +748,44 @@ chained onto their predecessor one to the next, and every ticket verified with a
   // ═════════════════════════════════════════════════════════════════════════════
 
   tower = layer "The tower — worked example: one epic, one feature" {
-    summary "A worked example: one epic, one feature, ten tickets named by what they are."
+    summary "A worked example: one epic, one feature, nine tickets named by what they are."
     epic = gate "Epic gate" {
-      summary "The epic gate — the what; the human closes it once, after the epic review."
+      summary "The epic gate — the what; closed once after the epic review, by a person or by the lead agent."
       description """
-**What it is:** the epic gate — the *what*; the human closes it once, after `epic-review`.
+**What it is:** the epic gate — the *what*; closed once, after `epic-review`, by a person, or by the lead agent
+when `BO_AGENT_EPIC_GATES=1`.
 
 ```
 type:     gate                       (custom type: bd config set types.custom \"gate\")
-branch:   epic/record-box            ← plan-epic's key, the only metadata it writes
+labels:   none — a gate carries zero labels, so no label can ever dispatch anything to it
+branch:   epic/record-box            ← plan-epic's key
+base:     main                       ← plan-epic's key; the epic's base is main and nothing else
+tier:     epic                       ← only a gate may carry this key
 pr:       https://github.com/…/pull/1 ← written by the LOOP, by ensureEpicGatePr
 waits on: the epic review ticket      — an explicit blocked-by edge onto the gate itself
 ```
 
-A gate does **not** block its own children: they are claimable while it is open. What holds the next tier off
-the frontier is that explicit edge, and only a human closes it — so the tower stalls here until someone verifies.
-`bd ready` never shows a gate: it is structurally invisible, so there is nothing to exclude.
+Every ticket of the tier blocks this gate — that set of blockers **is** the tier, and it is the list the lead
+agent reads when it asks whether the epic is proved. What holds the *next* tier off the frontier is an explicit
+edge onto the gate itself, and the gate stays open until someone verifies it — so the tower stalls here until a
+person, or a lead agent with its tier flag on, closes it. `bd ready` never shows a gate: it is structurally
+invisible, so there is nothing to exclude, and the loop claims it by status instead.
 """
-      epicMergePr = ticket "epic-merge-pr" {
-        summary "Assemble the finished feature branch onto epic/record-box, run the tests, report."
-        description """
-```
-title:    assemble the feature branch onto epic/record-box
-label:    epic-merge-pr        → AGENT → merge
-parent:   the epic gate
-metadata: { \"branch\": \"epic/record-box\" }
-depends:  blocked-by the feature gate
-PR base:  main — this ticket's own parent IS the epic gate, so the loop says main
-```
-**Brief:** read the feature branch off its gate's own `branch` key, assemble it onto `epic/record-box`, resolve
-what collides, run the project's own test command and read how many tests ran. No new code, no new tests, no
-merge into `main`, no PR of its own.
-"""
-      }
       epicE2e = ticket "epic-e2e-test" {
-        summary "Journeys across the whole app in a real browser, once the branch is assembled."
+        summary "Journeys across the whole app in a real browser, once every feature gate has closed."
         description """
 ```
 title:    journeys across the whole app in a real browser
 label:    epic-e2e-test        → AGENT → tester-e2e
-parent:   the epic gate
-metadata: { \"branch\": \"epic/record-box\" }
-depends:  blocked-by the merge ticket — merge first, so the journey is proved against the assembled result
+metadata: { \"branch\": \"epic/record-box\", \"base\": \"main\" }   ← copied VERBATIM from the epic gate
+depends:  blocked-by every feature gate — one edge per feature, written by plan-feature
+blocks:   the epic gate (its tier) and the epic review ticket
 skill:    framework-playwright
 ```
 **Brief:** state handoffs across the app, session continuity, one success and one failure journey through the
-flow. Never re-test the micro tier's edges or the composition tier's wiring.
+flow. Never re-test the micro tier's edges or the composition tier's wiring. Nothing is assembled for it: the
+feature branches are already merged into `epic/record-box`, each by the lead agent standing on its own gate,
+which is exactly why this ticket waits on the feature gates and not on a merge row.
 """
       }
       epicReview = ticket "epic-review" {
@@ -705,12 +794,13 @@ flow. Never re-test the micro tier's edges or the composition tier's wiring.
 ```
 title:    the three questions over the whole epic
 label:    epic-review          → AGENT → review
-parent:   the epic gate
-metadata: { \"branch\": \"epic/record-box\" }
+metadata: { \"branch\": \"epic/record-box\", \"base\": \"main\" }
 depends:  blocked-by the end-to-end ticket
+blocks:   the epic gate (its tier)
 ```
 **Brief:** map entry → exit, instrument with trace logs, run the tests against the instrumented code, post
-findings as PR comments. Then the human verifies and closes the epic gate.
+findings as PR comments. Then the epic gate is verified and closed — by a person, or by the lead agent proving
+the tier and merging `epic/record-box` into `main` through the forge.
 """
       }
     }
@@ -720,14 +810,18 @@ findings as PR comments. Then the human verifies and closes the epic gate.
       description """
 ```
 type:     gate
+labels:   none — a gate carries zero labels
 branch:   feature/add-record           ← plan-feature's key
+base:     epic/record-box              ← plan-feature's key, written here and copied DOWN from here
+tier:     feature                      ← only a gate may carry this key
 pr:       https://github.com/…/pull/2  ← written by the Stop hook onto the ticket that first landed work
 waits on: the feature review ticket
-PR base:  epic/record-box              ← read off the epic gate, never copied down
 ```
 One complete user-facing flow: a user writes a record and sees it in the box. Its five tasks are **one linked
 line, never a fan**, so the frontier can only ever hand out one task per feature and this branch is never
-written by two workers at once. Closing this gate IS merging `feature/add-record` into `epic/record-box`.
+written by two workers at once. Every one of them blocks this gate, and so do the suite and the review — that
+set of blockers is the tier the lead agent proves before it merges `feature/add-record` into `epic/record-box`
+through the forge, which is what closing this gate means.
 """
       backendA = ticket "backend-logic" {
         summary "validateRecord and saveRecord as pure functions: the first task, and the only one claimable."
@@ -736,9 +830,9 @@ written by two workers at once. Closing this gate IS merging `feature/add-record
 title:    validateRecord + saveRecord — pure functions
 label:    backend-logic        → AGENT → engineer
 category: backend-logic
-parent:   the feature gate
-metadata: { \"branch\": \"feature/add-record\" }   ← copied VERBATIM from the feature gate
+metadata: { \"branch\": \"feature/add-record\", \"base\": \"epic/record-box\" }   ← both copied VERBATIM from the feature gate
 depends:  none — the first task, and the only ticket claimable when the run starts
+blocks:   the feature gate (its tier) and the unit-tests ticket
 ```
 **Requirements**
 1. `validateRecord(input): Either<RecordValidationError, Record>` — pure, no mutation
@@ -756,9 +850,9 @@ depends:  none — the first task, and the only ticket claimable when the run st
 title:    exhaustive coverage for validateRecord
 label:    unit-tests           → AGENT → tester-unit
 category: unit-tests
-parent:   the feature gate
-metadata: { \"branch\": \"feature/add-record\" }
-depends:  blocked-by the back-end ticket — the ticket it tests
+metadata: { \"branch\": \"feature/add-record\", \"base\": \"epic/record-box\" }
+depends:  blocked-by the back-end ticket — the ticket it tests, its one and only predecessor
+blocks:   the feature gate (its tier) and the front-end ticket
 skill:    framework-jest
 ```
 **Cover:** every branch, every boundary (120/121 chars), empty and null input, each error it throws, the empty
@@ -773,9 +867,9 @@ body.
 title:    RecordForm + RecordCard against proved functions
 label:    frontend-ui          → AGENT → frontend
 category: frontend-ux          ← the CATEGORY; the LABEL is frontend-ui
-parent:   the feature gate
-metadata: { \"branch\": \"feature/add-record\" }
+metadata: { \"branch\": \"feature/add-record\", \"base\": \"epic/record-box\" }
 depends:  blocked-by the unit tests ticket
+blocks:   the feature gate (its tier) and the feature's suite — the tail of the chain hands to it
 ```
 **Brief:** the form, validation feedback surfacing each `RecordValidationError`, the card in the box. Layout and
 styling only — the logic is already proved by the micro tier. This ticket landing is what unblocks `feature-test`.
@@ -788,9 +882,9 @@ styling only — the logic is already proved by the micro tier. This ticket land
 title:    the add-record pieces are wired
 label:    feature-test         → AGENT → tester-feature
 category: feature-test
-parent:   the feature gate
-metadata: { \"branch\": \"feature/add-record\" }
+metadata: { \"branch\": \"feature/add-record\", \"base\": \"epic/record-box\" }
 depends:  blocked-by the front-end ticket — the LAST task; nothing is proved against half a feature
+blocks:   the feature gate (its tier) and the feature's review ticket
 skill:    framework-playwright
 ```
 **Cover:** the composed flow saves a record; each encapsulated error surfaces to the user.
@@ -803,12 +897,13 @@ skill:    framework-playwright
 title:    the three questions over feature/add-record
 label:    feature-review       → AGENT → review
 category: review
-parent:   the feature gate
-metadata: { \"branch\": \"feature/add-record\" }
+metadata: { \"branch\": \"feature/add-record\", \"base\": \"epic/record-box\" }
 depends:  blocked-by the feature's suite — no review before the suite
+blocks:   the feature gate (its tier)
 ```
-**Brief:** three questions from first principles, findings as PR comments. Then the human verifies and closes
-the feature gate, and that PR merges `feature/add-record` into `epic/record-box`.
+**Brief:** three questions from first principles, findings as PR comments. Then the feature gate is verified and
+closed — by a person, or by the lead agent proving the tier and merging `feature/add-record` into
+`epic/record-box` with `gh pr merge` / `glab mr merge` on that PR.
 """
       }
     }
@@ -839,6 +934,17 @@ and carrying `bo` because that is the command it commits with.
         description """
 `BO_MAX_PARALLEL`, `BO_POLL_S` or `BO_MAX_TICKETS` set to anything but digits. There is no defaulting silently:
 a knob typed wrong would otherwise change how many workers run unattended.
+"""
+      }
+      gateFlagNotASwitch = alarm "startup: BO_AGENT_<TIER>_GATES=<x> is not a switch" {
+        #fatal
+        summary "A gate tier switch is neither 0 nor 1, so the run refuses to guess who closes that tier's gate."
+        description """
+`BO_AGENT_FEATURE_GATES` and `BO_AGENT_EPIC_GATES` are switches, not numbers: `0` means a person closes that
+tier's gate, `1` means the lead agent does. Anything else — `true`, `yes`, `2` — prints the flag with both
+meanings and exits 1. Checked after the numeric knobs, before the poll interval; unset is `0`, so this is always
+a value somebody typed. There is no defaulting here either: a value read loosely would silently hand a tier's
+merges to a machine, or silently withhold them from it.
 """
       }
       pollUnusable = alarm "startup: BO_POLL_S=<x> is unusable — it must divide 60" {
@@ -903,11 +1009,13 @@ The commonest cause is a ticket labelled with its **category** instead of its la
       }
       metadataMissing = alarm "ERROR reason=metadata-missing" {
         #leftClaimed
-        summary "The claim carries no branch, so there is nowhere to work: a plan bug, left claimed."
+        summary "The claim carries no branch or no base: nowhere to work, or nowhere to aim. A plan bug."
         description """
-No `branch` in the claim's `metadata` — a plan agent skipped its one key. With no branch there is no folder to
-work in and nothing to push, so it is a plan bug and gets exactly the treatment of a mislabelled ticket: left
-claimed. The loop never invents a branch.
+Two forms, one reason — the two keys the plan agents are supposed to have written. No `branch` in the claim's
+`metadata`: with no branch there is no folder to work in and nothing to push. No `base`: the loop has nowhere to
+aim this branch's pull request, and since there is no parent chain to walk, that key is the only place a base
+exists — so it does not go looking for one. Either way it is a plan bug and gets exactly the treatment of a
+mislabelled ticket: left claimed. The loop never invents a branch and never guesses a base.
 """
       }
       branchBusyAlarm = alarm "CLAIMS reason=branch-busy unclaimed" {
@@ -924,15 +1032,14 @@ can only hand out one task per feature. The guard is for a tower that was never 
       }
       epicPrFailed = alarm "ERROR reason=epic-pr-failed step=…" {
         #unclaimed
-        summary "The epic branch or its pull request could not be published; eight steps say where."
+        summary "The epic branch or its pull request could not be published; seven steps say where."
         description """
 The epic branch or its PR could not be published — and every feature PR below it aims at that branch, so nothing
-beneath the epic has a base until this succeeds. Eight steps name exactly where it died:
+beneath the epic has a base until this succeeds. Seven steps name exactly where it died:
 
 | step | when |
 |---|---|
-| `walk` | `epicGateOf` could not reach a top of the parent chain in 4 hops |
-| `gate-branch` | the epic gate carries no `branch` metadata of its own |
+| `gate-branch` | the epic gate carries no `branch` metadata of its own — or, from `resolvePullRequestTarget`, **no gate at all carries the branch this ticket's PR aims at**, which is how a ticket whose `base` names nothing lands |
 | `forge` | `detectForge` settled on nothing |
 | `missing-tool` | the settled forge's CLI (`gh`/`glab`) is not installed |
 | `seed` | the branch's own first commit could not be written — `git commit-tree` needs a `user.name` and a `user.email` |
@@ -940,20 +1047,24 @@ beneath the epic has a base until this succeeds. Eight steps name exactly where 
 | `pr` | no URL matching `/(pull\|merge_requests)/[0-9]+` came back |
 | `annotate` | `bd update --set-metadata pr=` refused |
 
+Nothing is walked to find the epic any more: the ticket's own `base` names the branch its PR aims at, and the
+gate carrying that `branch` is found by listing the gates (`gateOwningBranch`). That is why `gate-branch` is the
+only plan-bug step left in this alarm.
+
 A forge will not open a pull request whose head and base are the same commit, so the branch is born with one
 commit of its own, `git commit-tree` off `main` — it never touches the tower's working tree and never moves its
 `HEAD`. A branch already there is read first and left alone unless it sits on `main`'s own commit.
 
-`walk` and `gate-branch` are plan bugs and get a plan bug's treatment: left claimed. Everything past them is the
-machine's fault and the ticket is innocent, so the claim goes back with `bd unclaim` and the next tick tries
-again — no worker is ever spawned into a branch that does not exist, because the claim is released before the
-spawn. The one place the epic gate's own branch appears is `gateBranch=` on the line — never `branch=`, which
-belongs to the claim, and the two differ.
+`gate-branch` from `resolvePullRequestTarget` is a plan bug and gets a plan bug's treatment: the tick returns and
+the ticket is **left claimed**. Everything past it is the machine's fault and the ticket is innocent, so the
+claim goes back with `bd unclaim` and the next tick tries again — no worker is ever spawned into a branch that
+does not exist, because the claim is released before the spawn. The one place the epic gate's own branch appears
+is `gateBranch=` on the line — never `branch=`, which belongs to the claim, and the two differ.
 """
       }
       worktreeFailed = alarm "ERROR reason=worktree-failed step=…" {
         #leftClaimed
-        summary "The branch's folder could not be built, so no worker is spawned into it; three steps say where."
+        summary "The branch's folder could not be built, so no worker is spawned into it; four steps say where."
         description """
 `ensureWorktree` could not build the folder, so no worker is spawned into it. Left claimed, like a mislabelled
 ticket: a worker spawned into a missing folder burns a slot on nothing. It self-heals what it can first — a stale
@@ -964,6 +1075,7 @@ overwritten — and only then refuses.
 |---|---|
 | `no-start` | none of `origin/<branch>`, `origin/<prTarget>`, `<prTarget>`, `HEAD` resolves to a commit |
 | `stray-folder` | the branch's folder exists, is not a registered worktree, and could not be renamed aside |
+| `gate` | the same failure on a **gate** dispatch — the line carries `gate=<id>`, and the gate is put back to `open` rather than left claimed, so the next tick may try it again |
 | *(no step)* | `git worktree add` itself failed against the starting commit it did find |
 """
       }
@@ -997,6 +1109,25 @@ and the worker **is** spawned: nothing was deleted, and the kept folder is named
 `$BO_AGENT_COMMAND --bg` came back non-zero; the last line of that worker's `spawn-<ticket>` file is quoted in `msg=`.
 `bd unclaim` — unlike every other tick alarm, this one puts the ticket **straight back**, because nothing was
 ever spawned to work it and the next tick may well succeed.
+
+On a **gate** dispatch the line carries `gate=<id>` instead of a ticket, and the put-back is `moveGateTo <gate>
+open in_progress` — the gate returns to `open`, off the ready list no longer, so the next tick may reach it
+again.
+"""
+      }
+      gateClaimLost = alarm "ERROR reason=gate-claim-lost gate=<id>" {
+        #idle
+        summary "The gate was no longer open the moment the loop reached for it; no lead agent was spawned."
+        description """
+The gate claim is `bd update <gate> --status in_progress --if-status open`, and `--if-status` is what makes it
+safe: if the gate was no longer `open` the instant the loop reached for it — another loop got there first, or a
+person closed it by hand — the write fails, the alarm fires, and **no lead agent is spawned**. Nothing is
+spawned into a gate someone else already holds, and nothing is closed twice.
+
+This is the only conditional write anywhere in the system, and it is also what takes a gate off the ready list
+while its lead agent works: a gate never appears in `bd ready`, so status is the only handle on it. If that lead
+agent dies, the failure hook parks the gate in `failed-agent` exactly as it parks a dead worker's ticket — and a
+parked gate is no longer `open`, so it drops out of the ready-gate list and waits for a person.
 """
       }
     }
@@ -1040,9 +1171,10 @@ anything else (`not-found`, `open`) is an alarm.
         #staysClaimed
         summary "The spawn carried no pull request base, so the hook refuses to aim blind."
         description """
-`BO_PR_TARGET` was not on the spawn. Named for the target, since `pr` now means the url: the loop reads the base
-off the ticket's epic gate and says `main` when the ticket sits under the epic itself, so an absent target means
-the hook is aiming blind and refuses to.
+`BO_PR_TARGET` was not on the spawn. Named for the target, since `pr` now means the url: the loop reads that
+target off the ticket's **own `base` key**, carried straight through the claim and the spawn, so an absent target
+means the hook is aiming blind and refuses to. (The line's own `msg=` still says the loop reads it off the
+ticket's epic gate — that sentence outlived the parent walk; the key is the answer now.)
 """
       }
       notDeclaredDone = alarm "ERROR reason=not-declared-done" {
@@ -1106,6 +1238,21 @@ Reached **after** the commit and the push, because the hook only needs the forge
         description """
 The forge settled, its CLI is not installed. Same reason as the up-front check, different `tool=` and with
 `forge=` appended — which is how you tell the two apart in the errors file.
+"""
+      }
+      prNotFoundGate = alarm "ERROR reason=pr-not-found forge=<f>" {
+        #staysClaimed
+        summary "The lead agent stopped on a gate whose branch has no pull request at all — the gate path's own refusal."
+        description """
+Reached only when the claim's `kind` is `gate`. The gate path never opens a pull request — the lead agent was sent
+to **merge** one, so the hook only looks the branch's PR up at any state, `--state all` on GitHub and `--all` on
+GitLab, against that branch and its `base`. Nothing matches: there was nothing for the lead agent to merge, and it
+declared done anyway. The gate stays claimed and the tier behind it waits.
+
+This is the reason that does not exist on the task path, and the two are not the same failure: `pr-not-created`
+means the hook could not raise a pull request, this means one was never there to merge. The loop is what puts the
+epic branch's PR up (`epic-published`), and `plan-feature` says the feature's PR exists before its first worker
+runs — so a gate reaching this line means one of those two never happened.
 """
       }
       prNotCreated = alarm "ERROR reason=pr-not-created forge=<f>" {
@@ -1186,12 +1333,13 @@ planned anything yet. This is the calm one.
     }
     towerStalled = waitingLine "reason=tower_stalled waiting=N" {
       #idle
-      summary "Work exists but a blocker holds it off the frontier — usually a gate only a human closes."
+      summary "Work exists but a blocker holds it off the frontier — usually a gate whose tier is still a person's."
       description """
 The other half of an empty frontier, and the two need different alarms: work tickets **do** exist
 (`bd list --status open,blocked --limit 0` counted N of them) but an active blocker holds them off `bd ready` —
-an open gate two levels below, most often, which **only a human** may close. `bd list` hides closed tickets and
-gates by default, so N counts work tickets only. A broken tower must never read as a calm one.
+an open gate two levels below, most often. That is the expected shape of a run: a gate is a checkpoint, and while
+its tier's flag is `0` nothing dispatches it, so everything behind it waits for a person. `bd list` hides closed
+tickets and gates by default, so N counts work tickets only. A broken tower must never read as a calm one.
 """
     }
     branchBusyWaiting = waitingLine "reason=branch_busy held=N" {
@@ -1200,6 +1348,32 @@ gates by default, so N counts work tickets only. A broken tower must never read 
       description """
 Tickets were claimable and every one of them wanted a branch already at work: N were unclaimed and skipped this
 tick. The graph makes a feature sequential, so this is the fallback for a tower that was never chained.
+
+The same reason arrives from the gate dispatch too, and there it reads `held=1 gate=<id>`: the gate's own branch is
+already at work, so the gate is left `open` and untouched — the busy check runs **before** the claim, so unlike
+every other gate failure this one never moves the gate's status at all.
+"""
+    }
+    gateUnworkable = waitingLine "reason=gate_unworkable gate=<id> key=branch|base" {
+      #idle
+      summary "A ready gate carries no branch or no base, so no lead agent can be placed or aimed."
+      description """
+A gate reached the frontier and its metadata is missing one of the two keys a worker is placed by: the line names
+which, `key=branch` or `key=base`. Same rule as the ticket path's `metadata-missing`, same refusal — the loop
+never invents a branch and never guesses a base — but the consequence is quieter here: with no lead agent spawned
+the gate is never claimed, so it stays `open`, shows up ready again next tick, and the tier behind it simply waits.
+An alarm would fire every tick forever; this is a line, rate-limited to one a minute.
+"""
+    }
+    gateTierMissing = waitingLine "reason=gate_tier_missing gate=<id>" {
+      #idle
+      summary "A ready gate carries no `tier` key, so neither tier switch can be matched against it."
+      description """
+Which flag to consult is the first thing a gate dispatch does, and it consults the gate's own `tier` metadata —
+`epic` against `BO_AGENT_EPIC_GATES`, `feature` against `BO_AGENT_FEATURE_GATES`. A gate with no `tier` matches
+neither, and an unlabelled tier is never guessed at: the gate is skipped, left `open`, and reported. Only a gate
+may carry `tier` at all, and `bead-initialize` / the plan agents are what put it there — a gate that reached this
+line was created without one.
 """
     }
     maxParallel = waitingLine "reason=max_parallel in_progress=N" {
@@ -1223,15 +1397,17 @@ count comes fresh from `$BO_AGENT_COMMAND agents --json` every tick precisely so
   // ═══════════════════════════════════════════════════════════════════════════
   // The depends-on edges, as edges of the model rather than of one walkthrough.
   // A static view draws only these; a dynamic view draws only the edges its own
-  // steps create — so the graph view needs them here. The two edges that run from
-  // a row onto its own gate are absent: the engine refuses a parent-child edge.
+  // steps create — so the graph view needs them here. The edges that make a TIER
+  // are absent, every one of them: each row blocks its own gate, and a gate is
+  // drawn as the box around its tier's rows, so the engine refuses those edges as
+  // parent-child. The gate's own panel is the list of its blockers.
   // ═══════════════════════════════════════════════════════════════════════════
 
   tower.featA.backendA -[blocks]-> tower.featA.unitA "then its tests"
   tower.featA.unitA -[blocks]-> tower.featA.frontendA "then the interface"
   tower.featA.frontendA -[blocks]-> tower.featA.featureTestA "then the suite"
   tower.featA.featureTestA -[blocks]-> tower.featA.featureReviewA "then the review"
-  tower.featA -[blocks]-> tower.epic.epicMergePr "the closed gate releases the merge"
-  tower.epic.epicMergePr -[blocks]-> tower.epic.epicE2e "then the journeys"
-  tower.epic.epicE2e -[blocks]-> tower.epic.epicReview "then the review"
+
+  tower.featA -[blocks]-> tower.epic.epicE2e "no journey over an unmerged flow"
+  tower.epic.epicE2e -[blocks]-> tower.epic.epicReview "the journeys, then the review"
 }

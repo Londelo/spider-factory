@@ -5,7 +5,7 @@ specification {
   color workerPurple #7C3AED   // a worker agent
   color plannerTeal #0891B2   // a plan agent, outside the tower
   color hookCyan #0E7490   // a hook the harness fires
-  color gateAmber #D97706   // a gate only a human closes
+  color gateAmber #D97706   // a gate: a person closes it, or the lead agent when its tier's flag is on
   color errorRed #DC2626   // an alarm: something failed
   color idleGray #64748B   // a waiting line: nothing failed, nothing ran
   color infraGray #6B7280   // beads, the forge, the human, notes
@@ -117,13 +117,13 @@ specification {
   }
 
   relationship plans {
-    description "top-down tower build — each plan agent writes only its own tier's branch"
+    description "top-down tower build — each plan agent authors only its own tier's branch and base"
     color plannerTeal
     line dashed
   }
 
   relationship closes {
-    description "only a human closes a gate"
+    description "a person closes a gate, unless its tier's flag hands that gate to the lead agent"
     color gateAmber
   }
 

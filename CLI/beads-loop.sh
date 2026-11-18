@@ -5,6 +5,7 @@
 #   BO_MAX_TICKETS counts tickets the Stop hook closed this run, not ticks — the loop keeps ticking while it waits
 #   BO_LOG_ROOT (~/.binary-obelisk/logs) one directory per run | BO_ALLOWED_LABELS unset or * = the whole AGENT set, a comma list narrows it
 #   BO_AGENT_COMMAND (claude) the command that runs an agent — every worker spawn and the worker count go through it
+#   BO_AGENT_FEATURE_GATES / BO_AGENT_EPIC_GATES (0) — 1 lets the lead agent verify and merge that tier's gate every tick
 #   Every one of them may live in ~/.obelisk.env, which CLI/install-cli.sh puts there and you edit by hand.
 #   Contract: this file is the contract. .claude/diagram/ is its human-terms account; .claude/CLAUDE.md points at both.
 set -uo pipefail
@@ -23,8 +24,9 @@ declare -A AGENT=(
     [epic-e2e-test]=tester-e2e
     [feature-review]=review
     [epic-review]=review
-    [epic-merge-pr]=merge
 )
+
+leadAgentName="lead"
 
 declare -A numericSettingEnvName=(
     [maximumParallelWorkers]=BO_MAX_PARALLEL
@@ -40,6 +42,8 @@ pollSeconds=0
 maximumTicketsDone=0
 logRoot=""
 agentCommand=""
+agentHandlesFeatureGates=0
+agentHandlesEpicGates=0
 waitingLineCadence=0
 maximumClaimsPerTick=0
 tickCount=0
@@ -52,6 +56,27 @@ configureFromEnvironment() {
     maximumTicketsDone="${BO_MAX_TICKETS:-0}"
     logRoot="${BO_LOG_ROOT:-$HOME/.binary-obelisk/logs}"
     agentCommand="${BO_AGENT_COMMAND:-claude}"
+    agentHandlesFeatureGates="${BO_AGENT_FEATURE_GATES:-0}"
+    agentHandlesEpicGates="${BO_AGENT_EPIC_GATES:-0}"
+}
+
+requireGateFlagsAreSwitches() {
+    local flagName flagValue
+    for flagName in BO_AGENT_FEATURE_GATES BO_AGENT_EPIC_GATES; do
+        flagValue="${!flagName}"
+        [[ "$flagValue" == "0" || "$flagValue" == "1" ]] || {
+            echo "beads-loop: $flagName=$flagValue is not a switch — it is either 0 (a human closes that gate) or 1 (the lead agent does)" >&2
+            exit 1
+        }
+    done
+}
+
+gateTierIsSwitchedOn() {
+    case "$1" in
+        feature) [[ "$agentHandlesFeatureGates" == "1" ]] ;;
+        epic)    [[ "$agentHandlesEpicGates" == "1" ]] ;;
+        *) return 1 ;;
+    esac
 }
 
 configureAllowedLabels() {
@@ -246,19 +271,14 @@ readFieldOf() {
     local id="$1" key="$2"
     [[ -n "$id" ]] || return 1
     bd -C "$towerDir" show --json "$id" 2>/dev/null \
-        | jq -r --arg k "$key" 'if type == "array" then .[0] else . end
-            | if $k == "parent" then (.parent // empty) else ((.metadata // {})[$k] // empty) end' 2>/dev/null
+        | jq -r --arg k "$key" 'if type == "array" then .[0] else . end | ((.metadata // {})[$k] // empty)' 2>/dev/null
 }
 
-epicGateOf() {
-    local id="$1" hop=0 parentId
-    [[ -n "$id" ]] || return 1
-    while (( hop++ < 4 )); do
-        parentId="$(readFieldOf "$id" parent)"
-        [[ -n "$parentId" ]] || { echo "$id"; return 0; }
-        id="$parentId"
-    done
-    return 1
+gateOwningBranch() {
+    local wanted="$1"
+    [[ -n "$wanted" ]] || return 1
+    bd -C "$towerDir" list --include-gates --type gate --limit 0 --json 2>/dev/null \
+        | jq -r --arg b "$wanted" '.[] | select((.metadata // {}).branch == $b) | .id' 2>/dev/null | head -1
 }
 
 ensureEpicGatePr() {
@@ -388,7 +408,7 @@ readTicketIdentityFromClaim() {
 readClaimFields() {
     mapfile -t ticketLabels < <(jq -r '.[0].labels // [] | .[]' <<< "$claimJson" 2>/dev/null)
     branch="$(jq -r '.[0].metadata.branch // empty' <<< "$claimJson" 2>/dev/null)"
-    claimParent="$(jq -r '.[0].parent // empty' <<< "$claimJson" 2>/dev/null)"
+    claimBase="$(jq -r '.[0].metadata.base // empty' <<< "$claimJson" 2>/dev/null)"
     boIdent branch "$branch"
 }
 
@@ -438,32 +458,32 @@ reportEmptyFrontier() {
     fi
 }
 
+claimCarriesBase() {
+    [[ -n "$claimBase" ]] && return 0
+    logTo errors "reason=metadata-missing msg=\"the plan agents create every ticket with --metadata carrying a base; with no base key the loop has nowhere to aim this branch's pull request\""
+    return 1
+}
+
 resolvePullRequestTarget() {
-    gateId="$(epicGateOf "$claimParent")" || {
-        logTo errors "reason=epic-pr-failed step=walk msg=\"no epic gate above this ticket's parent\""
+    prTarget="$claimBase"
+    gateId="$(gateOwningBranch "$([[ "$claimBase" == "main" ]] && echo "$branch" || echo "$claimBase")")"
+    [[ -n "$gateId" ]] || {
+        logTo errors "reason=epic-pr-failed step=gate-branch msg=\"no gate carries the branch this ticket's pull request aims at, so the loop cannot find the epic to publish\""
         return 1
     }
-    if [[ "$gateId" == "$claimParent" ]]; then
-        prTarget="main"
-    else
-        prTarget="$(readFieldOf "$gateId" branch)"
-        [[ -n "$prTarget" ]] || {
-            logTo errors "reason=epic-pr-failed step=gate-branch gate=$gateId msg=\"the epic gate carries no branch metadata, so nothing beneath it has a base branch\""
-            return 1
-        }
-    fi
     boIdent target "$prTarget"
 }
 
 buildWorkerPrompt() {
-    local ticketId="$1" branch="$2" doneFile="$3" agentName="$4"
+    local ticketId="$1" branch="$2" doneFile="$3" agentName="$4" prTarget="$5"
     local stayOnBranchRule
-    if [[ "$agentName" == merge ]]; then
-        stayOnBranchRule="5. Stay on \`${branch}\`, in this folder. This ticket's work IS the merge:
-   bring each branch named in your brief into \`${branch}\` with \`git merge\`, resolving what
-   collides between them. Still never create a branch, never check one out, never rebase, never
-   push, never commit — the merge lives in the working tree; when you stop, it becomes one commit
-   on this branch carrying your ticket's title."
+    if [[ "$agentName" == "$leadAgentName" ]]; then
+        stayOnBranchRule="5. Stay on \`${branch}\`, in this folder. This ticket is a GATE: you verify the tier it
+   stands for, and when it is proved you merge this branch's own pull request into \`${prTarget}\`.
+   Never create a branch, never check one out, never rebase, and never a bare \`git commit\` or
+   \`git push\` — commit with \`bo commit\` as your agent file tells you, as you go. The merge is the
+   forge's own command on the pull request (\`gh pr merge\`, or \`glab mr merge\`), never a local
+   \`git merge\` into \`${prTarget}\`."
     else
         stayOnBranchRule="5. Stay on \`${branch}\`, in this folder. Never create a branch, never check one out, never merge,
    never rebase, and never a bare \`git commit\` or \`git push\` — the branch is shared work and
@@ -503,7 +523,7 @@ spawnFileFor() { printf '%s' "$logDir/spawn-${1//\//+}"; }
 contextFileFor() { printf '%s' "$logRoot/worker-context/${1//\//+}"; }
 
 spawnWorker() {
-    local worktreePath="$1" ticketId="$2" agentName="$3" branch="$4" prTarget="$5" label="$6" doneFile="$7" spawnFile="$8" contextFile="$9"
+    local worktreePath="$1" ticketId="$2" agentName="$3" branch="$4" prTarget="$5" label="$6" doneFile="$7" spawnFile="$8" contextFile="$9" kind="${10:-task}"
     mkdir -p "$(dirname "$contextFile")" 2>/dev/null
     { printf 'ticket=%s\n' "$ticketId"
       printf 'branch=%s\n' "$branch"
@@ -512,13 +532,14 @@ spawnWorker() {
       printf 'label=%s\n' "$label"
       printf 'tower=%s\n' "$towerDir"
       printf 'done_file=%s\n' "$doneFile"
+      printf 'kind=%s\n' "$kind"
     } >"$contextFile.tmp" && mv -f "$contextFile.tmp" "$contextFile"
     ( cd "$worktreePath" \
         && BO_TICKET="$ticketId" BO_BRANCH="$branch" BO_PR_TARGET="$prTarget" \
            BO_AGENT="$agentName" BO_LABEL="$label" \
            BO_PROJECT_DIR="$towerDir" BO_LOG_DIR="$logDir" BO_DONE_FILE="$doneFile" \
            $agentCommand --bg --agent "$agentPluginName:$agentName" --permission-mode bypassPermissions \
-           "$(buildWorkerPrompt "$ticketId" "$branch" "$doneFile" "$agentName")" ) >"$spawnFile" 2>&1
+           "$(buildWorkerPrompt "$ticketId" "$branch" "$doneFile" "$agentName" "$prTarget")" ) >"$spawnFile" 2>&1
 }
 
 dispatchWorker() {
@@ -564,6 +585,70 @@ dispatchWorker() {
     logTo claims "reason=dispatched"
 }
 
+readyGates() {
+    bd -C "$towerDir" list --include-gates --ready --type gate --limit 0 --json 2>/dev/null \
+        | jq -r '.[] | "\(.id)\t\((.metadata // {}).tier // "")"' 2>/dev/null
+}
+
+moveGateTo() { bd -C "$towerDir" update "$1" --status "$2" --if-status "$3" >/dev/null 2>&1; }
+
+dispatchOneGate() {
+    local gateId="$1" tier="$2"
+    local gateBranch gateBase worktreePath worktreeAside worktreeFailure doneFile spawnFile contextFile
+
+    gateBranch="$(readFieldOf "$gateId" branch)"
+    gateBase="$(readFieldOf "$gateId" base)"
+    [[ -n "$gateBranch" ]] || { waiting gate_unworkable "gate=$gateId key=branch"; return 1; }
+    [[ -n "$gateBase" ]] || { waiting gate_unworkable "gate=$gateId key=base"; return 1; }
+    if [[ "$busyBranches" == *$'\n'"$gateBranch"$'\n'* ]]; then
+        waiting branch_busy "held=1 gate=$gateId"
+        return 1
+    fi
+    moveGateTo "$gateId" in_progress open || {
+        logTo errors "reason=gate-claim-lost gate=$gateId msg=\"the gate was no longer open the moment the loop reached for it — another loop or a human has it, so no lead agent was spawned\""
+        return 1
+    }
+    boClearIdentity
+    boIdent ticket "$gateId"
+    boIdent agent "$leadAgentName"
+    boIdent label "gate:$tier"
+    boIdent branch "$gateBranch"
+    boIdent target "$gateBase"
+    if ! ensureWorktree "$gateBranch" "$gateBase" || [[ -z "$worktreePath" ]]; then
+        moveGateTo "$gateId" open in_progress
+        logTo errors "reason=worktree-failed step=gate gate=$gateId msg=\"the gate's branch folder could not be made from origin/$gateBranch or from its target $gateBase\""
+        return 1
+    fi
+    boIdent worktree "$worktreePath"
+    doneFile="$(doneFileFor "$gateId")"
+    spawnFile="$(spawnFileFor "$gateId")"
+    contextFile="$(contextFileFor "$gateBranch")"
+    rm -f "$doneFile"
+    if ! spawnWorker "$worktreePath" "$gateId" "$leadAgentName" "$gateBranch" "$gateBase" \
+            "gate:$tier" "$doneFile" "$spawnFile" "$contextFile" gate; then
+        moveGateTo "$gateId" open in_progress
+        logTo errors "reason=worker-not-dispatched gate=$gateId msg=\"$(lastLineOf "$spawnFile")\""
+        return 1
+    fi
+    boIdent session "$(sessionFromSpawn "$spawnFile")"
+    claimedThisRun=$((claimedThisRun + 1))
+    logTo claims "reason=dispatched kind=gate gate=$gateId tier=$tier"
+}
+
+dispatchReadyGates() {
+    local gateId tier
+    [[ "$agentHandlesFeatureGates" == "1" || "$agentHandlesEpicGates" == "1" ]] || return 0
+    while IFS=$'\t' read -r gateId tier; do
+        [[ -n "$gateId" ]] || continue
+        if ! gateTierIsSwitchedOn "$tier"; then
+            [[ -n "$tier" ]] || waiting gate_tier_missing "gate=$gateId"
+            continue
+        fi
+        atDispatchCapacity && return
+        dispatchOneGate "$gateId" "$tier"
+    done < <(readyGates)
+}
+
 claimAndDispatchOneTicket() {
     tryNextClaim=0
     readClaimFromFrontier || return
@@ -580,6 +665,7 @@ claimAndDispatchOneTicket() {
     readClaimFields
     claimCarriesExactlyOneDispatchLabel || return
     claimCarriesBranch || return
+    claimCarriesBase || return
     if claimedBranchIsAlreadyAtWork; then
         skipClaimedTicketForThisTick
         tryNextClaim=1
@@ -595,9 +681,10 @@ claimAndDispatchOneTicket() {
 
 tick() {
     local -A skippedTicket=()
-    local busyBranches claimAttempts claimJson claimExitCode ticketId ticketLabels matchedLabels branch claimParent prTarget gateId
+    local busyBranches claimAttempts claimJson claimExitCode ticketId ticketLabels matchedLabels branch claimBase prTarget gateId
 
     busyBranches=$'\n'"$(branchesCurrentlyAtWork)"$'\n'
+    dispatchReadyGates
     claimAttempts=0
     while (( claimAttempts < maximumClaimsPerTick )); do
         claimAttempts=$((claimAttempts + 1))
@@ -640,6 +727,7 @@ configureFromEnvironment
 configureAllowedLabels
 requireToolsOnPath
 requireNumericSettingsFromEnvironment
+requireGateFlagsAreSwitches
 requireUsablePollInterval
 requireBeadsProject
 createRunLogDirectory

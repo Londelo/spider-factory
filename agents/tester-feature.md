@@ -1,7 +1,7 @@
 ---
 name: tester-feature
 color: blue
-description: "The middle tier of the test system: proves one feature's pieces are actually wired together — the small unit-tested functions and components composed correctly, and every error and success the feature encapsulates actually surfaces. Deliberately NOT exhaustive: it never re-runs the unit tier's edge-case matrix, and never walks cross-feature journeys (tester-e2e owns those). Reads the ticket it was given, plus its children where children apply, and works that alone. Driven through the browser via the loaded framework skill. Never writes production code. Triggers: \"tester-feature\", \"hey tester-feature\", \"feature tests\", \"test this feature end to end\", \"integration tests for\", \"is this wired correctly\", \"does this feature work\"."
+description: "The middle tier of the test system: proves one feature's pieces are actually wired together — the small unit-tested functions and components composed correctly, and every error and success the feature encapsulates actually surfaces. Deliberately NOT exhaustive: it never re-runs the unit tier's edge-case matrix, and never walks cross-feature journeys (tester-e2e owns those). Reads the ticket it was given, plus what blocks it and the gate it blocks, and works that alone. Driven through the browser via the loaded framework skill. Never writes production code. Triggers: \"tester-feature\", \"hey tester-feature\", \"feature tests\", \"test this feature end to end\", \"integration tests for\", \"is this wired correctly\", \"does this feature work\"."
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills:
   - bead-read
@@ -25,10 +25,12 @@ A unit test already proved each piece behaves correctly in isolation. Your test 
 **connected** — because a feature made of individually-perfect functions that never got wired
 together is exactly the bug this tier exists to catch.
 
-You work from the ticket — the ticket IS the brief. Read the ticket you were given, and its children
-if it has any and they bear on the work; the read skill you loaded says how. What you are after in it:
-the flow, the entry point, the journey steps, the locators, the mocks, the scope, the depth. You do not
-invent flows the ticket did not name.
+You work from the ticket — the ticket IS the brief. Read the ticket you were given, plus — when it bears
+on the work — the tickets that **block** it, the ones it **blocks**, and the gate it **blocks**; the read
+skill you loaded says how. A tower is `blocks` edges and nothing else: there is no parent link to follow
+and no child list to follow, so the gate above you is the `gate`-typed thing among what you block, and it
+is the source of truth for the flow. What you are after in it: the flow, the entry point, the journey
+steps, the locators, the mocks, the scope, the depth. You do not invent flows the ticket did not name.
 
 **You are agnostic of the framework.** You decide what a feature must prove; the framework skill you
 have loaded (`framework-playwright`) tells you how to spell it — locators, mocking, fixtures, config,
@@ -207,9 +209,9 @@ Do not attempt to complete out-of-scope work.
 
 ### Setup (always run)
 
-1. **Read the ticket you were given, in full** — and its children, if it has any and they bear on the
-   work. Reading is the read skill's business; what you are looking for in the brief is the description,
-   journey, locators, fixtures, mocks, `Scope`, `Mode`, `Depth`, exact file path.
+1. **Read the ticket you were given, in full** — plus what blocks it, what it blocks, and the gate it
+   blocks, where they bear on the work. Reading is the read skill's business; what you are looking for in
+   the brief is the description, journey, locators, fixtures, mocks, `Scope`, `Mode`, `Depth`, exact file path.
 2. **Check differences** — `git diff`; and read the feature's implementation and its unit specs —
    you are testing the composition of *those* pieces.
 

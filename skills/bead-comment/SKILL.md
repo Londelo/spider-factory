@@ -79,5 +79,5 @@ is noise that buries the first.
 | Reports a gap in another tier | File the ticket that gap needs — the tower's shape is the plan agents' business |
 | Records a decision and its assumption | Edit the description or the acceptance criteria — those are the plan's words, not yours |
 
-Reading the ticket — its description, its children, the gate above it — is `bead-read`. Creating tickets
+Reading the ticket — its description, what blocks it, the gate above it — is `bead-read`. Creating tickets
 is `bead-create`. This skill writes comments and nothing else.

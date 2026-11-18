@@ -3,7 +3,7 @@ views {
   // ═════════════════════════════════════════════════════════════════════════════
   // Four walkthroughs and nothing else. Every node on a page is either pointed at
   // by a step or sits inside a box a step points at.
-  //   1 · the plan     — a person turns an idea into ten tickets
+  //   1 · the plan     — a person turns an idea into nine tickets
   //   2 · the run      — the skill installs the CLI, then ticket after ticket
   //   3 · the log      — what a run writes and how to read a stuck tower
   //   4 · the failures — the same run with every alarm firing
@@ -18,10 +18,10 @@ views {
   // ────────────────────────────────────────────────────────────────────────────
 
   dynamic view index {
-    title "Binary Obelisk/Walkthrough/1 · The planning phase — a vague idea becomes ten tickets"
+    title "Binary Obelisk/Walkthrough/1 · The planning phase — a vague idea becomes nine tickets"
 
     include human, planAgents, planAgents.*, beads
-    include tower, tower.epic, tower.epic.epicMergePr, tower.epic.epicE2e, tower.epic.epicReview
+    include tower, tower.epic, tower.epic.epicE2e, tower.epic.epicReview
     include tower.featA, tower.featA.backendA, tower.featA.unitA, tower.featA.frontendA
     include tower.featA.featureTestA, tower.featA.featureReviewA
 
@@ -32,19 +32,17 @@ views {
       notes """
 It surveys what the repo already has and reads it, then asks — one or two questions at a time, never a
 questionnaire — until the idea is settled. It agrees exactly one epic and one name for it,
-`epic/record-box`, and then writes the four rows below, in that order. Nothing runs yet.
+`epic/record-box`, and then writes the three rows below, in that order: the gate, the journeys, the review.
+There is no merge ticket at this tier or any other. Nothing runs yet.
 """
     }
 
     planAgents.planEpic -[plans]-> tower.epic "the epic gate — the gate, written first" {
       title "The one row that carries the epic's branch name"
       notes """
-The gate goes in before any ticket, because the three rows below copy its `branch` key verbatim.
+The gate goes in before any ticket, because the two rows below copy its `branch` and `base` keys verbatim.
+It is also the only row allowed a `tier` key, and here that is `epic`.
 """
-    }
-
-    planAgents.planEpic -[plans]-> tower.epic.epicMergePr "the merge ticket — assemble the branches" {
-      title "The merge ticket lives at the epic tier and nowhere else"
     }
 
     planAgents.planEpic -[plans]-> tower.epic.epicE2e "the end-to-end ticket — journeys in a real browser" {
@@ -52,10 +50,11 @@ The gate goes in before any ticket, because the three rows below copy its `branc
     }
 
     planAgents.planEpic -[plans]-> tower.epic.epicReview "the epic review ticket — the three questions" {
-      title "The epic's review — what you wait for before you close the gate"
+      title "The epic's review — what you wait for before the tier is proved"
       notes """
-The edge that puts this row in front of the gate is on the gate's own panel: the engine refuses an edge from
-a row to its own parent.
+Both these rows block the gate, and that set of blockers is the whole epic tier — the gate's own panel lists
+them. Nothing is assembled for the journeys: the lead agent merges each feature into the epic branch as its
+own gate closes.
 """
     }
 
@@ -73,7 +72,8 @@ edge someone wrote because one genuinely needs the other.
     planAgents.planFeature -[plans]-> tower.featA "the feature gate — the gate, and its branch" {
       title "The one row that carries feature/add-record"
       notes """
-Per feature it writes three rows and no merge ticket — the merge belongs to the epic alone.
+Per feature it writes three rows and no merge ticket — there is none at this tier either. This gate names the
+branch and the base its pull request aims at (`epic/record-box`), and everything below it copies both.
 """
     }
 
@@ -89,9 +89,10 @@ Per feature it writes three rows and no merge ticket — the merge belongs to th
       title "One feature in, its chain of tasks out"
       notes """
 Never asks anything. With no feature ticket in the prompt it stops with `ERROR reason=no-parent-feature`; a
-feature carrying no `branch` metadata stops with `ERROR reason=metadata-missing` and creates nothing. Every
-back-end unit becomes two rows — the implementation, then the micro test that follows it — and the interface
-stands alone, because the micro tier never tests a component.
+feature carrying no `branch` or no `base` stops with `ERROR reason=metadata-missing` and creates nothing — it
+names no branch of its own and guesses no base. Every back-end unit becomes two rows — the implementation,
+then the micro test that follows it — and the interface stands alone, because the micro tier never tests a
+component. Every row gets two edges: onto the feature's gate, and onto the one row before it.
 """
     }
 
@@ -107,9 +108,9 @@ stands alone, because the micro tier never tests a component.
       title "Built last, against functions already proved"
     }
 
-    // ═ ACT II — the graph they left behind: the seven edges that run between two rows, and
-    //   the agent that wrote each. The two that run onto a gate itself are drawn on that
-    //   gate's own panel instead — the engine refuses an edge from a row to its own parent.
+    // ═ ACT II — the graph they left behind: the edges that run between two rows, the agent
+    //   that wrote each, and the edge every single row has onto its own gate. That last set is
+    //   the tier: nothing else in the database records which gate a row belongs to.
 
     tower.featA.backendA -[blocks]-> tower.featA.unitA "the logic, then its tests" {
       title "Written by plan-task — no test runs against a function nobody has written"
@@ -127,15 +128,18 @@ stands alone, because the micro tier never tests a component.
       title "Written by plan-feature — no review before the suite"
     }
 
-    tower.featA -[blocks]-> tower.epic.epicMergePr "the closed gate releases the merge" {
+    tower.featA -[blocks]-> tower.epic.epicE2e "no journey over an unmerged flow" {
       title "Written by plan-feature — the one edge only it can write"
       notes """
-If this edge is missing, the merge runs against a half-built feature and still reports green.
-"""
-    }
+This is what holds the epic tier off the frontier until every feature is proved: the journeys wait on the gate,
+not on any of the rows.
 
-    tower.epic.epicMergePr -[blocks]-> tower.epic.epicE2e "assembled, then the journeys" {
-      title "Written by plan-epic — the journey is proved against the assembled branch"
+The edges that make a tier are not drawn, and cannot be. Every row of a feature blocks that feature's gate, and
+every row of the epic tier blocks the epic gate — one edge per row, no exceptions, written by the plan agent that
+created the row. But a gate is drawn as the box around its own tier, and the engine refuses an edge from a node
+into the box holding it. Read them off the box: the gate's own panel is its list of blockers. A row missing its
+edge still runs, and the lead agent at the gate never counts it — the gate closes over it.
+"""
     }
 
     tower.epic.epicE2e -[blocks]-> tower.epic.epicReview "the journeys, then the review" {
@@ -144,12 +148,13 @@ If this edge is missing, the merge runs against a half-built feature and still r
 
     // ═ ACT III — the tower is standing, and only one row can be claimed
 
-    human -> beads "bd list — all ten are in the tower" {
-      title "Ten tickets in the database, and only one can be claimed"
+    human -> beads "bd list — all nine are in the tower" {
+      title "Nine tickets in the database, and only one can be claimed"
       notes """
-Four from the epic plan, three from the feature plan, three from the task plan. The head of the chain —
-the back-end ticket — is ready; everything else sits behind one of the seven edges above, or behind a gate only a human
-closes. The database is all the loop ever reads.
+Three from the epic plan, three from the feature plan, three from the task plan — two gates and seven tickets.
+The head of the chain, the back-end ticket, is ready; everything else sits behind one of the edges above, or
+behind a gate, and a gate never appears in `bd ready` at all. With both tier flags off — the default — the two
+gates wait for a person. The database is all the loop ever reads.
 """
       navigateTo theLoop
     }
@@ -189,7 +194,7 @@ closes. The database is all the loop ever reads.
       workers.testerFeature,
       workers.testerE2e,
       workers.reviewAgent,
-      workers.mergeAgent,
+      workers.leadAgent,
       stopHook,
       waiting,
       waiting.towerStalled
@@ -218,12 +223,13 @@ If a number is typed wrong, the run stops there — it never quietly substitutes
 """
     }
 
-    machine.dispatcher -> machine.preflight "before the first tick: six checks" {
-      title "Six checks, and five of them stop the run"
+    machine.dispatcher -> machine.preflight "before the first tick: seven checks" {
+      title "Seven checks, and six of them stop the run"
       notes """
 Before the first tick, if any of these is untrue the run refuses to start:
 - the tools it needs are on the path
 - the settings are numbers, and the tick spacing divides a minute
+- both gate switches are exactly `0` or `1` — a half-written switch is not guessed at
 - this folder answers a ticket list
 - it can create a log folder
 If only the label list is wrong, the run starts anyway and dispatches nobody — the one that bites.
@@ -245,8 +251,8 @@ If you restart it, it picks up in exactly the same place.
       title "Count what is already running, then take one ticket"
       notes """
 If four workers are already running, this tick claims nothing.
-Otherwise the database hands over one ticket, already carrying its label, its branch and its parent — enough
-to route it with no further reading.
+Otherwise the database hands over one ticket, already carrying its label, its `branch` and its `base` — enough
+to route it with no further reading. A gate never appears here; gates are reached another way, later.
 """
     }
 
@@ -254,16 +260,20 @@ to route it with no further reading.
       title "The ticket says who does it and where it lands"
       notes """
 - label `backend-logic` → the engineer
-- branch `feature/add-record` → the folder it works in, from its feature gate
-Nothing else was unblocked, which is the only reason this ticket came up.
+- branch `feature/add-record` → the folder it works in
+- base `epic/record-box` → what its pull request aims at
+Both keys were written by the plan agent that owns this tier and copied down verbatim; the loop reads them off
+the claim and computes nothing. Nothing else was unblocked, which is the only reason this ticket came up.
 """
     }
 
-    machine.dispatcher -> tower.epic "where does this land?" {
-      title "The pull request's target comes from the epic gate"
+    machine.dispatcher -> tower.epic "which gate owns the epic branch?" {
+      title "The epic gate is found by its branch, never by walking up"
       notes """
-Read the ticket's feature, then that feature's epic, then the epic's own branch — that branch is where the work
-lands. It is read there every time and never copied onto a ticket, so it cannot go stale.
+Before any ticket works, the epic branch and its pull request have to exist. There is no parent chain to walk,
+so the loop lists the gates and takes the one whose `branch` is the epic's — that gate is where the epic's pull
+request url lives.
+If the ticket itself carries no `base`, it is put back untouched instead: no target, no worker.
 """
     }
 
@@ -323,15 +333,17 @@ The eight are listed on the node itself.
     }
 
     toolbelt.claudeCli -> workers.engineer "the rules arrive with the brief" {
-      title "The worker's prompt is the five rules it must follow"
+      title "The worker's prompt is the six rules it must follow"
       notes """
-The worker's whole prompt is five rules:
+The worker's whole prompt is six rules:
 - keep your claim alive
 - never close your own ticket
 - say what is left if you run out of room
 - start no other workers
 - stay on your branch; never a bare commit or push — commit the way your own agent file tells you, as you go
-and one last act: touch the done marker, and only if the brief is genuinely finished.
+and the sixth, its last act: touch the done marker, and only if the brief is genuinely finished.
+The lead agent gets the same six, with rule 5 rewritten: this ticket is a gate, and the merge is the forge's
+own command on the pull request, never a local merge into the target.
 """
     }
 
@@ -393,15 +405,16 @@ Otherwise write the url, then close. That close is what lets the next ticket in 
       navigateTo everyFailure
     }
 
-    // ═ ACT III — the same loop, seven more tickets, three steps each
+    // ═ ACT III — the same loop, six more tickets, three steps each
 
-    machine.dispatcher -> machine.claim "the rounds — seven more tickets" {
-      title "What the first loop showed, seven more times, said three ways"
+    machine.dispatcher -> machine.claim "the rounds — six more tickets" {
+      title "What the first loop showed, six more times, said three ways"
       notes """
 Everything you just watched still happens on every round, and is not said again below: the label picks the
 worker, the branch gets its folder, the pull request is found or made, the worker touches the done marker, the
-hook commits, pushes, writes the url and closes. The two gates are never dispatched — a person closes those.
-Below is only the bare three: which ticket comes up next, who its label belongs to, what that worker does.
+hook commits, pushes, writes the url and closes. Neither gate comes up in this list — `bd ready` never shows a
+gate, and with both tier switches off (the default) a person closes them. Below is only the bare three: which
+ticket comes up next, who its label belongs to, what that worker does.
 The order never changes — logic, its tests, the interface, the suite, the review — because the loop remembers
 nothing between ticks and each ticket comes up for one reason: the one before it closed.
 """
@@ -497,19 +510,21 @@ The three questions it answers are on the node.
       title "What it writes is what you read before closing"
       notes """
 Comments on the pull request — no tickets filed, nothing committed.
-Closing it opens the feature gate, which only you can close.
+Closing it is the last close under this gate, and that is what makes the gate ready: you close it, or with its
+switch on, the lead agent does.
 """
       navigateTo theLogs
     }
 
-    // ═ ACT IV — the tower stops, and only a person can start it again
+    // ═ ACT IV — the tower stops, and with both switches off only a person can start it again
 
     machine.dispatcher -> waiting.towerStalled "nothing left to claim" {
       title "The work is done and the loop does not know it"
       notes """
 The feature is finished, but its gate is still open, and an open gate holds everything above it.
 So the claim came back empty, the loop checked whether work exists anyway, found some, and wrote a waiting line
-instead of an error — once a minute, until a person arrives.
+instead of an error — once a minute, until a person arrives. With this tier's switch on, the loop gets there
+first: see ACT V.
 """
       navigateTo everyFailure
     }
@@ -518,31 +533,73 @@ instead of an error — once a minute, until a person arrives.
       title "You read pull request 2 and close the gate"
       notes """
 Read pull request 2, and if the branch is right, close the feature gate.
-Closing the gate is what merges the feature branch into the epic branch, and it opens the merge ticket.
+Closing this gate IS the feature landing in the epic branch — that is what the merge is, and there is no ticket
+for it anywhere in the tower.
 """
     }
 
-    // ── the merge ticket — assemble the epic
+    // ═ ACT V — the same gate with its switch on: the loop sends its own worker
 
-    machine.claim -> tower.epic.epicMergePr "then we pick up the merge ticket" {
-      title "Assemble the feature branch onto the epic branch"
+    machine.knobs -> machine.dispatcher "BO_AGENT_FEATURE_GATES=1" {
+      title "One switch hands one tier to the lead agent"
       notes """
-the merge ticket · label `epic-merge-pr` · branch `epic/record-box`, claimed and worked like any task.
+The switch is read once, at startup, and must be exactly `0` or `1` — anything else and the run refuses to
+start. It opens one tier and nothing else: `BO_AGENT_FEATURE_GATES` is the feature gates,
+`BO_AGENT_EPIC_GATES` the epic's, and both default to `0`.
 """
     }
 
-    tower.epic.epicMergePr -> workers.mergeAgent "that ticket is handled by the merge worker" {
-      title "The epic tier's only specialist"
+    machine.dispatcher -> beads "which gates are ready?" {
+      title "A gate is listed, never claimed off the frontier"
       notes """
-It writes no code and no tests, and opens no pull request of its own.
+`bd ready` never shows a gate, so the loop asks a different question: list the gates whose blockers are all
+closed. Each one comes back with its `tier`, and a tier that is not switched on is left alone.
 """
     }
 
-    workers.mergeAgent -> tower.epic.epicMergePr "the merge worker joins the branch and runs the tests" {
-      title "The epic branch now holds the finished feature"
+    machine.dispatcher -> workers.leadAgent "the gate dispatch spawns the lead agent" {
+      title "The one worker no label reaches"
       notes """
-The branch name read off the gate, conflicts resolved, then the tests run and its pass and fail counts read
-rather than the exit code. Closing it opens the end-to-end ticket.
+No label is consulted — this ticket has none — and the map is not involved. The loop reads the gate's own
+`branch` and `base`, and if either is missing it writes a waiting line rather than guessing. It then moves the
+gate to `in_progress` itself, guarded so a second loop cannot take it too, and starts the session with
+`agent=lead`, `label=gate:feature`.
+"""
+    }
+
+    workers.leadAgent -> tower.featA "the lead agent proves the tier" {
+      title "A closed ticket is a claim, not a fact"
+      notes """
+The tier is the set of tickets that block this gate, read back off the graph. Four checks, each with its number
+said out loud: every one of them closed, the review actually ran and its findings answered on the branch, the
+project's own test command green with its count read from the output, the pull request's pipeline green.
+Any one missing: no done marker, the gate stays claimed, and a human is told which one.
+"""
+    }
+
+    workers.leadAgent -> toolbelt.forgeCli "merge it, through the forge" {
+      title "`gh pr merge` / `glab mr merge`, into the gate's own base"
+      notes """
+The target is the gate's `base` — `epic/record-box` here — and the forge does the merge. A local
+`git merge origin/<base>` happens only to bring the target into *this* branch when it moved underneath, and
+that resolution is committed with `bo commit` so the pull request carries it.
+"""
+    }
+
+    toolbelt.forgeCli -> forge "PR 2 merged into epic/record-box" {
+      title "The feature is now in the epic branch"
+      notes """
+The lead agent reads the pull request back and confirms it says merged. It closes nothing itself.
+"""
+    }
+
+    workers.leadAgent -> stopHook "touch the done marker, then stop" {
+      title "The hook closes the gate, and opens no pull request"
+      notes """
+The claim said `kind=gate`, so the hook takes its other road: commit and push, find this branch's pull request
+**at any state** (the lead agent has just merged it), write the url on the gate, close the gate, log
+`closes url=… gate=true`. If the branch has no pull request at all it refuses instead — there was nothing to
+merge.
 """
     }
 
@@ -551,7 +608,8 @@ rather than the exit code. Closing it opens the end-to-end ticket.
     machine.claim -> tower.epic.epicE2e "then we pick up the end-to-end ticket" {
       title "The broad tier's single ticket"
       notes """
-the end-to-end ticket · label `epic-e2e-test` · it waited on the merge, so it tests the joined branch.
+the end-to-end ticket · label `epic-e2e-test` · it waited on every feature **gate**, so by the time it runs each
+flow has already been merged into `epic/record-box`.
 """
     }
 
@@ -595,12 +653,18 @@ After this there is nothing left to dispatch.
     human -> tower.epic "close the epic gate" {
       title "You close the epic gate, and the tower is finished"
       notes """
-If the epic review is done, close the epic gate, and the tower is finished.
+If the epic review is done, close the epic gate, and the tower is finished. With `BO_AGENT_EPIC_GATES=1` the
+loop gets there first, the same way ACT V showed for the feature gate — the lead agent proves the whole tier,
+merges `epic/record-box` into `main` through the forge, and its Stop hook closes the gate.
 
 | Who | What they did |
 |---|---|
-| the loop | published the epic branch and its pull request, made 2 folders (one per branch), started 8 workers, closed 8 tickets |
-| you | planned all 10 tickets, read the 2 pull requests, closed the 2 gates |
+| the loop | published the epic branch and its pull request, made 2 folders (one per branch), started 7 workers, closed 7 tickets |
+| you | planned all 9 tickets, read the 2 pull requests, closed the 2 gates |
+
+Both gates being yours is the default: with `BO_AGENT_FEATURE_GATES` and `BO_AGENT_EPIC_GATES` both `0`, nothing
+ever dispatches a gate. Turn one on and its row moves — the loop started 9 workers and closed 9 tickets, and you
+closed nothing.
 """
       navigateTo theLogs
     }
@@ -632,18 +696,23 @@ has one shape, built by one function that the loop and both hooks share.
     // ═ ACT II — the writers, one file each
 
     machine.dispatcher -> logRun.fClaims "CLAIMS" {
-      title "Every ticket taken, and every one put back"
+      title "Every ticket taken, every gate taken, and every one put back"
       notes """
 A dispatched line is the run's heartbeat. A put-back means another worker already holds that branch. Neither is
 a failure. A ticket you expected that never appears here was never unblocked — go look at its blockers.
+A gate dispatch reads `kind=gate gate=<id> tier=<tier>` instead of a ticket id, and the epic branch's first
+publish is a claims line too — `gate=<id> reason=epic-published` with the branch and the url it just wrote onto
+the gate.
 """
     }
 
     machine.dispatcher -> logRun.fWaiting "WAITING" {
       title "The quiet ticks: alive, with nothing to do"
       notes """
-Written only when a tick claimed nothing, and at most once a minute per reason. Two of the five reasons need a
-person — nothing left to do, or work exists and something is holding it. The rest just mean full.
+Written only when a tick dispatched nothing, and at most once a minute per reason. Seven reasons: two just mean
+full, two mean nothing to do or something is holding it, and two are a **gate** the loop refuses to work — no
+`branch`, no `base`, or no `tier` to match a switch against. Those last two are a person's to fix, and the gate
+sits `open` until someone does.
 """
       navigateTo everyFailure
     }
@@ -701,6 +770,8 @@ line and a closes line. Search the ticket id across the folder and the whole lif
       notes """
 One line per ticket that really landed, with its pull request url, written after the commit, the push, the pull
 request, and the close. So a line here is a receipt, not an intention.
+A gate's close carries `gate=true` beside the url — the only way this file tells you a **gate** closed rather
+than a task, and the receipt that the lead agent's merge landed.
 """
     }
 
@@ -732,6 +803,7 @@ many tickets it claimed is the number that says whether the run did anything at 
 | Why nothing claimed? | `waiting` — the reason, and how many workers are live |
 | Did this ticket ship? | `claims`, then `closes`, then its `spawn-<ticket>` |
 | Why did this worker die? | `failures`, then `done-<ticket>` — no marker means it never said it was done |
+| Why won't my gate dispatch? | `waiting` for `gate_unworkable` or `gate_tier_missing`, then `errors` for `gate-claim-lost` and `worktree-failed step=gate` — both name the gate, not a ticket |
 """
       navigateTo everyFailure
     }
@@ -793,6 +865,16 @@ These settings decide how many unattended sessions run, so none of them is quiet
 """
     }
 
+    machine.dispatcher -> alarms.startupAlarms.gateFlagNotASwitch "BO_AGENT_FEATURE_GATES=true is not a switch · exit 1" {
+      title "A gate tier is neither a person's nor a machine's, and the run will not start"
+      notes """
+Each tier's switch says who closes that tier's gate: `0` a person, `1` the lead agent. `true`, `yes`, `2` are not
+answers, and the loop will not pick one — a value read loosely would hand a tier's merges to a machine, or
+withhold them from it, quietly.
+"""
+      navigateTo index
+    }
+
     machine.dispatcher -> alarms.startupAlarms.pollUnusable "BO_POLL_S=7 is unusable · exit 1" {
       title "The poll interval cannot work, and the run will not start"
       notes """
@@ -821,11 +903,23 @@ thing this design refuses to be.
       title "The one startup mistake that does NOT stop the run"
       notes """
 Then no ticket ever matches a label, nothing is ever dispatched, and the waiting lines keep arriving on
-schedule. Check the tickets' labels against the eight the loop knows.
+schedule. Check the tickets' labels against the seven the loop knows.
 """
     }
 
     // ═ PART B — the tick fails, and the ticket's fate is the interesting part
+
+    machine.dispatcher -> alarms.tickAlarms.gateClaimLost "ERROR reason=gate-claim-lost gate=<id> · no lead agent spawned" {
+      title "The gate dispatch comes first, and it is the only claim that can be lost"
+      notes """
+Before the loop claims a single ticket it dispatches any ready gate its tier switch opens. A gate never appears
+in `bd ready`, so the take is a conditional write — `bd update <gate> --status in_progress --if-status open` —
+and a gate that is no longer open the instant the loop reaches for it was taken by another loop or by a hand.
+The write fails, the alarm fires, and no lead agent is spawned: nothing is ever started into a gate somebody
+else already holds.
+"""
+      navigateTo index
+    }
 
     machine.dispatcher -> alarms.tickAlarms.bdFailure "ERROR reason=bd-failure exit=2" {
       title "The claim command itself failed"
@@ -885,8 +979,10 @@ whose head and base are the same commit is no pull request at all, so the branch
       title "The branch's folder could not be made"
       notes """
 It heals what it can first — a stale registration is pruned, a dead build's folder is moved aside — and only
-then refuses. The `step=` says which: no starting commit resolved, or the stray folder would not move. Same
-treatment as a mislabelled ticket: a worker started into a missing folder wastes a slot on nothing.
+then refuses. The `step=` says which: no starting commit resolved, the stray folder would not move, or `gate` —
+the same failure on a gate dispatch, where the line names the gate instead of a ticket and puts it back to `open`
+rather than leaving it claimed. Same treatment as a mislabelled ticket: a worker started into a missing folder
+wastes a slot on nothing.
 """
     }
 
@@ -912,15 +1008,16 @@ the branch is built fresh. The line is written and the worker is spawned anyway:
       title "The worker never started, so the ticket goes straight back"
       notes """
 The start command failed and the reason is in that worker's own spawn file — this is also what an agent name
-with no file behind it looks like. Nothing was ever started to work this ticket, so unlike every other tick
-failure it is returned at once, and the next tick may well succeed.
+with no file behind it looks like, including a lead agent whose file is missing. Nothing was ever started to work
+this ticket, so unlike every other tick failure it is returned at once, and the next tick may well succeed. On a
+gate the line names the gate instead of a ticket, and what goes back is its status, to `open`.
 """
     }
 
-    // ═ PART C — the Stop hook refuses fifteen times, in code order
+    // ═ PART C — the Stop hook refuses sixteen times, in code order
 
     stopHook -> alarms.stopAlarms.missingToolHook "ERROR reason=missing-tool tool=git" {
-      title "1 of 15 · the ticket stays claimed"
+      title "1 of 16 · the ticket stays claimed"
       notes """
 Checked before anything else the hook does, but after the check that this is a dispatched worker at all — a
 session the loop never started exits quietly instead of alarming about somebody else's project.
@@ -928,7 +1025,7 @@ session the loop never started exits quietly instead of alarming about somebody 
     }
 
     stopHook -> alarms.stopAlarms.noWorktreeHook "ERROR reason=no-worktree" {
-      title "2 of 15"
+      title "2 of 16"
       notes """
 The hook was not told which folder the work is in, and it will not guess from its own location — guessing here
 means committing whatever happens to be lying around.
@@ -936,7 +1033,7 @@ means committing whatever happens to be lying around.
     }
 
     stopHook -> alarms.stopAlarms.ticketNotInWork "ERROR reason=ticket-not-in-work state=open" {
-      title "3 of 15 · and silent when the ticket is already closed"
+      title "3 of 16 · and silent when the ticket is already closed"
       notes """
 The ticket is not in progress. If it is closed this is a second stop in a session that already shipped, and the
 hook leaves quietly — committing onto a shared branch twice is exactly what it is there to prevent.
@@ -944,21 +1041,21 @@ hook leaves quietly — committing onto a shared branch twice is exactly what it
     }
 
     stopHook -> alarms.stopAlarms.noBranchHook "ERROR reason=no-branch" {
-      title "4 of 15"
+      title "4 of 16"
       notes """
 The branch never reached the session, so the loop never got as far as reading it off the claim.
 """
     }
 
     stopHook -> alarms.stopAlarms.noPrTarget "ERROR reason=no-pr-target" {
-      title "5 of 15"
+      title "5 of 16"
       notes """
 The pull request's target never reached the session. The hook will not open a pull request into a guess.
 """
     }
 
     stopHook -> alarms.stopAlarms.notDeclaredDone "ERROR reason=not-declared-done" {
-      title "6 of 15 · the gate of the whole design"
+      title "6 of 16 · the gate of the whole design"
       notes """
 The done marker is not there: the session ended without saying, in the one place both programs read, that its
 work is finished. No commit, no push, no pull request, no close. The ticket stays claimed, which parks it off
@@ -967,7 +1064,7 @@ the queue, and everything chained behind it waits.
     }
 
     stopHook -> alarms.stopAlarms.wrongBranch "ERROR reason=wrong-branch want=feature/add-record" {
-      title "7 of 15"
+      title "7 of 16"
       notes """
 The folder is not on the branch it should be — the worker was told never to change branches, and this is the
 last place that can refuse to file the work under the wrong ticket's name.
@@ -975,7 +1072,7 @@ last place that can refuse to file the work under the wrong ticket's name.
     }
 
     stopHook -> alarms.stopAlarms.noTitle "ERROR reason=ticket-has-no-title" {
-      title "8 of 15"
+      title "8 of 16"
       notes """
 The commit message is the ticket's title, so a ticket with no title cannot be filed — it would be an anonymous
 commit on a shared branch.
@@ -983,7 +1080,7 @@ commit on a shared branch.
     }
 
     stopHook -> alarms.stopAlarms.commitFailed "ERROR reason=commit-failed" {
-      title "9 of 15 · and an empty tree is NOT this"
+      title "9 of 16 · and an empty tree is NOT this"
       notes """
 The commit itself failed. A review or test ticket landing nothing is normal and is skipped quietly, so this line
 means a genuine failure.
@@ -991,7 +1088,7 @@ means a genuine failure.
     }
 
     stopHook -> alarms.stopAlarms.pushFailed "ERROR reason=push-failed" {
-      title "10 of 15"
+      title "10 of 16"
       notes """
 The push failed and its output is quoted in the alarm. The commit stays where it is and the ticket stays
 claimed — nothing is rolled back, because a local commit is evidence, not a mistake to hide.
@@ -999,7 +1096,7 @@ claimed — nothing is rolled back, because a local commit is evidence, not a mi
     }
 
     stopHook -> alarms.stopAlarms.forgeUnknown "ERROR reason=forge-unknown remote=<url>" {
-      title "11 of 15 · reached only after the commit and the push"
+      title "11 of 16 · reached only after the commit and the push"
       notes """
 It could not tell whether this is GitHub or GitLab, and it refuses to guess: a wrong guess pushes a branch to
 the wrong forge.
@@ -1007,15 +1104,25 @@ the wrong forge.
     }
 
     stopHook -> alarms.stopAlarms.forgeToolMissing "ERROR reason=missing-tool tool=gh forge=github" {
-      title "12 of 15 · same reason as alarm 1, different tool"
+      title "12 of 16 · same reason as alarm 1, different tool"
       notes """
 It knows the forge now, but that forge's command line tool is not installed. The forge name on the line is how
 you tell this from the up-front check.
 """
     }
 
+    stopHook -> alarms.stopAlarms.prNotFoundGate "ERROR reason=pr-not-found forge=github" {
+      title "13 of 16 · the gate path's own refusal"
+      notes """
+Reached only when the claim is a gate, and this path never opens a pull request — the lead agent was sent to
+**merge** one. So the hook only looks that branch's pull request up, at any state, and finds nothing: there was
+nothing to merge and the lead agent declared done anyway. Not the same failure as the next one, which is the hook
+failing to raise a pull request of its own.
+"""
+    }
+
     stopHook -> alarms.stopAlarms.prNotCreated "ERROR reason=pr-not-created forge=github" {
-      title "13 of 15"
+      title "14 of 16"
       notes """
 Looking for an existing pull request and making a new one both failed, or the tool printed an error quoting some
 other address — only something that reads like a pull request number counts as one.
@@ -1023,7 +1130,7 @@ other address — only something that reads like a pull request number counts as
     }
 
     stopHook -> alarms.stopAlarms.ticketNotAnnotated "ERROR reason=ticket-not-annotated pr=<url>" {
-      title "14 of 15 · the work is out there, the ticket cannot say where"
+      title "15 of 16 · the work is out there, the ticket cannot say where"
       notes """
 Writing the pull request url onto the ticket failed, so the hook stops rather than close a ticket whose pull
 request nobody could find again.
@@ -1031,7 +1138,7 @@ request nobody could find again.
     }
 
     stopHook -> alarms.stopAlarms.closeFailed "ERROR reason=close-failed pr=<url>" {
-      title "15 of 15 · everything else already succeeded"
+      title "16 of 16 · everything else already succeeded"
       notes """
 The commit, the push and the pull request are all out there with no record in the tower. The ticket tool will
 not close a ticket unless the closer is who it says it is — the loop claimed this one, so the hook passes the
@@ -1045,7 +1152,9 @@ worker's real session id; when that id is stale, this is where it surfaces.
       title "A worker session dies instead of finishing"
       notes """
 The harness itself fires this hook and hands over what failed and the worker's last message — which for a local
-model is where the real error text is. The reason goes on the ticket *before* its status changes.
+model is where the real error text is. The reason goes on the ticket *before* its status changes. It is the same
+hook for a lead agent: a gate whose lead agent died is parked here too, in `failed-agent`, and a parked gate is no
+longer open — so it stops coming up ready and waits for a person, like any other dead worker's ticket.
 """
     }
 
@@ -1093,8 +1202,31 @@ Sessions counted busy, no ticket being worked. The two counts disagreeing is the
       title "Every claim this tick wanted a busy branch"
       notes """
 Three claims taken and put back inside the six-attempt limit. On a chained tower this line never appears — its
-appearance says the tower was built as a fan.
+appearance says the tower was built as a fan. The same reason arrives from a gate dispatch too, where it reads
+`held=1 gate=<id>`: that branch is already at work, and because the busy check runs **before** the gate is
+claimed, the gate is left exactly as it was — the one gate failure that never touches its status.
 """
+    }
+
+    machine.dispatcher -> waiting.gateUnworkable "WAITING … reason=gate_unworkable gate=<id> key=branch" {
+      title "A ready gate has no branch, or no base"
+      notes """
+The same refusal as a ticket with no `branch`: the loop never invents one and never guesses a base, and the line
+names which key is missing. Quieter here, because no lead agent was ever spawned — the gate is never claimed, so
+it stays open, comes up ready again next tick, and the tier behind it simply waits. An alarm would fire every
+tick forever; this is a line, capped at one a minute.
+"""
+      navigateTo index
+    }
+
+    machine.dispatcher -> waiting.gateTierMissing "WAITING … reason=gate_tier_missing gate=<id>" {
+      title "A ready gate says which tier it is not"
+      notes """
+Which switch to consult is the first thing a gate dispatch does, and it consults the gate's own `tier` key —
+`epic` against one switch, `feature` against the other. A gate with no `tier` matches neither, and an unlabelled
+tier is never guessed at: skipped, left open, and reported. Only a gate may carry that key at all.
+"""
+      navigateTo index
     }
 
     machine.dispatcher -> waiting.frontierEmpty "WAITING … reason=frontier_empty" {
@@ -1109,7 +1241,8 @@ Nothing to claim, and the probe found no blocked work either.
       title "Work exists and something is holding it — usually an open gate"
       notes """
 The number counts work tickets only, so the gate two levels above is invisible in it and is nearly always the
-cause. Only a person closes a gate, so the loop writes this line once a minute and waits.
+cause. A gate is a checkpoint, not work: while its tier's switch is `0` — the default on both tiers — nothing
+dispatches it, so the loop writes this line once a minute and waits for a person.
 """
       navigateTo index
     }
@@ -1128,8 +1261,10 @@ waiting lines for the reason, this file for the refusal, then whether any sessio
     human -> beads "and every one of these is a person's call" {
       title "None of these fix themselves"
       notes """
-Nothing here ever puts a claim back, un-parks a ticket, or closes a gate. The refusals are the price of letting
-unattended workers commit onto shared branches, and what they buy is a tower that stops and says why.
+Nothing here ever puts a claim back, un-parks a ticket, or closes the gate that refused to dispatch. A gate closes
+when a person closes it, or when its tier's switch hands it to the lead agent — and neither of those repairs a
+refusal. The refusals are the price of letting unattended workers commit onto shared branches, and what they buy
+is a tower that stops and says why.
 """
       navigateTo index
     }

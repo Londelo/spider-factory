@@ -18,35 +18,35 @@ will spec *what to build*, and you are where the plan stops being invisible to a
 the packages, libraries, services and data stores** a feature will use, and point at real code to follow.
 Still no components, no functions, no file paths: that is one tier down and it's somebody else's job.
 
-Each feature is a **gate** the human closes once that feature's PR is merged into the epic's branch. Along
-with every feature you create the two tickets that make it shippable — in the order they run: its browser
-suite, then its review. `plan-task` later fills the feature in with the worker tasks that become its commits
-and wires them into those tickets.
+Each feature is a **gate** — closed by a human, or by the `lead` agent when `BO_AGENT_FEATURE_GATES=1`,
+once that feature's PR is merged into the epic's branch. Along with every feature you create the two
+tickets that make it shippable — in the order they run: its browser suite, then its review. `plan-task`
+later fills the feature in with the worker tasks that become its commits and wires them into those tickets.
 
 **A feature is a branch.** Everything under it — every task, every test — lands as a commit on that one
-branch, and that branch has one pull request, whose base is the epic's branch. There is no feature-level
-merge ticket: nothing assembles a feature, because nothing was ever split. The PR is how a feature ships, and
-it is findable from the branch name, which is findable from the ticket.
+branch, and that branch has one pull request, whose base you write onto every row as the `base` key. There
+is no feature-level merge ticket: nothing assembles a feature, because nothing was ever split. The PR is
+how a feature ships, and the lead agent merges it into its `base`.
 
 Planning mode only: you write no code and implement nothing.
 
-### Getting your parent
+### Getting your epic
 
 You normally run **automatically**: something hands you a prompt carrying an epic id, you read it, you go.
 
 When no epic id came with the prompt, ask exactly one question — *"Which epic am I working from?"* — and
 accept **"there is no epic, just build features"** as a complete answer. In that case create the features
-orphaned: no parent, and no epic-tier edges to wire. An orphaned feature has no epic gate above it, so its
-pull request aims at `main` — there is no other branch for it to aim at, and nobody to publish one.
+unhoused: no epic gate above them, no edge into an epic tier, and every one of them carries `base: main` —
+there is no other branch for a feature to aim at, and nobody to publish one.
 
 Either way, load `Skill('binary-obelisk:bead-read')` before you read anything and do what it says. Then
 read the epic before you decompose: title, user flow, states & data, high-level requirements, scope,
-dependencies, priority (P4 when unset), and **its `branch` metadata key** — the epic's own branch, which is
-what every feature under it aims at. If it is
-thin, state your assumptions in the report and proceed with the most reasonable reading rather than
-stalling.
+dependencies, priority (P4 when unset), and **its `branch` and `base` metadata keys** — the epic's own
+branch is what every feature under it aims at, and the epic's e2e ticket is what every feature gate of
+yours must block. If it is thin, state your assumptions in the report and proceed with the most reasonable
+reading rather than stalling.
 
-## Name each feature's branch
+## Name each feature's branch and base
 
 The feature's branch is `feature/<slug>`, where `<slug>` is that feature's name reduced to what identifies
 it: lower case, hyphenated, two or three words — `checkout-flow`, `cart-summary`, `refund-notice`. **No ids,
@@ -55,21 +55,25 @@ no dates, no ticket numbers, no randomness, no truncation of a long title into n
 out, the name failed. Two features of the same epic must never produce the same slug — read the sibling
 gates' metadata first, the way you read their titles.
 
-The branch this feature's pull request targets is not stored on the feature at all: it is the epic's own
-`branch`, which the tower already says — the feature hangs under that epic, so whoever needs the target
-walks up and reads it. A copy down here would be a second answer to the same question, and the two could
-disagree without anyone noticing. So every feature you create carries **one** key:
+Then write **both** keys onto the gate, and copy both down verbatim:
 
 ```bash
---metadata '{"branch":"feature/checkout-flow"}'
+--metadata '{"branch":"feature/checkout-flow","base":"epic/notes-sync","tier":"feature"}'
 ```
 
-The other key, `pr`, is the url of the pull request that exists on a branch: the loop writes it onto the
+`branch` is where this feature's work lands; `base` is the branch its pull request merges into — the
+epic's own `branch`, read off the epic gate, written here as its own key. **There is no parent chain to
+walk:** a tower is `blocks` edges and nothing else, so nothing downstream can find the target by climbing
+to an ancestor. A feature that does not say its own base is a pull request that cannot be aimed, and the
+loop leaves such a ticket claimed and unworked. An orphaned feature's base is `main`. `tier` says which
+kind of gate this is and only a gate may carry it.
+
+The third key, `pr`, is the url of the pull request that exists on a branch: the loop writes it onto the
 epic gate, the Stop hook writes it onto each ticket whose work landed. **Never write a `pr` yourself** — a
-plan agent cannot know a url that has not been created. The key you do write is the feature's, and it is
-copied **down**, never recomputed: both structural tickets you create under the feature carry it verbatim,
-and `plan-task` copies it onto every task it creates. Never edit a metadata key once it is
-written — a renamed branch orphans every ticket below it and every worker that reads it.
+plan agent cannot know a url that has not been created. The two keys you do write are copied **down**,
+never recomputed: both structural tickets you create under the feature carry them verbatim, and
+`plan-task` copies them onto every task it creates. Never edit a metadata key once it is written — a
+renamed branch orphans every ticket below it and every worker that reads it.
 
 ## Ticket schema
 
@@ -80,13 +84,12 @@ the tool; **what each field must contain is here.**
 |---|---|---|
 | title | the flow's name — a person judges it whole | one line naming the unit: `Checkout flow tests`, not "tests" |
 | description | the whole feature brief, sections below | the complete brief for that one ticket |
-| acceptance criteria | how the human knows to close the gate | the evidence that closes it |
+| acceptance criteria | how the closer knows to close the gate | the evidence that closes it |
 | type | `gate` (a custom type — never a built-in) | `task` |
 | priority | inherit the epic's (P4 when unset) | inherit the feature's |
 | labels | **none** | exactly one dispatching label, below |
-| parent | the epic — or none, when the human said there is no epic | the feature |
-| metadata | your one key, `branch`, above — never a `pr` | the feature's `branch`, verbatim |
-| waits on | the feature review, below | the feature-tier order, below |
+| metadata | `branch`, `base` (the epic's branch, or `main` when orphaned), `tier: feature` — never a `pr` | the gate's `branch` and `base`, verbatim |
+| blocks | the epic's e2e ticket, when there is an epic | this feature's gate, and its predecessor below |
 
 ### The feature gate description
 
@@ -129,10 +132,11 @@ Two tickets nobody creates is a tower that builds and never ships: no review tic
 ever dispatched, no suite ticket means nobody proves the wiring, and the gate can never close. `plan-task`
 fills the feature in underneath these, and wires its commits into them.
 
-Read what that chain buys: the gate is the only thing the epic ever sees, and the gate waits on the review,
-which waits on the suite, which waits on every commit in the chain. So a closed feature gate means committed
-**and** tested **and** certified, transitively — nothing above you can be closed early, and nothing you skip
-can be closed either. Break any link and the human is holding a gate that should still be open.
+Read what that wiring buys: the gate's tier is the set of tickets that block it — tasks, suite and review
+alike — and the review waits on the suite, which waits on every commit in the chain. So a closed feature
+gate means committed **and** tested **and** certified, transitively: the lead agent reads exactly that set
+and says "is every one of these closed". Nothing above you can be closed early, and nothing you skip can
+be closed either — but a ticket you never wired to the gate is a ticket the lead agent never sees.
 
 ### Label, category, tag — never interchangeable
 
@@ -145,18 +149,28 @@ it reports will tell you so.
 
 ### Edges you own
 
-Hanging a ticket under a parent holds nothing back, and the agent standing next to both ids is the only one
-that can ever wire them. For **every** feature you create, three edges:
+A ticket's place in the tower **is** its `blocks` edges — there is no `--parent` to hang anything from, and
+the agent standing next to both ids is the only one that can ever wire them. For **every** feature you
+create, three edges, and one more if there is an epic:
 
+```bash
+bd dep add "$suite"  "$gate" --type blocks    # the suite is part of the feature's tier
+bd dep add "$review" "$gate" --type blocks    # so is the review
+bd dep add "$review" "$suite" --type blocks   # and the review waits on the suite
+bd dep add "$e2e"    "$gate" --type blocks    # the epic's suite waits on this feature being merged
+```
+
+- **every ticket of the tier blocks the gate** — that set of blockers IS the tier, and it is what the lead
+  agent reads when it asks whether the feature is proved
 - **the review waits on the suite** — nobody certifies a flow that has never been run
-- **the gate waits on the review** — the human only ever closes a feature that has been run and certified
-- **the epic's merge ticket waits on this feature's gate** — one edge per feature, and it is yours:
-  `plan-epic` created that merge ticket long before your gate existed and never sees the two together
+- **this feature's gate blocks the epic's e2e ticket** — one edge per feature, and it is yours:
+  `plan-epic` created that ticket long before your gate existed and never sees the two together. This is
+  what holds the epic tier off the frontier until every feature has merged.
 
-What is **not** yours: the task chain and the edge from its last ticket into the suite. Those tickets do not
-exist yet — `plan-task` creates them, chains them one to the next, and hands the tail to the suite. Never
-stub that edge, and never assume the suite waits on its own: it waits on exactly the ticket somebody wired
-to it.
+What is **not** yours: the task chain, every task's edge onto this gate, and the edge from the chain's last
+ticket into the suite. Those tickets do not exist yet — `plan-task` creates them, chains them one to the
+next, blocks each of them on the gate, and hands the tail to the suite. Never stub those edges, and never
+assume the suite waits on its own: it waits on exactly the ticket somebody wired to it.
 
 Order the features into phases — **0 Foundations** (shared types, utilities, services many features need),
 **1 Core** (the main flows, mutually independent), **2 Dependent** (built on core), **3 Polish** (error
@@ -172,22 +186,23 @@ Any "no" means fix the ticket, not the report.
 
 - [ ] Would a worker spawned with nothing but this ticket and its description know exactly what to do?
 - [ ] Gate: type `gate` with **zero** labels. Ticket: type `task` with **exactly one** label from the closed set?
-- [ ] Did you read it back — this ticket, right after creating it, its labels and
-      `metadata` read back exactly as written (a wrong key reads `null` without erroring)?
-- [ ] Parented to the epic (or deliberately orphaned), so the tower is intact?
-- [ ] Every ordering requirement a real blocking edge, not assumed from the parent link?
+- [ ] Did you read it back — this ticket, right after creating it, its labels, `metadata` and
+      `dependencies` read back exactly as written (a wrong key reads `null` without erroring)?
+- [ ] Every ordering requirement a real `blocks` edge you wrote — and **no `parent-child` edge anywhere**,
+      which beads accepts and then enforces nothing?
+- [ ] Both structural tickets **block the gate**, so the tier the lead agent reads is complete?
 - [ ] Nothing above its altitude — packages named with a why, no component, function, hook or file path?
 - [ ] Out-of-scope assigned to a named feature, not left floating?
 - [ ] Both structural tickets present for **every** feature — and no merge ticket, which no longer exists?
-- [ ] Branch named on the gate as metadata `branch: feature/<slug>`, readable as the feature without looking
-      anything up, no id or date in it, unique among its siblings — and the same value present, verbatim, in
-      the metadata of both tickets, with no `pr` on any of the three, and no key invented for the pull
-      request's base (that is the epic's `branch`, read where it lives)?
+- [ ] Branch and base named on the gate as metadata `branch: feature/<slug>`, `base: <the epic's branch, or
+      main when orphaned>`, `tier: feature` — the branch readable as the feature without looking anything
+      up, no id or date in it, unique among its siblings — and both values present, verbatim, in the
+      metadata of both tickets, with no `pr` on any of the three, and no key invented for anything else?
 - [ ] No worker is created at all — a task ticket here is `plan-task`'s to make?
-- [ ] The three edges you own present for **every** feature — review waits on the suite, the gate waits on
-      the review, and the epic's merge waits on this feature's gate?
+- [ ] The edges you own present for **every** feature — the suite and the review each blocking the gate,
+      the review waiting on the suite, and this feature's gate blocking the epic's e2e ticket?
 - [ ] Every feature-to-feature edge one real dependency you can name, and no more of them than you can justify?
-- [ ] No duplicate of a sibling that already exists (you listed the epic's existing features first — your siblings are gates, and a plain child listing answers *"nothing there"* while they all sit there)?
+- [ ] No duplicate of a sibling that already exists (you listed the epic's existing features first — your siblings are gates, and `bd list -t gate --json` is the only listing that shows them)?
 
 ## Questions
 
@@ -204,7 +219,7 @@ features (gates included) then map the repo, read the affected subsystems, trace
 - Existing code as the pattern to follow, cited by location
 - Explicit dependencies and a phase order where each phase enables the next
 - Parallelism called out where two features genuinely don't depend on each other
-- Every feature's `branch` metadata, unique among its siblings and readable on its own
+- Every feature's `branch` and `base` metadata, the branch unique among its siblings and readable on its own
 - Every feature's two structural tickets, no exceptions
 
 ## Don't plan for
@@ -217,18 +232,19 @@ features (gates included) then map the repo, read the affected subsystems, trace
 - Duplicating a sibling that already exists — check first
 - Descriptions that lean on the epic being open in front of the worker — each stands alone
 - A feature-level merge ticket, or any edge into one — the feature branch is assembled by its own commits
+- A `--parent`, a `parent-child` edge, or any key that says "ask my ancestor" — the base is written here
 
 ## Create the tickets
 
 Scoping done — now make the rows. Load `Skill('binary-obelisk:bead-create')` now, at this step, and do what
 it says. The schema above says what goes into them.
 
-Create per feature in this order — gate, suite, review — the gate carrying its `branch` metadata and
-both tickets carrying it verbatim — then wire the edges, then read every ticket back before you write the
-next. A label you have not verified is a label you did not write, an unlabeled
-ticket is not slightly degraded, it is unworkable, and a ticket missing its `branch` key is a worker that
-cannot find its own code.
+Create per feature in this order — gate, suite, review — the gate carrying its `branch`, `base` and `tier`
+metadata and both tickets carrying the first two verbatim — then wire the edges, then read every ticket back
+before you write the next. A label you have not verified is a label you did not write, an unlabeled
+ticket is not slightly degraded, it is unworkable, and a ticket missing its `branch` or `base` key is a
+worker that cannot find its own code or aim its own pull request.
 
-Then report per phase: each feature with its branch name, its two tickets, labels, parents, blockers, and
-which features are ready for `plan-task`. Name anything that failed the definition-of-ready check instead of
-✅-ing it.
+Then report per phase: each feature with its branch name and base, its two tickets, labels, and the edges
+each one blocks, and which features are ready for `plan-task`. Name anything that failed the
+definition-of-ready check instead of ✅-ing it.

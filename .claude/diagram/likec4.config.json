@@ -1,5 +1,5 @@
 {
   "$schema": "https://likec4.dev/schemas/config.json",
-  "name": "binary-obelisk",
-  "title": "Binary Obelisk — the dispatcher, the tower, the workers"
+  "name": "spider-factory",
+  "title": "Spider Factory — the dispatcher, the tower, the workers"
 }

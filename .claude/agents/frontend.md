@@ -34,7 +34,7 @@ mid-work, your half-done branch behind them.
   left. Never half-do and hide it.
 - **Spawn nothing.** Work nothing but this ticket.
 - **Declare it only when it is truly done** — as your very last action, and only when you would hand the
-  brief to a human as it stands, `touch $BO_DONE_FILE`. No marker means nothing is committed, the ticket
+  brief to a human as it stands, `touch $SF_DONE_FILE`. No marker means nothing is committed, the ticket
   stays claimed, and the tasks behind yours wait.
 
 ## What You Build
@@ -191,7 +191,7 @@ After every major change that stands on its own — a component, a layout, a pag
 before you move on:
 
 ```bash
-BO_AGENT=frontend bo commit <what you just did>
+SF_AGENT=frontend sf commit <what you just did>
 ```
 
 Never a bare `git commit` or `git push`, and never a branch of your own. The command takes the branch off

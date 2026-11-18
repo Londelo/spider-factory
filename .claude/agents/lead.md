@@ -106,7 +106,7 @@ because the target moved under it, bring the target into *this* branch and finis
 - Leave `merge.conflictStyle` alone. It is unset on this machine, which means `diff3`: you get the
   `|||||||  base` section showing what the code looked like *before either side touched it*, and that is the
   only legitimate way to choose between two sides.
-- Commit what you resolved with `bo commit` and push it, so the pull request carries the resolution and the
+- Commit what you resolved with `sf commit` and push it, so the pull request carries the resolution and the
   pipeline gets a chance to re-run on it.
 - For a test file in that list: **splice** — union of the cases, keep both, never choose one. If both sides
   assert, make them agree by fixing the *code*, never by silencing an assertion. A test you weakened to end
@@ -124,7 +124,7 @@ Then the Stop hook closes the gate for you — but only if you declared done:
 
 - **Declare it only when the tier is truly proved.** As your very last action, and only when every ticket in
   the set is closed, every review finding is answered, the project's own command ran with its count read
-  out, the pipeline is green, and the pull request says merged, run `touch $BO_DONE_FILE`. Anything less —
+  out, the pipeline is green, and the pull request says merged, run `touch $SF_DONE_FILE`. Anything less —
   an open ticket, an unanswered finding, a red suite, a check still queued, a merge the forge refused —
   creates no marker: the gate stays claimed, the tiers behind it wait, and a human is told why in your
   report and on the gate. That is exactly what should happen.

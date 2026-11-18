@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # commit.sh — stage everything in this repo, commit it under the name of the agent whose work it is, push the branch.
-#   commit.sh <short message>   (or: bo commit <short message>)
-#   The subject is written as agent:branch:message — BO_AGENT (manual) and the branch you are standing on.
+#   commit.sh <short message>   (or: sf commit <short message>)
+#   The subject is written as agent:branch:message — SF_AGENT (manual) and the branch you are standing on.
 set -uo pipefail
 
-agentName="${BO_AGENT:-manual}"
+agentName="${SF_AGENT:-manual}"
 
 usage() {
     cat <<'USAGE'
@@ -16,7 +16,7 @@ Stages everything in this repo and commits it with the subject:
 
   agent:branch:message
 
-The agent is BO_AGENT, the name the loop spawned the worker under, or 'manual'
+The agent is SF_AGENT, the name the loop spawned the worker under, or 'manual'
 when you are standing in a terminal. The branch is the one you are on. The
 message is yours — keep it to a line or three.
 

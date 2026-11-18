@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
 # worker-stop.sh — the Stop hook that finishes a dispatched worker's ticket: guard, commit through
-# `bo commit`, push, the branch's PR, annotate, close. FAIL-CLOSED on $BO_DONE_FILE — no marker, nothing
+# `sf commit`, push, the branch's PR, annotate, close. FAIL-CLOSED on $SF_DONE_FILE — no marker, nothing
 # lands, the ticket stays claimed, ERROR reason=not-declared-done (.claude/CLAUDE.md
 # §The dispatcher). The hook finds its worker by SESSION ID, never by cwd: `claude --bg` hands the worker a
 # pooled process that inherited neither the spawn's environment nor its working directory, so the cwd the
 # hook input carries is not evidence of anything. The record of the dispatch is the claims line the loop
-# wrote at $BO_LOG_ROOT/<run>/claims — ticket, branch, target, worktree and run all come off that line, and
-# $BO_DONE_FILE is rebuilt from it as $BO_LOG_ROOT/<run>/done-<ticket>. The dispatch context under
-# $BO_LOG_ROOT/worker-context/, keyed by the worktree's folder name (`/` as `+`), is read only as a fallback
+# wrote at $SF_LOG_ROOT/<run>/claims — ticket, branch, target, worktree and run all come off that line, and
+# $SF_DONE_FILE is rebuilt from it as $SF_LOG_ROOT/<run>/done-<ticket>. The dispatch context under
+# $SF_LOG_ROOT/worker-context/, keyed by the worktree's folder name (`/` as `+`), is read only as a fallback
 # for what a thin claims line omits. A session with no dispatched claims line is a human's: it leaves at
 # once, silently, and writes nothing anywhere.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BO_LOG_QUIET=1
+SF_LOG_QUIET=1
 source "$here/../CLI/user-env.sh"
-loadObeliskEnv
+loadSpiderFactoryEnv
 source "$here/../CLI/loop-log.sh"
 source "$here/../CLI/forge.sh"
 
-claimsRoot="${BO_LOG_ROOT:-$HOME/.binary-obelisk/logs}"
-logDir="${BO_LOG_DIR:-$claimsRoot}"
+claimsRoot="${SF_LOG_ROOT:-$HOME/.spider-factory/logs}"
+logDir="${SF_LOG_DIR:-$claimsRoot}"
 mkdir -p "$logDir" 2>/dev/null || true
-boSeedIdentity "$logDir" "${BO_PROJECT_DIR:-$PWD}"
+boSeedIdentity "$logDir" "${SF_PROJECT_DIR:-$PWD}"
 
 alarmAndExit() {
     logTo errors "$1"
@@ -94,24 +94,24 @@ adoptDispatchContext() {
         alarmAndExit "reason=no-context worktree=$(basename "$claimWorktree") msg=\"a worker stopped in a loop worktree with no dispatch context; nothing landed and the ticket stays claimed\""
     fi
     [[ -r "$contextFile" ]] && source "$contextFile"
-    export BO_TICKET="$claimTicket" \
-        BO_BRANCH="${claimBranch:-${branch:-}}" \
-        BO_PR_TARGET="${claimTarget:-${pr_target:-}}" \
-        BO_AGENT="${claimAgent:-${agent:-}}" \
-        BO_LABEL="${claimLabel:-${label:-}}" \
-        BO_PROJECT_DIR="${claimRepo:-${tower:-}}" \
-        BO_LOG_DIR="$claimsRoot/$claimRun" \
-        BO_DONE_FILE="$claimsRoot/$claimRun/done-${claimTicket//\//+}" \
-        BO_WORK_KIND="${claimKind:-${kind:-task}}"
+    export SF_TICKET="$claimTicket" \
+        SF_BRANCH="${claimBranch:-${branch:-}}" \
+        SF_PR_TARGET="${claimTarget:-${pr_target:-}}" \
+        SF_AGENT="${claimAgent:-${agent:-}}" \
+        SF_LABEL="${claimLabel:-${label:-}}" \
+        SF_PROJECT_DIR="${claimRepo:-${tower:-}}" \
+        SF_LOG_DIR="$claimsRoot/$claimRun" \
+        SF_DONE_FILE="$claimsRoot/$claimRun/done-${claimTicket//\//+}" \
+        SF_WORK_KIND="${claimKind:-${kind:-task}}"
 }
 
 adoptDispatchContext
 
-ticket="$BO_TICKET"
-branch="${BO_BRANCH:-}"
-prTarget="${BO_PR_TARGET:-}"
-towerDir="${BO_PROJECT_DIR:-$PWD}"
-logDir="${BO_LOG_DIR:-${BO_LOG_ROOT:-$HOME/.binary-obelisk/logs}}"
+ticket="$SF_TICKET"
+branch="${SF_BRANCH:-}"
+prTarget="${SF_PR_TARGET:-}"
+towerDir="${SF_PROJECT_DIR:-$PWD}"
+logDir="${SF_LOG_DIR:-${SF_LOG_ROOT:-$HOME/.spider-factory/logs}}"
 mkdir -p "$logDir" 2>/dev/null || true
 boSeedIdentity "$logDir" "$towerDir"
 
@@ -121,13 +121,13 @@ declareRunIdentity() {
     boIdent ticket "$ticket"
     boIdent branch "$branch"
     boIdent target "$prTarget"
-    boIdent agent "${BO_AGENT:-}"
-    boIdent label "${BO_LABEL:-}"
+    boIdent agent "${SF_AGENT:-}"
+    boIdent label "${SF_LABEL:-}"
 }
 
 requireTools() {
     local requiredTool
-    for requiredTool in bd jq git bo; do
+    for requiredTool in bd jq git sf; do
         command -v "$requiredTool" >/dev/null 2>&1 ||
             alarmAndExit "reason=missing-tool tool=$requiredTool"
     done
@@ -160,15 +160,15 @@ requireTicketStillInWork() {
 
 requireSpawnEnvironment() {
     if [[ -z "$branch" ]]; then
-        alarmAndExit "reason=no-branch msg=\"BO_BRANCH was not on the spawn; the loop reads it off the gate the ticket's id names, so that gate carries no 'branch' key\""
+        alarmAndExit "reason=no-branch msg=\"SF_BRANCH was not on the spawn; the loop reads it off the gate the ticket's id names, so that gate carries no 'branch' key\""
     fi
     if [[ -z "$prTarget" ]]; then
-        alarmAndExit "reason=no-pr-target msg=\"BO_PR_TARGET was not on the spawn; the loop reads the target off the ticket's epic gate, and says main when the ticket sits under the epic itself\""
+        alarmAndExit "reason=no-pr-target msg=\"SF_PR_TARGET was not on the spawn; the loop reads the target off the ticket's epic gate, and says main when the ticket sits under the epic itself\""
     fi
 }
 
 requireWorkerDeclaredDone() {
-    if [[ ! -e "${BO_DONE_FILE:-/nonexistent-bo-done-file}" ]]; then
+    if [[ ! -e "${SF_DONE_FILE:-/nonexistent-sf-done-file}" ]]; then
         alarmAndExit "reason=not-declared-done msg=\"the worker stopped without touching its done file; nothing was committed and the ticket stays open — the tasks behind it wait\""
     fi
 }
@@ -192,7 +192,7 @@ stageTheWork() {
 }
 
 commitTheTask() {
-    ( cd "$worktreeDir" && bo commit "$title
+    ( cd "$worktreeDir" && sf commit "$title
 
 Ticket: $ticket" ) >/dev/null 2>&1
     git -C "$worktreeDir" diff --cached --quiet 2>/dev/null
@@ -231,7 +231,7 @@ prUrlAlreadyOnBranch() {
 }
 
 openThePrForBranch() {
-    printf 'Branch `%s` into `%s`, assembled one task at a time by the binary-obelisk loop.\n\nLast task closed onto it: **%s** (%s)\n' \
+    printf 'Branch `%s` into `%s`, assembled one task at a time by the spider-factory loop.\n\nLast task closed onto it: **%s** (%s)\n' \
         "$branch" "$prTarget" "$title" "$ticket" >"$bodyFile"
     if [[ "$forge" == gitlab ]]; then
         (cd "$worktreeDir" && glab mr create \
@@ -279,7 +279,7 @@ fi
 pushTheBranch || alarmAndExit "reason=push-failed msg=\"$(oneLine <<<"$pushOutput")\""
 requireForge
 
-if [[ "${BO_WORK_KIND:-task}" == gate ]]; then
+if [[ "${SF_WORK_KIND:-task}" == gate ]]; then
     prUrl="$(prUrlOfBranchWhateverItsState)"
     [[ "$prUrl" =~ ^https?://[^[:space:]]+$ ]] ||
         alarmAndExit "reason=pr-not-found forge=$forge msg=\"the lead agent stopped on a gate whose branch has no pull request at all, so there was nothing for it to merge and the gate stays claimed\""

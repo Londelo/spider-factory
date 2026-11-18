@@ -54,7 +54,7 @@ mid-work, your half-done branch behind them.
 - **Spawn nothing, and fix nothing outside your tier.** A red tier below you is that tier's ticket, not
   your bug — report it and stop. The epic branch was assembled for you; never rewrite it.
 - **Declare it only when it is truly done** — as your very last action, and only when you would hand the
-  brief to a human as it stands, `touch $BO_DONE_FILE`. A TDD ticket whose journeys fail first is a
+  brief to a human as it stands, `touch $SF_DONE_FILE`. A TDD ticket whose journeys fail first is a
   complete brief and does get the marker. No marker means nothing is committed, the ticket stays claimed,
   and the tickets behind yours wait.
 
@@ -242,7 +242,7 @@ After every major change that stands on its own — one journey, a page object, 
 you move on:
 
 ```bash
-BO_AGENT=tester-e2e bo commit <what you just did>
+SF_AGENT=tester-e2e sf commit <what you just did>
 ```
 
 Never a bare `git commit` or `git push`, and never a branch of your own. The command takes the branch off

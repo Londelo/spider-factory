@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 # beads-loop.sh — the claim-beads dispatcher: each tick claims one ready ticket and spawns its worker.
-#   bo loop   (or ./beads-loop.sh) from inside the tower project; Ctrl-C stops dispatching.
-#   BO_MAX_PARALLEL (4) workers at once | BO_POLL_S (3) seconds per tick, must divide 60 | BO_MAX_TICKETS (0 = never ends)
-#   BO_MAX_TICKETS counts tickets the Stop hook closed this run, not ticks — the loop keeps ticking while it waits
-#   BO_LOG_ROOT (~/.binary-obelisk/logs) one directory per run | BO_ALLOWED_LABELS unset or * = the whole AGENT set, a comma list narrows it
-#   BO_AGENT_COMMAND (claude) the command that runs an agent — every worker spawn and the worker count go through it
-#   BO_AGENT_FEATURE_GATES / BO_AGENT_EPIC_GATES (0) — 1 lets the lead agent verify and merge that tier's gate every tick
-#   Every one of them may live in ~/.obelisk.env, which CLI/install-cli.sh puts there and you edit by hand.
+#   sf loop   (or ./beads-loop.sh) from inside the tower project; Ctrl-C stops dispatching.
+#   SF_MAX_PARALLEL (4) workers at once | SF_POLL_S (3) seconds per tick, must divide 60 | SF_MAX_TICKETS (0 = never ends)
+#   SF_MAX_TICKETS counts tickets the Stop hook closed this run, not ticks — the loop keeps ticking while it waits
+#   SF_LOG_ROOT (~/.spider-factory/logs) one directory per run | SF_ALLOWED_LABELS unset or * = the whole AGENT set, a comma list narrows it
+#   SF_AGENT_COMMAND (claude) the command that runs an agent — every worker spawn and the worker count go through it
+#   SF_AGENT_FEATURE_GATES / SF_AGENT_EPIC_GATES (0) — 1 lets the lead agent verify and merge that tier's gate every tick
+#   Every one of them may live in ~/.spider-factory.env, which CLI/install-cli.sh puts there and you edit by hand.
 #   Contract: this file is the contract. .claude/diagram/ is its human-terms account; .claude/CLAUDE.md points at both.
 set -uo pipefail
 
 engineDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$engineDir/user-env.sh"
-loadObeliskEnv
+loadSpiderFactoryEnv
 
-agentPluginName="${BO_AGENT_PLUGIN:-binary-obelisk}"
+agentPluginName="${SF_AGENT_PLUGIN:-spider-factory}"
 
 declare -A AGENT=(
     [backend-logic]=engineer
@@ -29,9 +29,9 @@ declare -A AGENT=(
 leadAgentName="lead"
 
 declare -A numericSettingEnvName=(
-    [maximumParallelWorkers]=BO_MAX_PARALLEL
-    [pollSeconds]=BO_POLL_S
-    [maximumTicketsDone]=BO_MAX_TICKETS
+    [maximumParallelWorkers]=SF_MAX_PARALLEL
+    [pollSeconds]=SF_POLL_S
+    [maximumTicketsDone]=SF_MAX_TICKETS
 )
 
 declare -A allowedLabel=()
@@ -51,18 +51,18 @@ claimedThisRun=0
 tryNextClaim=0
 
 configureFromEnvironment() {
-    maximumParallelWorkers="${BO_MAX_PARALLEL:-4}"
-    pollSeconds="${BO_POLL_S:-3}"
-    maximumTicketsDone="${BO_MAX_TICKETS:-0}"
-    logRoot="${BO_LOG_ROOT:-$HOME/.binary-obelisk/logs}"
-    agentCommand="${BO_AGENT_COMMAND:-claude}"
-    agentHandlesFeatureGates="${BO_AGENT_FEATURE_GATES:-0}"
-    agentHandlesEpicGates="${BO_AGENT_EPIC_GATES:-0}"
+    maximumParallelWorkers="${SF_MAX_PARALLEL:-4}"
+    pollSeconds="${SF_POLL_S:-3}"
+    maximumTicketsDone="${SF_MAX_TICKETS:-0}"
+    logRoot="${SF_LOG_ROOT:-$HOME/.spider-factory/logs}"
+    agentCommand="${SF_AGENT_COMMAND:-claude}"
+    agentHandlesFeatureGates="${SF_AGENT_FEATURE_GATES:-0}"
+    agentHandlesEpicGates="${SF_AGENT_EPIC_GATES:-0}"
 }
 
 requireGateFlagsAreSwitches() {
     local flagName flagValue
-    for flagName in BO_AGENT_FEATURE_GATES BO_AGENT_EPIC_GATES; do
+    for flagName in SF_AGENT_FEATURE_GATES SF_AGENT_EPIC_GATES; do
         flagValue="${!flagName}"
         [[ "$flagValue" == "0" || "$flagValue" == "1" ]] || {
             echo "beads-loop: $flagName=$flagValue is not a switch — it is either 0 (a human closes that gate) or 1 (the lead agent does)" >&2
@@ -82,13 +82,13 @@ gateTierIsSwitchedOn() {
 configureAllowedLabels() {
     local labelKey
     local -a configuredLabels=()
-    if [[ -z "${BO_ALLOWED_LABELS:-}" || "${BO_ALLOWED_LABELS:-}" == "*" ]]; then
+    if [[ -z "${SF_ALLOWED_LABELS:-}" || "${SF_ALLOWED_LABELS:-}" == "*" ]]; then
         for labelKey in "${!AGENT[@]}"; do
             allowedLabel["$labelKey"]=1
         done
         return
     fi
-    IFS=',' read -ra configuredLabels <<< "$BO_ALLOWED_LABELS"
+    IFS=',' read -ra configuredLabels <<< "$SF_ALLOWED_LABELS"
     for labelKey in "${configuredLabels[@]}"; do
         allowedLabel["$labelKey"]=1
     done
@@ -120,7 +120,7 @@ requireNumericSettingsFromEnvironment() {
 
 requireUsablePollInterval() {
     (( pollSeconds > 0 && 60 % pollSeconds == 0 )) || {
-        echo "beads-loop: BO_POLL_S=$pollSeconds is unusable — it must divide 60 (1 2 3 4 5 6 10 12 15 20 30 60)" >&2
+        echo "beads-loop: SF_POLL_S=$pollSeconds is unusable — it must divide 60 (1 2 3 4 5 6 10 12 15 20 30 60)" >&2
         exit 1
     }
 }
@@ -408,7 +408,7 @@ ensureEpicGatePr() {
     fi
     if [[ -z "$prUrl" ]]; then
         bodyFile="$(mktemp)" || return 1
-        printf 'The epic branch. Every feature branch under **%s** aims its pull request at this one; it is assembled ticket by ticket by the binary-obelisk loop and merged into `main` when the epic gate closes.\n' \
+        printf 'The epic branch. Every feature branch under **%s** aims its pull request at this one; it is assembled ticket by ticket by the spider-factory loop and merged into `main` when the epic gate closes.\n' \
             "$gateId" > "$bodyFile"
         if [[ "$forge" == gitlab ]]; then
             prBody="$(cd "$towerDir" && glab mr create --title "$gateBranch" --description-file "$bodyFile" \
@@ -564,7 +564,7 @@ buildWorkerPrompt() {
         stayOnBranchRule="5. Stay on \`${branch}\`, in this folder. This ticket is a GATE: you verify the tier it
    stands for, and when it is proved you merge this branch's own pull request into \`${prTarget}\`.
    Never create a branch, never check one out, never rebase, and never a bare \`git commit\` or
-   \`git push\` — commit with \`bo commit\` as your agent file tells you, as you go. The merge is the
+   \`git push\` — commit with \`sf commit\` as your agent file tells you, as you go. The merge is the
    forge's own command on the pull request (\`gh pr merge\`, or \`glab mr merge\`), never a local
    \`git merge\` into \`${prTarget}\`."
     else
@@ -618,9 +618,9 @@ spawnWorker() {
       printf 'kind=%s\n' "$kind"
     } >"$contextFile.tmp" && mv -f "$contextFile.tmp" "$contextFile"
     ( cd "$worktreePath" \
-        && BO_TICKET="$ticketId" BO_BRANCH="$branch" BO_PR_TARGET="$prTarget" \
-           BO_AGENT="$agentName" BO_LABEL="$label" \
-           BO_PROJECT_DIR="$towerDir" BO_LOG_DIR="$logDir" BO_DONE_FILE="$doneFile" \
+        && SF_TICKET="$ticketId" SF_BRANCH="$branch" SF_PR_TARGET="$prTarget" \
+           SF_AGENT="$agentName" SF_LABEL="$label" \
+           SF_PROJECT_DIR="$towerDir" SF_LOG_DIR="$logDir" SF_DONE_FILE="$doneFile" \
            $agentCommand --bg --agent "$agentPluginName:$agentName" --permission-mode bypassPermissions \
            "$(buildWorkerPrompt "$ticketId" "$branch" "$doneFile" "$agentName" "$prTarget")" ) >"$spawnFile" 2>&1
 }
@@ -781,7 +781,7 @@ tick() {
 
 logRunTallyForTicketLimit() {
     boClearIdentity
-    logTo results "ticks=$tickCount claimed=$claimedThisRun done=$(numberOfTicketsDoneThisRun) note=\"hit BO_MAX_TICKETS=$maximumTicketsDone: this run was configured to end here\""
+    logTo results "ticks=$tickCount claimed=$claimedThisRun done=$(numberOfTicketsDoneThisRun) note=\"hit SF_MAX_TICKETS=$maximumTicketsDone: this run was configured to end here\""
 }
 
 runLoop() {

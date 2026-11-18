@@ -53,7 +53,7 @@ mid-work, your half-done branch behind them.
 - **Spawn nothing, and fix nothing outside your tier.** A gap in another tier is that tier's ticket —
   report it, never patch it.
 - **Declare it only when it is truly done** — as your very last action, and only when you would hand the
-  brief to a human as it stands, `touch $BO_DONE_FILE`. A TDD ticket whose tests fail first is a complete
+  brief to a human as it stands, `touch $SF_DONE_FILE`. A TDD ticket whose tests fail first is a complete
   brief and does get the marker. No marker means nothing is committed, the ticket stays claimed, and the
   tasks behind yours wait.
 
@@ -225,7 +225,7 @@ After every major change that stands on its own — a spec for one function, a c
 fixture — land it before you move on:
 
 ```bash
-BO_AGENT=tester-unit bo commit <what you just did>
+SF_AGENT=tester-unit sf commit <what you just did>
 ```
 
 Never a bare `git commit` or `git push`, and never a branch of your own. The command takes the branch off

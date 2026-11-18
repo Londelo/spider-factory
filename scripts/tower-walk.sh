@@ -8,7 +8,7 @@
 # Every id here comes out of CLI/create-beads/ and none is typed by hand — a hand-typed id is exactly
 # the thing the loop refuses.
 #
-# Usage: rm -rf /tmp/bo-tower-walk2 && ./tower-walk.sh   (fresh run)
+# Usage: rm -rf /tmp/sf-tower-walk2 && ./tower-walk.sh   (fresh run)
 set -euo pipefail
 
 export BD_NO_DEP_TYPE_WARNING=1
@@ -17,7 +17,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 newGateId="$here/../CLI/create-beads/create-gate.sh"
 newTaskId="$here/../CLI/create-beads/create-task.sh"
 
-root="${1:-/tmp/bo-tower-walk2}"
+root="${1:-/tmp/sf-tower-walk2}"
 walkLog="$root/walk-log.txt"
 
 newDatabaseAtRoot() {

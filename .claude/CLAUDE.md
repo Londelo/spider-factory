@@ -1,5 +1,5 @@
 ### Summary
-Binary Obelisk is a plugin in the High Magic marketplace: an SDL toolkit for building web applications with
+Spider Factory is a plugin: an SDL toolkit for building web applications with
 Claude Code, driven by Beads (`bd`). You plan a tower of tickets top-down, then one command turns that tower
 into background workers — each ticket claimed, worked on its own branch, committed, pushed, and put up as a
 pull request — while you stay out of the way and close the gates when a tier is proved.
@@ -19,26 +19,26 @@ when it disagrees with either of the two above, it is wrong.
 
 ### File structure
 ```
-plugins/binary-obelisk/
-├── .claude-plugin/plugin.json      # manifest
+spider-factory/
+├── .claude/CLAUDE.md               # this file — pointer and vocabulary
 ├── .claude/diagram/                # the translated source of truth — likec4 model, views, build.sh, dist/
-├── agents/                         # 7 tower agents + 3 plan agents + the overseer watcher
-├── skills/                         # bead-initialize, bead-create, bead-read, bead-comment,
+├── .claude/agents/                 # 7 tower agents + 3 plan agents + the overseer watcher
+├── .claude/skills/                 # bead-initialize, bead-create, bead-read, bead-comment,
 │                                   #   setup-cli, pr-comments, standards-{coding,naming,errors,file-organization},
 │                                   #   framework-{jest,playwright}
-├── CLI/                            # the `bo` package — bash, no node
-│   ├── bin/bo                      # six commands: loop, plan:epic, plan:feature, plan:task, overseer, commit
+├── CLI/                            # the `sf` package — bash, no node
+│   ├── bin/sf                      # six commands: loop, plan:epic, plan:feature, plan:task, overseer, commit
 │   ├── beads-loop.sh               # the dispatcher engine
 │   ├── plan-agent.sh               # the planner engine — one plan agent, foreground
-│   ├── overseer-agent.sh           # the reader engine — the overseer agent, foreground, `bo` denied to it
+│   ├── overseer-agent.sh           # the reader engine — the overseer agent, foreground, `sf` denied to it
 │   ├── commit.sh                   # the only thing that commits, anywhere
 │   ├── loop-log.sh                 # one log-line definition, sourced by the engine and both hooks
 │   ├── forge.sh                    # GitHub vs GitLab, and which tool names the right CLI
-│   ├── user-env.sh + default.env   # the loader for ~/.obelisk.env, and what it holds
-│   └── install-cli.sh              # puts a real launcher on PATH and ~/.obelisk.env down the first time
-├── hooks/                          # hooks.json, worker-stop.sh (fail-closed), worker-fail.sh (parks a dead worker)
+│   ├── user-env.sh + default.env   # the loader for ~/.spider-factory.env, and what it holds
+│   └── install-cli.sh              # puts a real launcher on PATH and ~/.spider-factory.env down the first time
+├── .claude/hooks/                  # hooks.json, worker-stop.sh (fail-closed), worker-fail.sh (parks a dead worker)
 ├── scripts/tower-walk.sh           # experiment harness — builds a tower and walks the frontier by hand
-└── shared/plan-tasks/              # the templates plan-task fills: engineer, frontend, tester-unit
+└── .claude/shared/plan-tasks/      # the templates plan-task fills: engineer, frontend, tester-unit
 ```
 
 ### The three names — never interchangeable
@@ -69,7 +69,7 @@ review, then the gate. At the epic: the broad suite, then the review, then the g
 
 **Gates are checkpoints, not work.** `bd ready` never shows one. Every ticket of a tier blocks its gate, and
 what holds the *next* tier off the frontier is an explicit `blocks` edge onto the gate itself. **Only a human
-closes a gate** — until `BO_AGENT_FEATURE_GATES=1` / `BO_AGENT_EPIC_GATES=1`
+closes a gate** — until `SF_AGENT_FEATURE_GATES=1` / `SF_AGENT_EPIC_GATES=1`
 hands that tier to the `lead` agent, which the loop spawns for a ready gate each tick. There is no `human`
 agent; nothing is ever spawned for the person.
 
@@ -98,12 +98,12 @@ the *branch*, not the ticket.
 | Part | Owns |
 |---|---|
 | `CLI/beads-loop.sh` | the tick: read the busy branches, dispatch any ready gate its tier flag opens, `bd ready --claim`, match the one dispatching label, derive `branch` and `prTarget` off the ticket's id, publish the epic branch and PR if there is none, build the worktree, spawn the worker **with cwd inside it**, log one line |
-| `hooks/worker-stop.sh` | **fail-closed on `$BO_DONE_FILE`**: no marker → no commit, no push, no PR, no close. Then it closes the *task*; on a gate claim (`kind=gate`) it commits and pushes, finds that branch's PR at any state, and closes the **gate** without ever opening a new PR |
+| `hooks/worker-stop.sh` | **fail-closed on `$SF_DONE_FILE`**: no marker → no commit, no push, no PR, no close. Then it closes the *task*; on a gate claim (`kind=gate`) it commits and pushes, finds that branch's PR at any state, and closes the **gate** without ever opening a new PR |
 | `hooks/worker-fail.sh` | parks a dead worker's ticket in `failed-agent` with the reason, and commits nothing |
-| `CLI/commit.sh` | **the only way anything commits in this plugin** — `bo commit` = `git add -A`, one commit subject `agent:branch:message`, `git push -u origin <branch>` |
+| `CLI/commit.sh` | **the only way anything commits in this plugin** — `sf commit` = `git add -A`, one commit subject `agent:branch:message`, `git push -u origin <branch>` |
 | `CLI/loop-log.sh` | the one line format, sourced by the engine and both hooks: nine fixed keys, `-` for the unknown |
-| `CLI/user-env.sh` + `~/.obelisk.env` | every knob; `default.env` is copied there on install and never touched again |
-| `agents/*.md` | the worker's own contract — the lease, never closing its own ticket, `bo commit` as it goes, the done marker last |
+| `CLI/user-env.sh` + `~/.spider-factory.env` | every knob; `default.env` is copied there on install and never touched again |
+| `agents/*.md` | the worker's own contract — the lease, never closing its own ticket, `sf commit` as it goes, the done marker last |
 
 ### Rules that break the system when broken
 - **Always `bd ready --claim`**, never a bare `bd ready` — it is not atomic and two loops steal the ticket.
@@ -121,12 +121,12 @@ the *branch*, not the ticket.
   moves it to `in_progress` itself, guarded by `--if-status open` (which is also what takes it off the ready
   list until its lead agent dies).
 - **The lead agent is the one worker no label reaches.** It is spawned for a ready gate whose
-  `BO_AGENT_FEATURE_GATES` / `BO_AGENT_EPIC_GATES` flag is on, and it merges through the forge — never a local
+  `SF_AGENT_FEATURE_GATES` / `SF_AGENT_EPIC_GATES` flag is on, and it merges through the forge — never a local
   `git merge` into the target.
 - **`failed-agent` and `gate` are per-database custom settings.** `bd` accepts an unknown type or status
   silently and then refuses it, so a broken gate and a working one look identical. `bead-initialize` registers
   both; an older tower needs the two `bd config set` lines run in it.
 - **No agent file hardcodes a beads query.** Reading, authoring and commenting belong to the skills; an agent
-  file names the skill to load. The two commands a worker runs about itself — `bd heartbeat` and `bo commit` —
+  file names the skill to load. The two commands a worker runs about itself — `bd heartbeat` and `sf commit` —
   are named in its own file, because nothing else is theirs to name.
 - **Workers run `bypassPermissions` unattended** → only run the loop in a repo you fully trust.

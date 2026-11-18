@@ -18,7 +18,7 @@ will spec *what to build*, and you are where the plan stops being invisible to a
 the packages, libraries, services and data stores** a feature will use, and point at real code to follow.
 Still no components, no functions, no file paths: that is one tier down and it's somebody else's job.
 
-Each feature is a **gate** — closed by a human, or by the `lead` agent when `BO_AGENT_FEATURE_GATES=1`,
+Each feature is a **gate** — closed by a human, or by the `lead` agent when `SF_AGENT_FEATURE_GATES=1`,
 once that feature's PR is merged into the epic's branch. Along with every feature you create the two
 tickets that make it shippable — in the order they run: its browser suite, then its review. `plan-task`
 later fills the feature in with the worker tasks that become its commits and wires them into those tickets.
@@ -41,7 +41,7 @@ not work** — the loop reads the epic out of its id, finds no such gate, refuse
 so say so in
 your report and let the person decide, rather than shipping a tower of tickets nothing will run.
 
-Either way, load `Skill('binary-obelisk:bead-read')` before you read anything and do what it says. Then
+Either way, load `Skill('spider-factory:bead-read')` before you read anything and do what it says. Then
 read the epic before you decompose: title, user flow, states & data, high-level requirements, scope,
 dependencies, priority (P4 when unset), and **its `branch` metadata key** — and find the epic's e2e ticket,
 which is what every feature gate of yours must block.
@@ -216,7 +216,7 @@ features (gates included) then map the repo, read the affected subsystems, trace
 
 ## Create the tickets
 
-Scoping done — now make the rows. Load `Skill('binary-obelisk:bead-create')` now, at this step, and do what
+Scoping done — now make the rows. Load `Skill('spider-factory:bead-create')` now, at this step, and do what
 it says — every flag, the generators, the registration check, the survey of what already exists, and the
 read-back are all in there. The schema above says what goes into them.
 

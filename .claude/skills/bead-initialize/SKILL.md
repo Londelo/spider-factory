@@ -113,7 +113,7 @@ Report the results to the user. If anything is stale or missing, note it.
 ### Step 7: Give the user a starting prompt
 
 Tell the user:
-- Where to look for ready work: `bd ready` — claiming is the dispatcher's job (`bo loop`), not something
+- Where to look for ready work: `bd ready` — claiming is the dispatcher's job (`sf loop`), not something
   to do by hand
 - How to create an issue: `bd create "title" -p 2 -t task` (an epic or feature is `-t gate`, unlabelled)
 - That they should restart Claude Code for hooks to activate

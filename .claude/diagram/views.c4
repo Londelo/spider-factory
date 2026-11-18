@@ -18,7 +18,7 @@ views {
   // ────────────────────────────────────────────────────────────────────────────
 
   dynamic view index {
-    title "Binary Obelisk/Walkthrough/1 · The planning phase — a vague idea becomes nine tickets"
+    title "Spider Factory/Walkthrough/1 · The planning phase — a vague idea becomes nine tickets"
 
     include human, planAgents, planAgents.*, beads
     include tower, tower.epic, tower.epic.epicE2e, tower.epic.epicReview
@@ -175,7 +175,7 @@ gates wait for a person. The database is all the loop ever reads.
   // ────────────────────────────────────────────────────────────────────────────
 
   dynamic view theLoop {
-    title "Binary Obelisk/Walkthrough/2 · The run — the CLI installed, then ticket after ticket"
+    title "Spider Factory/Walkthrough/2 · The run — the CLI installed, then ticket after ticket"
 
     include
       human,
@@ -209,10 +209,10 @@ gates wait for a person. The database is all the loop ever reads.
 
     // ═ ACT I — the setup skill puts the dispatcher on your path, once
 
-    human -> machine.setupSkill "setup binary-obelisk · install the CLI" {
+    human -> machine.setupSkill "setup spider-factory · install the CLI" {
       title "You ask your AI agent to set it up — once per machine"
       notes """
-There is no install command to remember. Say "setup binary-obelisk" and the skill looks at three things:
+There is no install command to remember. Say "setup spider-factory" and the skill looks at three things:
 are you in a repo, do tickets live here yet, is the command reachable.
 If only the CLI is missing, it asks you once, then runs the installer: one real file on your path, which
 finds the plugin and runs the engine in the foreground, and — the first time only — the one settings file
@@ -221,7 +221,7 @@ If nothing is missing, it says so and gets out of the way.
 """
     }
 
-    machine.knobs -> machine.dispatcher "claude · 4 parallel · 3 s · logs under ~/.binary-obelisk · labels *" {
+    machine.knobs -> machine.dispatcher "claude · 4 parallel · 3 s · logs under ~/.spider-factory · labels *" {
       title "The settings are read once, at startup"
       notes """
 At startup the loop loads its one settings file and never reads it again: the command that runs an agent, how
@@ -367,7 +367,7 @@ own command on the pull request, never a local merge into the target.
     workers.engineer -> tower.featA.backendA "write the code" {
       title "The engineer writes the code and leaves the ticket open"
       notes """
-The engineer writes files into the branch's folder and lands each finished piece there with `bo commit`,
+The engineer writes files into the branch's folder and lands each finished piece there with `sf commit`,
 heartbeats so its claim holds, reports in its final message, and leaves the ticket open.
 Closing is somebody else's job.
 """
@@ -389,7 +389,7 @@ If any of these is untrue, the hook refuses and says which:
 - the ticket is still in progress
 - the branch and the pull request target arrived with the session
 - the folder is really on the branch it thinks it is
-Then `bo commit` files the ticket's title as the commit — usually there is nothing left to stage, the worker
+Then `sf commit` files the ticket's title as the commit — usually there is nothing left to stage, the worker
 committed as it went — and the hook pushes the branch itself.
 A test or a review ticket may land no files at all, and an empty tree is allowed.
 """
@@ -557,12 +557,12 @@ for it anywhere in the tower.
 
     // ═ ACT V — the same gate with its switch on: the loop sends its own worker
 
-    machine.knobs -> machine.dispatcher "BO_AGENT_FEATURE_GATES=1" {
+    machine.knobs -> machine.dispatcher "SF_AGENT_FEATURE_GATES=1" {
       title "One switch hands one tier to the lead agent"
       notes """
 The switch is read once, at startup, and must be exactly `0` or `1` — anything else and the run refuses to
-start. It opens one tier and nothing else: `BO_AGENT_FEATURE_GATES` is the feature gates,
-`BO_AGENT_EPIC_GATES` the epic's, and both default to `0`.
+start. It opens one tier and nothing else: `SF_AGENT_FEATURE_GATES` is the feature gates,
+`SF_AGENT_EPIC_GATES` the epic's, and both default to `0`.
 """
     }
 
@@ -604,7 +604,7 @@ Any one missing: no done marker, the gate stays claimed, and a human is told whi
 The target is the gate's **`prTarget`** — `epic/record-box` here, read off the epic gate its own id names — and
 the forge does the merge. A local
 `git merge origin/<prTarget>` happens only to bring the target into *this* branch when it moved underneath, and
-that resolution is committed with `bo commit` so the pull request carries it.
+that resolution is committed with `sf commit` so the pull request carries it.
 """
     }
 
@@ -675,7 +675,7 @@ After this there is nothing left to dispatch.
     human -> tower.epic "close the epic gate" {
       title "You close the epic gate, and the tower is finished"
       notes """
-If the epic review is done, close the epic gate, and the tower is finished. With `BO_AGENT_EPIC_GATES=1` the
+If the epic review is done, close the epic gate, and the tower is finished. With `SF_AGENT_EPIC_GATES=1` the
 loop gets there first, the same way ACT V showed for the feature gate — the lead agent proves the whole tier,
 merges `epic/record-box` into `main` through the forge, and its Stop hook closes the gate.
 
@@ -684,7 +684,7 @@ merges `epic/record-box` into `main` through the forge, and its Stop hook closes
 | the loop | published the epic branch and its pull request, made 2 folders (one per branch), started 7 workers, closed 7 tickets |
 | you | planned all 9 tickets, read the 2 pull requests, closed the 2 gates |
 
-Both gates being yours is the default: with `BO_AGENT_FEATURE_GATES` and `BO_AGENT_EPIC_GATES` both `0`, nothing
+Both gates being yours is the default: with `SF_AGENT_FEATURE_GATES` and `SF_AGENT_EPIC_GATES` both `0`, nothing
 ever dispatches a gate. Turn one on and its row moves — the loop started 9 workers and closed 9 tickets, and you
 closed nothing.
 """
@@ -699,7 +699,7 @@ closed nothing.
   // ────────────────────────────────────────────────────────────────────────────
 
   dynamic view theLogs {
-    title "Binary Obelisk/Walkthrough/3 · The run log — who writes what, and how to read a tower that is not moving"
+    title "Spider Factory/Walkthrough/3 · The run log — who writes what, and how to read a tower that is not moving"
 
     include human, machine.dispatcher, beads, workers.engineer, stopHook, failHook, logRun, logRun.*
 
@@ -850,7 +850,7 @@ acted on.
   // ────────────────────────────────────────────────────────────────────────────
 
   dynamic view everyFailure {
-    title "Binary Obelisk/Walkthrough/4 · Every failure — the same tower with every alarm firing"
+    title "Spider Factory/Walkthrough/4 · Every failure — the same tower with every alarm firing"
 
     include
       human,
@@ -882,14 +882,14 @@ shorter list of its own, because it never starts a session.
 """
     }
 
-    machine.dispatcher -> alarms.startupAlarms.knobNotNumeric "BO_MAX_PARALLEL=four is not a number · exit 1" {
+    machine.dispatcher -> alarms.startupAlarms.knobNotNumeric "SF_MAX_PARALLEL=four is not a number · exit 1" {
       title "A setting is not a number, and the run will not start"
       notes """
 These settings decide how many unattended sessions run, so none of them is quietly replaced with a default.
 """
     }
 
-    machine.dispatcher -> alarms.startupAlarms.gateFlagNotASwitch "BO_AGENT_FEATURE_GATES=true is not a switch · exit 1" {
+    machine.dispatcher -> alarms.startupAlarms.gateFlagNotASwitch "SF_AGENT_FEATURE_GATES=true is not a switch · exit 1" {
       title "A gate tier is neither a person's nor a machine's, and the run will not start"
       notes """
 Each tier's switch says who closes that tier's gate: `0` a person, `1` the lead agent. `true`, `yes`, `2` are not
@@ -899,7 +899,7 @@ withhold them from it, quietly.
       navigateTo index
     }
 
-    machine.dispatcher -> alarms.startupAlarms.pollUnusable "BO_POLL_S=7 is unusable · exit 1" {
+    machine.dispatcher -> alarms.startupAlarms.pollUnusable "SF_POLL_S=7 is unusable · exit 1" {
       title "The poll interval cannot work, and the run will not start"
       notes """
 Only 1 2 3 4 5 6 10 12 15 20 30 60 are usable: the waiting lines are one a minute, and that promise only holds
@@ -923,7 +923,7 @@ thing this design refuses to be.
 """
     }
 
-    machine.dispatcher -> alarms.startupAlarms.labelsStarved "BO_ALLOWED_LABELS=<typo> — the run starts and does nothing" {
+    machine.dispatcher -> alarms.startupAlarms.labelsStarved "SF_ALLOWED_LABELS=<typo> — the run starts and does nothing" {
       title "The one startup mistake that does NOT stop the run"
       notes """
 Then no ticket ever matches a label, nothing is ever dispatched, and the waiting lines keep arriving on

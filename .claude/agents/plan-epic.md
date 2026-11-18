@@ -15,7 +15,7 @@ non-programmer recognises their idea in it. You are the first agent in the chain
 your epic and never your conversation, so everything that matters must be inside the ticket.
 
 The epic is a **gate** — a checkpoint, closed by a human, or by the `lead` agent when
-`BO_AGENT_EPIC_GATES=1`. It is not work and no label ever reaches it. Along with it you create the two
+`SF_AGENT_EPIC_GATES=1`. It is not work and no label ever reaches it. Along with it you create the two
 tickets that make the epic shippable — in the order they run: its end-to-end suite, then its review.
 
 There is **no merge ticket**. Nothing assembles the epic: each feature branch is merged into the epic
@@ -188,7 +188,7 @@ knowledge — if you can't confirm it from a real source, say so in `Notes`.
 
 ## Create the tickets
 
-Scoping done — now make the rows. Load `Skill('binary-obelisk:bead-create')` now, at this step, and do what
+Scoping done — now make the rows. Load `Skill('spider-factory:bead-create')` now, at this step, and do what
 it says — every flag, the generators, the registration check, the survey of what already exists, and the
 read-back are all in there. The schema above says what goes into them.
 

@@ -5,22 +5,22 @@
 # The hook finds its worker by SESSION ID, never by cwd: `claude --bg` runs the worker in a pooled
 # process that inherited neither the spawn's environment nor its working directory, so the cwd the hook
 # input carries proves nothing. The record of the dispatch is the claims line the loop wrote at
-# $BO_LOG_ROOT/<run>/claims — ticket, branch, target, worktree and run all come off that line. The
-# dispatch context under $BO_LOG_ROOT/worker-context/, keyed by the worktree's folder name (`/` as `+`),
+# $SF_LOG_ROOT/<run>/claims — ticket, branch, target, worktree and run all come off that line. The
+# dispatch context under $SF_LOG_ROOT/worker-context/, keyed by the worktree's folder name (`/` as `+`),
 # is read only as a fallback for what a thin claims line omits. A session with no dispatched claims line
 # is a human's: it leaves at once, silently, and writes nothing anywhere.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BO_LOG_QUIET=1
+SF_LOG_QUIET=1
 source "$here/../CLI/user-env.sh"
-loadObeliskEnv
+loadSpiderFactoryEnv
 source "$here/../CLI/loop-log.sh"
 
-claimsRoot="${BO_LOG_ROOT:-$HOME/.binary-obelisk/logs}"
-logDir="${BO_LOG_DIR:-$claimsRoot}"
+claimsRoot="${SF_LOG_ROOT:-$HOME/.spider-factory/logs}"
+logDir="${SF_LOG_DIR:-$claimsRoot}"
 mkdir -p "$logDir" 2>/dev/null || true
-boSeedIdentity "$logDir" "${BO_PROJECT_DIR:-$PWD}"
+boSeedIdentity "$logDir" "${SF_PROJECT_DIR:-$PWD}"
 
 alarmAndExit() {
     logTo errors "$1"
@@ -88,20 +88,20 @@ adoptDispatchContext() {
         alarmAndExit "reason=no-context worktree=$slug msg=\"a worker died in a loop worktree with no dispatch context; its ticket stays claimed and nobody parks it\""
     fi
     [[ -r "$contextFile" ]] && source "$contextFile"
-    export BO_TICKET="$claimTicket" \
-        BO_BRANCH="${claimBranch:-${branch:-}}" \
-        BO_PR_TARGET="${claimTarget:-${pr_target:-}}" \
-        BO_AGENT="${claimAgent:-${agent:-}}" \
-        BO_LABEL="${claimLabel:-${label:-}}" \
-        BO_PROJECT_DIR="${claimRepo:-${tower:-}}" \
-        BO_LOG_DIR="$claimsRoot/$claimRun"
+    export SF_TICKET="$claimTicket" \
+        SF_BRANCH="${claimBranch:-${branch:-}}" \
+        SF_PR_TARGET="${claimTarget:-${pr_target:-}}" \
+        SF_AGENT="${claimAgent:-${agent:-}}" \
+        SF_LABEL="${claimLabel:-${label:-}}" \
+        SF_PROJECT_DIR="${claimRepo:-${tower:-}}" \
+        SF_LOG_DIR="$claimsRoot/$claimRun"
 }
 
 adoptDispatchContext
 
-ticket="$BO_TICKET"
-towerDir="${BO_PROJECT_DIR:-$PWD}"
-logDir="${BO_LOG_DIR:-${BO_LOG_ROOT:-$HOME/.binary-obelisk/logs}}"
+ticket="$SF_TICKET"
+towerDir="${SF_PROJECT_DIR:-$PWD}"
+logDir="${SF_LOG_DIR:-${SF_LOG_ROOT:-$HOME/.spider-factory/logs}}"
 mkdir -p "$logDir" 2>/dev/null || true
 boSeedIdentity "$logDir" "$towerDir"
 
@@ -109,10 +109,10 @@ oneLine() { tr '\n' ' ' | tr -d '"\\' | sed 's/  */ /g' | cut -c1-200; }
 
 declareRunIdentity() {
     boIdent ticket "$ticket"
-    boIdent agent "${BO_AGENT:-}"
-    boIdent label "${BO_LABEL:-}"
-    boIdent branch "${BO_BRANCH:-}"
-    boIdent target "${BO_PR_TARGET:-}"
+    boIdent agent "${SF_AGENT:-}"
+    boIdent label "${SF_LABEL:-}"
+    boIdent branch "${SF_BRANCH:-}"
+    boIdent target "${SF_PR_TARGET:-}"
 }
 
 readHookInput() {

@@ -2,7 +2,7 @@ model {
 
   // ═════════════════════════════════════════════════════════════════════════════
   // THE MACHINE — one command in, background workers out.
-  // Every value here was read off CLI/bin/bo, CLI/beads-loop.sh, CLI/loop-log.sh,
+  // Every value here was read off CLI/bin/sf, CLI/beads-loop.sh, CLI/loop-log.sh,
   // CLI/forge.sh, hooks/worker-stop.sh, hooks/worker-fail.sh, hooks/hooks.json.
   // The cast only: the story is told by the four walkthroughs in views.c4.
   // Rules for editing these files: ./REFERENCE.md — the code is the only source of truth.
@@ -12,32 +12,32 @@ model {
     summary "One command in, background workers out: the setup skill, the checks, the parameters, the dispatcher, the claim."
 
     setupSkill = skill "setup-cli — the skill that puts the CLI in your AI agent" {
-      summary "One conversation inside your AI agent: it checks the repo, the tickets and the CLI, then installs `bo` on your say-so."
+      summary "One conversation inside your AI agent: it checks the repo, the tickets and the CLI, then installs `sf` on your say-so."
       description """
 **What it is:** `skills/setup-cli/SKILL.md` — a conversation, not a command you remember. Say
-"setup binary-obelisk" or "install the CLI" to the AI agent and it runs three steps.
+"setup spider-factory" or "install the CLI" to the AI agent and it runs three steps.
 
 | Step | What the agent does |
 |---|---|
-| 1 · detect | `git rev-parse --show-toplevel`, `bd where`, `command -v bo` — the repo, whether tickets live here yet, whether `bo` is on the path |
-| 2 · report and branch | reads back the three answers **before** offering anything; no repo → stop and name the folder to `cd` into; no ticket database → hand off to `bead-initialize`; no CLI → step 3; all present → nothing to do, run `bo loop` |
+| 1 · detect | `git rev-parse --show-toplevel`, `bd where`, `command -v sf` — the repo, whether tickets live here yet, whether `sf` is on the path |
+| 2 · report and branch | reads back the three answers **before** offering anything; no repo → stop and name the folder to `cd` into; no ticket database → hand off to `bead-initialize`; no CLI → step 3; all present → nothing to do, run `sf loop` |
 | 3 · install | runs `CLI/install-cli.sh` — only after you confirm: it never blind-runs anything |
 
-**What the installer writes:** one real file at `~/.local/bin/bo` (`CLI/bin/bo`'s launcher), never a
-symlink, which finds the plugin folder and execs the real `CLI/bin/bo`. A real file is deliberate: it
+**What the installer writes:** one real file at `~/.local/bin/sf` (`CLI/bin/sf`'s launcher), never a
+symlink, which finds the plugin folder and execs the real `CLI/bin/sf`. A real file is deliberate: it
 outlives an uninstalled plugin and names its own problem — the missing-plugin message prints the `rm`
 that clears it and the two ways to get it back. If `~/.local/bin` is not on your path, the installer
 prints the exact `export PATH=` line your shell profile is missing.
 
-**Its second write:** `CLI/default.env` copied to `~/.obelisk.env`, the run's parameters at their
+**Its second write:** `CLI/default.env` copied to `~/.spider-factory.env`, the run's parameters at their
 defaults — yours to edit by hand. The installer touches that file only when it does not exist; delete
-it to get the defaults back. `bo` itself is six commands: `loop`, `plan:epic`, `plan:feature`,
+it to get the defaults back. `sf` itself is six commands: `loop`, `plan:epic`, `plan:feature`,
 `plan:task`, `overseer`, `commit`.
 
-**Nothing here runs the loop.** The skill's whole job is to make `bo loop` reachable.
+**Nothing here runs the loop.** The skill's whole job is to make `sf loop` reachable.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/skills/setup-cli/SKILL.md "Source — the setup-cli skill"
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/install-cli.sh "Source — CLI/install-cli.sh"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/skills/setup-cli/SKILL.md "Source — the setup-cli skill"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/install-cli.sh "Source — CLI/install-cli.sh"
     }
 
     preflight = noteDoc "The checks — everything that must hold before the first tick" {
@@ -48,50 +48,50 @@ ever happens; a run that cannot report on itself is not a run.
 
 | # | Check | Refuses when |
 |---|---|---|
-| 1 | `requireToolsOnPath` — `bd jq git` plus the first word of `BO_AGENT_COMMAND` | the first one missing is named on stderr |
-| 2 | `configureAllowedLabels` — `BO_ALLOWED_LABELS` against the `AGENT` map | **not fatal** — a typo'd list matches no ticket, and the tower sits still while waiting lines keep arriving |
-| 3 | `requireNumericSettingsFromEnvironment` | `BO_MAX_PARALLEL` / `BO_POLL_S` / `BO_MAX_TICKETS` set to anything but digits — never defaulted silently, because they govern unattended workers |
-| 4 | `requireGateFlagsAreSwitches` — `BO_AGENT_FEATURE_GATES` and `BO_AGENT_EPIC_GATES`, each read by `configureFromEnvironment` | either one is anything but `0` or `1` — the line names the flag and says what each value means: `0` a human closes that gate, `1` the lead agent does. A half-open gate tier is not a state the loop will guess its way through |
-| 5 | `requireUsablePollInterval` — `BO_POLL_S` must divide 60 | the permitted list is printed: `1 2 3 4 5 6 10 12 15 20 30 60`; the waiting lines are rate-limited at one per minute, so a poll that does not divide the minute makes that cadence a lie |
+| 1 | `requireToolsOnPath` — `bd jq git` plus the first word of `SF_AGENT_COMMAND` | the first one missing is named on stderr |
+| 2 | `configureAllowedLabels` — `SF_ALLOWED_LABELS` against the `AGENT` map | **not fatal** — a typo'd list matches no ticket, and the tower sits still while waiting lines keep arriving |
+| 3 | `requireNumericSettingsFromEnvironment` | `SF_MAX_PARALLEL` / `SF_POLL_S` / `SF_MAX_TICKETS` set to anything but digits — never defaulted silently, because they govern unattended workers |
+| 4 | `requireGateFlagsAreSwitches` — `SF_AGENT_FEATURE_GATES` and `SF_AGENT_EPIC_GATES`, each read by `configureFromEnvironment` | either one is anything but `0` or `1` — the line names the flag and says what each value means: `0` a human closes that gate, `1` the lead agent does. A half-open gate tier is not a state the loop will guess its way through |
+| 5 | `requireUsablePollInterval` — `SF_POLL_S` must divide 60 | the permitted list is printed: `1 2 3 4 5 6 10 12 15 20 30 60`; the waiting lines are rate-limited at one per minute, so a poll that does not divide the minute makes that cadence a lie |
 | 6 | `requireBeadsProject` — `bd list --limit 1 --json` must answer an **array** | `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the environment does not save a wrong directory |
 | 7 | `createRunLogDirectory` — `mkdir -p` the run's dir, then seed `claims errors waiting results closes failures` | fatal on purpose: a run that cannot write its logs cannot raise an alarm |
 
-`bo` itself runs check 6 and one before it — `requireEngine`, that `../beads-loop.sh` is actually there — so a
+`sf` itself runs check 6 and one before it — `requireEngine`, that `../beads-loop.sh` is actually there — so a
 broken install names itself instead of failing deep in a tick.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh#L53-L155 "Source — beads-loop.sh lines 53–155"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/beads-loop.sh#L53-L155 "Source — beads-loop.sh lines 53–155"
     }
 
     knobs = knobPanel "The run's parameters (env, read once at startup)" {
-      summary "The run's parameters, read once at startup out of `~/.obelisk.env`; what you export yourself still wins."
+      summary "The run's parameters, read once at startup out of `~/.spider-factory.env`; what you export yourself still wins."
       description """
-Both engines source `CLI/user-env.sh` and call `loadObeliskEnv` as their first act. It takes only
-`BO_*=` lines out of `~/.obelisk.env` (`CLI/default.env` copied there on install), expands `$HOME` in a
+Both engines source `CLI/user-env.sh` and call `loadSpiderFactoryEnv` as their first act. It takes only
+`SF_*=` lines out of `~/.spider-factory.env` (`CLI/default.env` copied there on install), expands `$HOME` in a
 value, and **exports only what is unset** — so a value you exported yourself still beats the file.
-`BO_ENV_FILE` points it elsewhere, which is the whole test hook; no file at all is a normal state, and
+`SF_ENV_FILE` points it elsewhere, which is the whole test hook; no file at all is a normal state, and
 the engines' own `:-` defaults are the floor under it. `CLI/default.env` is documentation that happens
 to be installed, so it and the engines are kept in step by hand.
 
 | Knob | Default | What it does |
 |---|---|---|
-| `BO_AGENT_COMMAND` | `claude` | the command that runs an agent — the worker spawn, the worker count, and the three planners all go through it; split on spaces, so it may carry its own arguments |
-| `BO_AGENT_PLUGIN` | `binary-obelisk` | the plugin the agents ship in: every spawn names one as `<plugin>:<agent>`, and a bare name does not resolve to a plugin agent |
-| `BO_AGENT_FEATURE_GATES` | `0` | does the **lead agent** close a feature gate for you. `0` = a human closes it; `1` = the loop dispatches the lead agent at a ready feature gate. Anything else and the run refuses to start |
-| `BO_AGENT_EPIC_GATES` | `0` | the same switch for the epic gate alone — one flag per tier, because a feature gate and the epic gate are different amounts of trust |
-| `BO_MAX_PARALLEL` | `4` | workers spawned at once; the cap is recounted from `$BO_AGENT_COMMAND agents --json` every tick |
-| `BO_POLL_S` | `3` | seconds between ticks; **must divide 60** or the run refuses to start, because the idle rate limit is `60 / BO_POLL_S` ticks |
-| `BO_MAX_TICKETS` | `0` | stop once N tickets have closed this run — counted off the run's `closes` file, so the loop keeps ticking while it waits; 0 = endless |
-| `BO_LOG_ROOT` | `~/.binary-obelisk/logs` | parent of the one timestamped dir this run writes |
-| `BO_ALLOWED_LABELS` | unset or `*` = the whole AGENT set | a comma list narrows which labels may dispatch |
+| `SF_AGENT_COMMAND` | `claude` | the command that runs an agent — the worker spawn, the worker count, and the three planners all go through it; split on spaces, so it may carry its own arguments |
+| `SF_AGENT_PLUGIN` | `spider-factory` | the plugin the agents ship in: every spawn names one as `<plugin>:<agent>`, and a bare name does not resolve to a plugin agent |
+| `SF_AGENT_FEATURE_GATES` | `0` | does the **lead agent** close a feature gate for you. `0` = a human closes it; `1` = the loop dispatches the lead agent at a ready feature gate. Anything else and the run refuses to start |
+| `SF_AGENT_EPIC_GATES` | `0` | the same switch for the epic gate alone — one flag per tier, because a feature gate and the epic gate are different amounts of trust |
+| `SF_MAX_PARALLEL` | `4` | workers spawned at once; the cap is recounted from `$SF_AGENT_COMMAND agents --json` every tick |
+| `SF_POLL_S` | `3` | seconds between ticks; **must divide 60** or the run refuses to start, because the idle rate limit is `60 / SF_POLL_S` ticks |
+| `SF_MAX_TICKETS` | `0` | stop once N tickets have closed this run — counted off the run's `closes` file, so the loop keeps ticking while it waits; 0 = endless |
+| `SF_LOG_ROOT` | `~/.spider-factory/logs` | parent of the one timestamped dir this run writes |
+| `SF_ALLOWED_LABELS` | unset or `*` = the whole AGENT set | a comma list narrows which labels may dispatch |
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh#L39-L59 "Source — beads-loop.sh lines 39–59"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/beads-loop.sh#L39-L59 "Source — beads-loop.sh lines 39–59"
     }
 
     dispatcher = dispatcher "beads-loop.sh — the dispatcher" {
       summary "The engine: a tick dispatches any ready gate its tier flag opens, then claims tickets, derives their branches off the id, spawns workers."
       description """
-**What it is:** the engine `bo loop` runs. A `while true` loop: test the ticket cap, `tick`, `sleep $BO_POLL_S`,
-again. It ends by itself only when `BO_MAX_TICKETS` tickets have closed this run — the test is against the run's
+**What it is:** the engine `sf loop` runs. A `while true` loop: test the ticket cap, `tick`, `sleep $SF_POLL_S`,
+again. It ends by itself only when `SF_MAX_TICKETS` tickets have closed this run — the test is against the run's
 `closes` file, not against the tick count, so a run waiting on workers still ticking is never cut off.
 It is the only thing in the system that claims, dispatches, publishes the epic branch, or owns folders.
 
@@ -100,15 +100,15 @@ One tick, in the order the code runs it (`tick()`):
 | # | Step | Reads | On failure |
 |---|---|---|---|
 | 0 | `branchesCurrentlyAtWork` — the branches already at work, read **before** claiming so the ticket in hand is never counted against itself | `bd list --status in_progress --limit 0 --json` → `.[] \| .id`, each one through `resolveTicketBranches`, `sort -u` | — |
-| 1 | **dispatch any ready gate its tier flag opens** — `dispatchReadyGates`, before a single ticket is claimed. Returns at once when neither `BO_AGENT_FEATURE_GATES` nor `BO_AGENT_EPIC_GATES` is `1` | `bd list --include-gates --ready --type gate --limit 0 --json` → `.id`; the tier is `gateTierOf`, never a key | see the gate rows below |
-| 2 | capacity check | `$BO_AGENT_COMMAND agents --json`, background sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled` |
+| 1 | **dispatch any ready gate its tier flag opens** — `dispatchReadyGates`, before a single ticket is claimed. Returns at once when neither `SF_AGENT_FEATURE_GATES` nor `SF_AGENT_EPIC_GATES` is `1` | `bd list --include-gates --ready --type gate --limit 0 --json` → `.id`; the tier is `gateTierOf`, never a key | see the gate rows below |
+| 2 | capacity check | `$SF_AGENT_COMMAND agents --json`, background sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled` |
 | 3 | **claim** | `bd ready --claim --json` — atomic: assignee + `in_progress` + a 5-minute lease | `bd-failure`; an empty answer is a waiting line, not an error |
 | 4 | match labels against the `AGENT` map — **exactly one** may match | `.[0].labels` | `label-ambiguous`, left claimed |
 | 5 | derive the branch and the PR target off the **id** | `resolveTicketBranches <id>` — `splitTowerId` reads `<repo>-<kind>-<uuid>-<hierarchy>` off the right; the uuid names the tower, the kind word swapped to `feature` with the hierarchy cut at the last dot is the feature gate whose `branch` the work lands on, the kind word swapped to `epic` at hierarchy `0` the epic gate whose `branch` is `prTarget`; `prTarget` is `main` when the owner is the epic gate itself. Nothing is walked and no key on the ticket is read | `no-epic-gate ticket=…` (id does not read the grammar · `step=not-below-a-gate` · `gate=<the epic it names>`), `gate-unworkable ticket=…` (`owner-carries-no-branch` · `epic-carries-no-branch`), left claimed |
-| 6 | one pair of hands per branch | is `branch` in the busy set? | `bd unclaim`, try the next claim, at most `BO_MAX_PARALLEL + 2` attempts a tick |
+| 6 | one pair of hands per branch | is `branch` in the busy set? | `bd unclaim`, try the next claim, at most `SF_MAX_PARALLEL + 2` attempts a tick |
 | 7 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
 | 8 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
-| 9 | spawn | `$BO_AGENT_COMMAND --bg --agent <plugin>:<agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
+| 9 | spawn | `$SF_AGENT_COMMAND --bg --agent <plugin>:<agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
 | 10 | one log line, move on | `logTo claims \"reason=dispatched\"` | — |
 
 **The gate half of the tick** (`dispatchOneGate`, step 1) is the only place a worker is spawned without a
@@ -131,8 +131,8 @@ itself, never closes a ticket, and never derives an agent name from a label. It 
 `bd reclaim`**: a lease that lapses leaves its ticket parked `in_progress`, off the frontier — sweeping
 claims back is the supervisor's job, not the loop's.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh "Source — CLI/beads-loop.sh"
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/.claude/design.yaml "Source — the design model"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/beads-loop.sh "Source — CLI/beads-loop.sh"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/.claude/design.yaml "Source — the design model"
     }
 
     agentMap = noteDoc "The AGENT map — the only label→worker binding" {
@@ -166,36 +166,36 @@ labelled with its category matches nothing. There is no merge label at either ti
 feature or an epic, each branch is merged by the **lead agent** standing on the gate above it, and the
 lead agent is reached by the gate dispatch, not by a key of this map.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh#L20-L30 "Source — beads-loop.sh lines 20–30"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/beads-loop.sh#L20-L30 "Source — beads-loop.sh lines 20–30"
     }
 
-    spawnEnv = knobPanel "BO_* — the environment the spawn carries" {
-      summary "The eight BO_ variables the spawn carries, which tell both hooks what to finish."
+    spawnEnv = knobPanel "SF_* — the environment the spawn carries" {
+      summary "The eight SF_ variables the spawn carries, which tell both hooks what to finish."
       description """
-Set on the `$BO_AGENT_COMMAND --bg` line and nothing else: this is how the hooks know which ticket to finish
+Set on the `$SF_AGENT_COMMAND --bg` line and nothing else: this is how the hooks know which ticket to finish
 and what to say about it. Without them the worker just stops and its ticket sits `in_progress`.
 
 | Var | Value | Who reads it |
 |---|---|---|
-| `BO_TICKET` | `the back-end ticket` | both hooks — and it is the **only** test that tells a dispatched worker from any other session in any other project |
-| `BO_BRANCH` | `feature/add-record` | Stop hook: commit here, push here, refuse if `git branch --show-current` disagrees |
-| `BO_PR_TARGET` | `epic/record-box`, or `main` at the epic tier | Stop hook: the target of this branch's PR — derived off the ticket's id by the loop, carried through the claims line as `target=` |
-| `BO_AGENT` | `engineer`, or `lead` on a gate dispatch | both hooks, so an alarm names who was doing the work |
-| `BO_LABEL` | `backend-logic`, or `gate:<tier>` on a gate dispatch | both hooks, so an alarm names what chose that worker |
-| `BO_PROJECT_DIR` | the tower root, where `.beads` lives | both hooks — **the worktree is not the tower** |
-| `BO_LOG_DIR` | this run's log dir | both hooks: alarms land in `$BO_LOG_DIR/errors` |
-| `BO_DONE_FILE` | `$BO_LOG_DIR/done-<ticket with / to +>` | the worker touches it; the Stop hook is fail-closed on it |
+| `SF_TICKET` | `the back-end ticket` | both hooks — and it is the **only** test that tells a dispatched worker from any other session in any other project |
+| `SF_BRANCH` | `feature/add-record` | Stop hook: commit here, push here, refuse if `git branch --show-current` disagrees |
+| `SF_PR_TARGET` | `epic/record-box`, or `main` at the epic tier | Stop hook: the target of this branch's PR — derived off the ticket's id by the loop, carried through the claims line as `target=` |
+| `SF_AGENT` | `engineer`, or `lead` on a gate dispatch | both hooks, so an alarm names who was doing the work |
+| `SF_LABEL` | `backend-logic`, or `gate:<tier>` on a gate dispatch | both hooks, so an alarm names what chose that worker |
+| `SF_PROJECT_DIR` | the tower root, where `.beads` lives | both hooks — **the worktree is not the tower** |
+| `SF_LOG_DIR` | this run's log dir | both hooks: alarms land in `$SF_LOG_DIR/errors` |
+| `SF_DONE_FILE` | `$SF_LOG_DIR/done-<ticket with / to +>` | the worker touches it; the Stop hook is fail-closed on it |
 
-`BO_LOG_QUIET=1` is set by the hooks before they source the line format: a hook must never print
+`SF_LOG_QUIET=1` is set by the hooks before they source the line format: a hook must never print
 into a session. The dispatcher leaves it unset, so its own lines also go to the terminal.
 
 **The tenth argument, `kind`, is not an environment variable.** `spawnWorker` takes it as `${10:-task}` and
 writes it into the dispatch context file beside the other eight — `ticket branch pr_target agent label tower
-done_file kind` — and the Stop hook reads it back as `BO_WORK_KIND="${claimKind:-${kind:-task}}"`, off the
+done_file kind` — and the Stop hook reads it back as `SF_WORK_KIND="${claimKind:-${kind:-task}}"`, off the
 claims line first and the context file only as a fallback. It is the only thing that tells the hook it is
 finishing a **gate** rather than a task.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh#L525-L545 "Source — beads-loop.sh lines 525–545"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/beads-loop.sh#L525-L545 "Source — beads-loop.sh lines 525–545"
     }
 
     claim = cliTool "bd ready --claim — the hand that takes one ticket" {
@@ -208,7 +208,7 @@ same statement, stamps an assignee, moves it to `in_progress`, and starts a **fi
 | Property | Consequence |
 |---|---|
 | atomic | a bare `bd ready` is a peek, not a take — two loops reading with it would both work the same ticket |
-| one ticket per call | the tick loops: claim, work it or put it back, claim again — at most `BO_MAX_PARALLEL + 2` times a tick |
+| one ticket per call | the tick loops: claim, work it or put it back, claim again — at most `SF_MAX_PARALLEL + 2` times a tick |
 | an **empty** answer is not an error | that is a waiting line: `frontier_empty` if nothing is waiting elsewhere, `tower_stalled waiting=N` if work exists behind a blocker |
 | the lease is the only watchdog | a lapsed lease parks the ticket `in_progress` and off the frontier — nothing in this plugin runs `bd reclaim`, so sweeping claims back is a human's act |
 | `bd unclaim` puts a claim back | the loop does it exactly twice: the branch is already at work, or the spawn died |
@@ -223,12 +223,12 @@ title, description, notes — the loop never reads.
 loop moves it to `in_progress` itself with `bd update <gate> --status in_progress --if-status open`, which is
 step 1 of the tick and the only claim in the system made by status.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/beads-loop.sh "Source — CLI/beads-loop.sh"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/beads-loop.sh "Source — CLI/beads-loop.sh"
     }
 
   }  // machine
 
-  logRun = logStore "~/.binary-obelisk/logs/<date>_<time> — one dir per run" {
+  logRun = logStore "~/.spider-factory/logs/<date>_<time> — one dir per run" {
     summary "One timestamped directory per run, holding every file that run writes."
     description """
 **What it is:** the central home for everything a run leaves behind. The engine seeds **six** files up
@@ -255,7 +255,7 @@ names the ticket, label, agent, branch, target, repo and session, and the same k
 CLAIMS   2026-11-04T09:12:03\trun=2026-11-04_09-12-01 repo=/home/dev/record-box ticket=back-end label=backend-logic agent=engineer branch=feature/add-record target=epic/record-box session=287d3c4c worktree=/home/dev/record-box/.claude/worktrees/feature+add-record reason=dispatched
 ```
 """
-    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/loop-log.sh "Source — CLI/loop-log.sh"
+    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/loop-log.sh "Source — CLI/loop-log.sh"
 
     fClaims = logFile "claims" {
       summary "Every ticket taken, and every one put back."
@@ -281,7 +281,7 @@ per reason, an error never is.
     fWaiting = logFile "waiting" {
       summary "The quiet ticks, one line a minute per reason."
       description """
-The quiet ticks, **one a minute per reason** (`60 / BO_POLL_S` ticks), each carrying
+The quiet ticks, **one a minute per reason** (`60 / SF_POLL_S` ticks), each carrying
 `working=<busy sessions>` and `next=<the id a bare bd ready would name>`.
 """
     }
@@ -302,7 +302,7 @@ The StopFailure hook's account of a session that died mid-turn: `from=<state> ki
     fResults = logFile "results" {
       summary "The run's tally of ticks, claims and tickets closed, at the ticket cap or on Ctrl-C."
       description """
-The run's tally — `ticks=N claimed=M done=K` — at `BO_MAX_TICKETS`, or on Ctrl-C (`onInterrupt`). The cap line
+The run's tally — `ticks=N claimed=M done=K` — at `SF_MAX_TICKETS`, or on Ctrl-C (`onInterrupt`). The cap line
 carries a `note=` saying the run was configured to end there; the Ctrl-C line does not, so the two are
 told apart without guessing. `done=K` is the count off this run's `closes` file.
 """
@@ -317,7 +317,7 @@ Stderr of the last `bd ready --claim`, captured on the claim line itself; its la
     fClaudeStderr = logFile "claude-stderr" {
       summary "Stderr of the last capacity count."
       description """
-Stderr of the last `$BO_AGENT_COMMAND agents --json` capacity count.
+Stderr of the last `$SF_AGENT_COMMAND agents --json` capacity count.
 """
     }
     fSpawn = logFile "spawn-<ticket>" {
@@ -331,7 +331,7 @@ only for the run's final worker — the one thing a human needs to attach to, re
     fDone = logFile "done-<ticket>" {
       summary "The worker's own marker saying its brief is complete; the Stop hook is fail-closed on it."
       description """
-The worker's own declaration that its brief is complete, created by `touch \"$BO_DONE_FILE\"` as its very
+The worker's own declaration that its brief is complete, created by `touch \"$SF_DONE_FILE\"` as its very
 last action. The engine `rm -f`s it before spawning, so a marker can only mean *this* session; the Stop
 hook refuses to land anything without it.
 """
@@ -342,11 +342,11 @@ hook refuses to land anything without it.
     summary "The closer: commit, push, the branch's pull request, close — and it refuses sixteen ways first."
     description """
 **What it is:** the closer. Registered in `hooks/hooks.json` on the `Stop` event with `timeout: 300`, so it
-fires in **every session of every project** the plugin is enabled in — `BO_TICKET` is what tells a dispatched
+fires in **every session of every project** the plugin is enabled in — `SF_TICKET` is what tells a dispatched
 worker apart from everything else, and a session the loop did not spawn leaves on the first line.
 
 ```
-worker says it is done → `bo commit` onto its feature's branch → push → the branch's PR →
+worker says it is done → `sf commit` onto its feature's branch → push → the branch's PR →
 write the PR url onto the ticket's pr metadata → close it
 ```
 
@@ -356,18 +356,18 @@ no marker, no commit, no push, no PR, no close.
 
 **The commit is the worker's own command, not a private one:** `stageTheWork` first asks whether anything is
 left to land — usually the worker committed it all as it went, and then nothing is — and `commitTheTask` runs
-`bo commit` in the worktree with the ticket's title and a `Ticket:` line as the message, so a task's last
+`sf commit` in the worktree with the ticket's title and a `Ticket:` line as the message, so a task's last
 commit is the same shape as all the others. `git diff --cached --quiet` proving the index came back clean is
 what `reason=commit-failed` means. The hook then pushes for itself: cheap when the branch is current, and it
 is the hook's own guarantee that the branch is on the forge before a PR is opened off it — which is why
-`reason=push-failed` is a separate alarm from `reason=commit-failed`. `bo` is in `requireTools` for this
-reason; `reason=missing-tool tool=bo` is the alarm when the CLI is not installed.
+`reason=push-failed` is a separate alarm from `reason=commit-failed`. `sf` is in `requireTools` for this
+reason; `reason=missing-tool tool=sf` is the alarm when the CLI is not installed.
 
 **One branch, one pull request, forever:** the branch's first task creates the PR, and every later task finds
 it by `gh pr list --head <branch> --base <target> --state open` and reuses it — which is why the branch, not
 the ticket, is the identity of the work.
 
-**Two paths, decided by one key.** Everything above the `BO_WORK_KIND` test is shared: guard, marker, branch,
+**Two paths, decided by one key.** Everything above the `SF_WORK_KIND` test is shared: guard, marker, branch,
 commit, push, forge. A claim whose `kind=gate` (read off the dispatched claims line, falling back to the
 context file, defaulting to `task`) then takes a different road: it looks the branch's PR up **at any state**
 — `gh pr list … --state all` / `glab mr list … --all`, not `--state open` — because the lead agent has just
@@ -377,7 +377,7 @@ the gate with the url, closes the **gate** as its claimant, writes `closes url=�
 context file and exits. **It never opens a new PR on the gate path** — the lead agent merged the branch
 through the forge, and a second PR off a merged branch is a lie about work nobody did.
 """
-    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/hooks/worker-stop.sh "Source — hooks/worker-stop.sh"
+    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/hooks/worker-stop.sh "Source — hooks/worker-stop.sh"
   }
 
   failHook = hook "worker-fail.sh — the StopFailure hook" {
@@ -402,8 +402,8 @@ inference, typically an `API Error:` line from the proxy). The reason is written
 a ticket parked in failure with nothing said about why is worse than one left `in_progress`. Every step is
 *attempted, never forced*: one that fails leaves the ticket exactly where it was and logs why.
 """
-    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/hooks/worker-fail.sh "Source — hooks/worker-fail.sh"
-    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/hooks/hooks.json "Source — hooks/hooks.json (Stop 300 s, StopFailure 60 s)"
+    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/hooks/worker-fail.sh "Source — hooks/worker-fail.sh"
+    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/hooks/hooks.json "Source — hooks/hooks.json (Stop 300 s, StopFailure 60 s)"
   }
 
   beads = beadsStore "beads DB (bd) — the tower" {
@@ -417,7 +417,7 @@ that read and write it are in the toolbelt; what lives here is the **state**, an
 
 | Fact | Where it lives | Who reads it |
 |---|---|---|
-| `branch` | on a **gate only** — the epic gate and each feature gate carry their own, written once by the `plan-*` agent that owns the tier. No task, suite or review carries one | the loop, through `readFieldOf <gate> branch`, on the gate the ticket's id names — then handed down as `BO_BRANCH`; nothing parses text for it |
+| `branch` | on a **gate only** — the epic gate and each feature gate carry their own, written once by the `plan-*` agent that owns the tier. No task, suite or review carries one | the loop, through `readFieldOf <gate> branch`, on the gate the ticket's id names — then handed down as `SF_BRANCH`; nothing parses text for it |
 | `pr` | the url, written by the loop (onto the epic gate) or the Stop hook (onto any ticket whose work landed) — never by a plan agent | a human, and the hook when it looks for the PR already on a branch |
 
 **Everything else about a ticket's git world is derived, never stored.** An id reads
@@ -439,8 +439,8 @@ leaves it claimed on purpose. Every id comes out of `CLI/create-beads/create-gat
 **accepts it silently and then refuses it**, so a broken gate and a working one look identical. Check
 `bd types` before you trust one.
 """
-    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/skills/bead-initialize/SKILL.md "Source — the bead-initialize skill"
-    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/.claude/design.yaml "Source — the design model"
+    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/skills/bead-initialize/SKILL.md "Source — the bead-initialize skill"
+    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/.claude/design.yaml "Source — the design model"
   }
 
   forge = forge "origin — GitHub or GitLab" {
@@ -456,7 +456,7 @@ actually publishes, because only GitHub serves `refs/pull/` and only GitLab serv
 Where all three are ambiguous the hook refuses to guess and logs `forge-unknown` — a wrong guess pushes
 a branch to the wrong forge.
 """
-    link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/CLI/forge.sh "Source — CLI/forge.sh"
+    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/forge.sh "Source — CLI/forge.sh"
   }
 
   toolbelt = layer "The commands the loop shells out to" {
@@ -491,19 +491,19 @@ an unregistered type, it **accepts and hides it**, so a broken gate and a workin
 """
     }
 
-    claudeCli = cliTool "$BO_AGENT_COMMAND (claude) — the command every agent runs through" {
+    claudeCli = cliTool "$SF_AGENT_COMMAND (claude) — the command every agent runs through" {
       summary "The one command every agent runs through: the worker spawn, the worker count, and the three planners."
       description """
-`BO_AGENT_COMMAND`, default `claude` — the one command every agent in the system runs through, so
+`SF_AGENT_COMMAND`, default `claude` — the one command every agent in the system runs through, so
 pointing it at your own build moves all of them. Three uses:
 
-- `$BO_AGENT_COMMAND --bg --agent <agent> --permission-mode bypassPermissions \"<the six rules>\"` —
+- `$SF_AGENT_COMMAND --bg --agent <agent> --permission-mode bypassPermissions \"<the six rules>\"` —
   the worker spawn, run with `cd` **inside** the branch's worktree, and deliberately **no `-w`** —
   `claude --worktree` only ever *creates* one, and this branch already owns its own.
-- `$BO_AGENT_COMMAND agents --json` — the capacity count, recounted fresh every tick: background
+- `$SF_AGENT_COMMAND agents --json` — the capacity count, recounted fresh every tick: background
   sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower.
-- `$BO_AGENT_COMMAND --agent <planner> \"<prompt>\"` — the three plan agents, foreground, through
-  `CLI/plan-agent.sh`, which is what `bo plan:epic`, `bo plan:feature` and `bo plan:task` run.
+- `$SF_AGENT_COMMAND --agent <planner> \"<prompt>\"` — the three plan agents, foreground, through
+  `CLI/plan-agent.sh`, which is what `sf plan:epic`, `sf plan:feature` and `sf plan:task` run.
 
 It is split on spaces, so it may carry its own arguments, and its first word is what the startup check
 looks for on the PATH.
@@ -527,8 +527,8 @@ The loop owns the folders, because a worktree belongs to a **branch**, not to a 
 - `git -C <tower> fetch --quiet origin` before each lookup, and the loop's one push —
   `git -C <tower> push --quiet origin <start>:refs/heads/<gateBranch>`, publishing an epic branch that has none.
 - **Nothing else here commits.** `git add -A`, `git commit -m \"agent:branch:message\"` and
-  `git push -u origin <branch>` all live inside `bo commit` (`CLI/commit.sh`) — the only way anything
-  commits in this plugin. The agent is `BO_AGENT`, `manual` when a person typed it; the branch is
+  `git push -u origin <branch>` all live inside `sf commit` (`CLI/commit.sh`) — the only way anything
+  commits in this plugin. The agent is `SF_AGENT`, `manual` when a person typed it; the branch is
   `git symbolic-ref --short HEAD`, and a detached HEAD is refused because a branch it cannot name is a
   subject it cannot write.
 """
@@ -558,9 +558,9 @@ git -C <tower> fetch --quiet origin    before each lookup
 ```
 
 A feature branch starts where it is going to land. The worker is spawned with its cwd **inside** this folder,
-and it lands its own finished pieces here as it goes — `bo commit`, one commit per piece (the rule is on the
+and it lands its own finished pieces here as it goes — `sf commit`, one commit per piece (the rule is on the
 workers layer) — never a bare `git commit` or `git push`, never a branch of its own, so two hands never write
-one branch. The tower root (where `.beads` lives) is `BO_PROJECT_DIR`: **the worktree is not the tower**.
+one branch. The tower root (where `.beads` lives) is `SF_PROJECT_DIR`: **the worktree is not the tower**.
 """
     }
 
@@ -576,7 +576,7 @@ human reads the worker's report, verifies the branch and the PR, and closes the 
 `human` agent** — the person enters through gates, and nothing is ever spawned for them. A claimable ticket
 assigned to a human is a model bug.
 
-Both gates are the human's by default: `BO_AGENT_FEATURE_GATES=0` and `BO_AGENT_EPIC_GATES=0`, and a gate stays
+Both gates are the human's by default: `SF_AGENT_FEATURE_GATES=0` and `SF_AGENT_EPIC_GATES=0`, and a gate stays
 open until someone verifies it. Setting a tier's flag to `1` hands *that* tier to the **lead agent**, which the
 loop spawns for a ready gate and whose Stop hook closes it — the other tier is still the human's, which is why
 there are two switches and not one. The two are not the same amount of trust: a feature gate merges one flow
@@ -602,14 +602,14 @@ the pull request: the ticket is where a worker leaves what the next reader canno
 **The contract is in the agent file.** Every tower agent carries a `## The contract` section — keep the
 five-minute lease alive with `bd heartbeat <ticket>` between long steps, never close your own ticket (the Stop
 hook closes it once you declare done, and a ticket already closed makes the hook walk past it, landing nothing),
-write what remains as a comment, spawn nothing, and `touch $BO_DONE_FILE` as the very last action and only
+write what remains as a comment, spawn nothing, and `touch $SF_DONE_FILE` as the very last action and only
 when the brief is genuinely complete. The `lead` agent states the same rules inside its own steps and hard
 rules rather than in a section of that name — `bd heartbeat <gate>`, never `bd close` not even its own, spawn
-nothing, `touch $BO_DONE_FILE` last. No skill holds these rules; the loop's spawn prompt repeats them, which is the
+nothing, `touch $SF_DONE_FILE` last. No skill holds these rules; the loop's spawn prompt repeats them, which is the
 safety net for a worker run outside the loop.
 
 **The five that build, commit as they go.** `engineer`, `frontend`, `tester-unit`, `tester-feature` and
-`tester-e2e` each carry a `## Commit As You Go` section running `BO_AGENT=<agent> bo commit <what you just
+`tester-e2e` each carry a `## Commit As You Go` section running `SF_AGENT=<agent> sf commit <what you just
 did>` after every major change that stands on its own — one commit per piece, so the pull request shows the
 work as it happens instead of one blob at the end. The name is passed rather than inherited, so a worker run
 outside the loop still commits named for itself. `lead` and `review` have no such section: `review` commits
@@ -621,7 +621,7 @@ nothing at all, and the lead commits only what it had to resolve where the targe
 **Label `backend-logic` → `engineer`.** Business logic, endpoints, hooks, types, error factories.
 Never writes tests, JSX or CSS. Skills: `bead-read` and the four standards; the worker contract lives in the agent file itself.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/engineer.md "Source — agents/engineer.md"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/engineer.md "Source — agents/engineer.md"
     }
     testerUnit = worker "tester-unit" {
       summary "Micro tier: one back-end function alone — every branch, boundary and error it throws."
@@ -630,7 +630,7 @@ Never writes tests, JSX or CSS. Skills: `bead-read` and the four standards; the 
 boundary, empty/null, every error it throws. Never a component: the UI is proved by the composition tier.
 Waits on the back-end ticket it tests. Skill: `framework-jest`.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/tester-unit.md "Source — agents/tester-unit.md"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/tester-unit.md "Source — agents/tester-unit.md"
     }
     frontend = worker "frontend" {
       summary "Components, layout and styling, last in the line against functions already proved."
@@ -638,7 +638,7 @@ Waits on the back-end ticket it tests. Skill: `framework-jest`.
 **Label `frontend-ui` → `frontend`.** Components, layout, styling, the shared component system. Last in the
 line, built against functions already proved. Its landing is what unblocks `feature-test`.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/frontend.md "Source — agents/frontend.md"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/frontend.md "Source — agents/frontend.md"
     }
     testerFeature = worker "tester-feature" {
       summary "Composition tier: one feature's pieces proved wired, its errors and successes surfacing."
@@ -647,7 +647,7 @@ line, built against functions already proved. Its landing is what unblocks `feat
 errors and successes surface. Never re-runs the micro tier's edge matrix, never walks cross-feature journeys.
 Skill: `framework-playwright`.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/tester-feature.md "Source — agents/tester-feature.md"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/tester-feature.md "Source — agents/tester-feature.md"
     }
     testerE2e = worker "tester-e2e" {
       summary "Broad tier: whole user journeys across features in a real browser on the real stack."
@@ -656,7 +656,7 @@ Skill: `framework-playwright`.
 cross-feature state handoffs, session continuity, one success and one failure journey per feature. The least
 verbose tier. Skill: `framework-playwright`.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/tester-e2e.md "Source — agents/tester-e2e.md"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/tester-e2e.md "Source — agents/tester-e2e.md"
     }
     reviewAgent = worker "review" {
       summary "Three questions from first principles, answered as comments on the pull request."
@@ -668,7 +668,7 @@ instrumented code, posts findings as PR comments. Files no tickets; the trace lo
 Nothing is preloaded — `bead-read`, the standards and `pr-comments` load on demand at the step
 that uses them.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/review.md "Source — agents/review.md"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/review.md "Source — agents/review.md"
     }
     leadAgent = worker "lead" {
       summary "The one worker no label reaches: stands on a gate, proves the tier, merges the branch through the forge."
@@ -690,11 +690,11 @@ Step 1 derived off the gate's own id: the epic gate's `branch`, or `main` when t
 forge does the merge: never a local `git merge` into the target, never a push to the target, never a rebase.
 Where the target moved under the branch it brings the target *into this branch* (`git merge
 origin/<prTarget>`),
-commits the resolution with `bo commit` and pushes, so the PR carries it and the pipeline re-runs. Writes no
+commits the resolution with `sf commit` and pushes, so the PR carries it and the pipeline re-runs. Writes no
 code and no tests; never closes, reopens, unclaims or reclaims a ticket — `bd close` would end the hook before
 it ever ran.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/lead.md "Source — agents/lead.md"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/lead.md "Source — agents/lead.md"
     }
   }
 
@@ -713,7 +713,7 @@ an explicit `--id`, because that id is the only thing the loop reads to find the
 plan agent ever numbers one itself, it runs `CLI/create-beads/create-gate.sh` or `create-task.sh` and passes
 what comes back. Nothing below recomputes a branch, and there is no parent chain to walk.
 
-Each is one foreground command — `bo plan:epic`, `bo plan:feature`, `bo plan:task` — and anything you type
+Each is one foreground command — `sf plan:epic`, `sf plan:feature`, `sf plan:task` — and anything you type
 after it goes to the planner as the prompt. What runs them is on the agent-command node.
 """
     planEpic = planner "plan-epic" {
@@ -729,7 +729,7 @@ The epic's own pull request aims at `main` — that is derived, not written, and
 that reaches `main`. Then three edges: the suite blocks the gate, the review blocks the gate, the review waits
 on the suite. Builds the tower and does no work in it.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/plan-epic.md "Source — agents/plan-epic.md"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/plan-epic.md "Source — agents/plan-epic.md"
     }
     planFeature = planner "plan-feature" {
       summary "An epic into complete user-facing flows, each with its own branch, suite and review."
@@ -746,7 +746,7 @@ the suite and the review each blocking the gate, the review waiting on the suite
 blocking the epic's `epic-e2e-test`, which is what holds the epic tier off the frontier until every feature has
 merged.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/plan-feature.md "Source — agents/plan-feature.md"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/plan-feature.md "Source — agents/plan-feature.md"
     }
     planTask = planner "plan-task" {
       summary "One feature into its tasks, chained one to the next, every one blocking the feature's gate."
@@ -762,7 +762,7 @@ in one linked line, never a fan, and the tail hands to the `feature-test` ticket
 feature in the prompt: `ERROR reason=no-parent-feature`. Every ticket verified with a `bd show --json` round
 trip, its `dependencies` among the fields checked.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/binary-obelisk/agents/plan-task.md "Source — agents/plan-task.md"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/plan-task.md "Source — agents/plan-task.md"
     }
   }
 
@@ -778,7 +778,7 @@ trip, its `dependencies` among the fields checked.
       summary "The epic gate — the what; closed once after the epic review, by a person or by the lead agent."
       description """
 **What it is:** the epic gate — the *what*; closed once, after `epic-review`, by a person, or by the lead agent
-when `BO_AGENT_EPIC_GATES=1`.
+when `SF_AGENT_EPIC_GATES=1`.
 
 ```
 id:       box-epic-7f3a9c-0          ← the kind word says epic, the hierarchy 0 says top of the tower
@@ -962,36 +962,36 @@ closed — by a person, or by the lead agent proving the tier and merging `featu
         #fatal
         summary "A tool the loop needs is not on PATH, so the run exits before its first tick."
         description """
-`requireToolsOnPath` wants `bd jq git` plus the first word of `BO_AGENT_COMMAND`, and `exit 1`s on the first
-one missing. Note the Stop hook has its own list — `bd jq git bo` — shorter because it never spawns a session,
-and carrying `bo` because that is the command it commits with.
+`requireToolsOnPath` wants `bd jq git` plus the first word of `SF_AGENT_COMMAND`, and `exit 1`s on the first
+one missing. Note the Stop hook has its own list — `bd jq git sf` — shorter because it never spawns a session,
+and carrying `sf` because that is the command it commits with.
 """
       }
-      knobNotNumeric = alarm "startup: BO_<VAR>=<x> is not a number" {
+      knobNotNumeric = alarm "startup: SF_<VAR>=<x> is not a number" {
         #fatal
         summary "A numeric knob was set to something that is not a number, so the run refuses to start."
         description """
-`BO_MAX_PARALLEL`, `BO_POLL_S` or `BO_MAX_TICKETS` set to anything but digits. There is no defaulting silently:
+`SF_MAX_PARALLEL`, `SF_POLL_S` or `SF_MAX_TICKETS` set to anything but digits. There is no defaulting silently:
 a knob typed wrong would otherwise change how many workers run unattended.
 """
       }
-      gateFlagNotASwitch = alarm "startup: BO_AGENT_<TIER>_GATES=<x> is not a switch" {
+      gateFlagNotASwitch = alarm "startup: SF_AGENT_<TIER>_GATES=<x> is not a switch" {
         #fatal
         summary "A gate tier switch is neither 0 nor 1, so the run refuses to guess who closes that tier's gate."
         description """
-`BO_AGENT_FEATURE_GATES` and `BO_AGENT_EPIC_GATES` are switches, not numbers: `0` means a person closes that
+`SF_AGENT_FEATURE_GATES` and `SF_AGENT_EPIC_GATES` are switches, not numbers: `0` means a person closes that
 tier's gate, `1` means the lead agent does. Anything else — `true`, `yes`, `2` — prints the flag with both
 meanings and exits 1. Checked after the numeric knobs, before the poll interval; unset is `0`, so this is always
 a value somebody typed. There is no defaulting here either: a value read loosely would silently hand a tier's
 merges to a machine, or silently withhold them from it.
 """
       }
-      pollUnusable = alarm "startup: BO_POLL_S=<x> is unusable — it must divide 60" {
+      pollUnusable = alarm "startup: SF_POLL_S=<x> is unusable — it must divide 60" {
         #fatal
         summary "The poll interval does not divide 60, so the waiting-line cadence would be a lie."
         description """
 The permitted list is printed: `1 2 3 4 5 6 10 12 15 20 30 60`. It must divide 60 because the waiting lines are
-rate-limited at one per minute — `60 / BO_POLL_S` ticks — and a poll that does not divide the minute makes that
+rate-limited at one per minute — `60 / SF_POLL_S` ticks — and a poll that does not divide the minute makes that
 cadence a lie.
 """
       }
@@ -1001,18 +1001,18 @@ cadence a lie.
         description """
 `bd list --limit 1 --json` must answer an **array**. It is a real probe of \"can we do anything here\", not a
 check for a `.beads` folder — `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the
-environment does not save a wrong directory. `bo` runs the same probe before it even starts the engine.
+environment does not save a wrong directory. `sf` runs the same probe before it even starts the engine.
 """
       }
       logDirUnwritable = alarm "startup: cannot create <dir>" {
         #fatal
         summary "The run's log directory cannot be created, so the run could never raise an alarm."
         description """
-`mkdir -p $BO_LOG_ROOT/<timestamp>` failed. Fatal on purpose: a run that cannot write its logs cannot raise an
+`mkdir -p $SF_LOG_ROOT/<timestamp>` failed. Fatal on purpose: a run that cannot write its logs cannot raise an
 alarm, and a silent dispatcher is the one thing this design refuses to be.
 """
       }
-      labelsStarved = alarm "not fatal: BO_ALLOWED_LABELS names nothing the map holds" {
+      labelsStarved = alarm "not fatal: SF_ALLOWED_LABELS names nothing the map holds" {
         #fatal
         summary "The allowed labels name nothing the map holds: not fatal, but the tower never moves."
         description """
@@ -1083,7 +1083,7 @@ with no `branch` is a plan bug, and the loop never guesses one to cover it.
         summary "This ticket's branch is already at work: put the claim back, try the next one."
         description """
 The branch this ticket wants is already checked out by a worker: `bd unclaim`, remember the ticket id in
-`skippedTicket`, try the next claim — at most `BO_MAX_PARALLEL + 2` attempts a tick, then the waiting line
+`skippedTicket`, try the next claim — at most `SF_MAX_PARALLEL + 2` attempts a tick, then the waiting line
 `branch_busy held=N`. One pair of hands per branch.
 
 This is the **fallback**, not the mechanism: the graph already makes a feature one linked line, so the frontier
@@ -1167,7 +1167,7 @@ and the worker **is** spawned: nothing was deleted, and the kept folder is named
         #unclaimed
         summary "The spawn came back failed; the one alarm that puts the ticket straight back."
         description """
-`$BO_AGENT_COMMAND --bg` came back non-zero; the last line of that worker's `spawn-<ticket>` file is quoted in `msg=`.
+`$SF_AGENT_COMMAND --bg` came back non-zero; the last line of that worker's `spawn-<ticket>` file is quoted in `msg=`.
 `bd unclaim` — unlike every other tick alarm, this one puts the ticket **straight back**, because nothing was
 ever spawned to work it and the next tick may well succeed.
 
@@ -1197,10 +1197,10 @@ parked gate is no longer `open`, so it drops out of the ready-gate list and wait
       summary "Everything the Stop hook refuses, in code order: fail-closed, ticket untouched."
       missingToolHook = alarm "ERROR reason=missing-tool tool=<t>" {
         #staysClaimed
-        summary "bd, jq, git or bo is missing; checked before anything else the hook does."
+        summary "bd, jq, git or sf is missing; checked before anything else the hook does."
         description """
-`bd`, `jq`, `git` or `bo` missing — checked before anything else the hook does, but after the `BO_TICKET`
-guard, so a session the loop never spawned still exits on line one. `bo` is there because the hook commits
+`bd`, `jq`, `git` or `sf` missing — checked before anything else the hook does, but after the `SF_TICKET`
+guard, so a session the loop never spawned still exits on line one. `sf` is there because the hook commits
 through it, and the CLI is installed before any worker ever runs.
 """
       }
@@ -1225,16 +1225,16 @@ anything else (`not-found`, `open`) is an alarm.
         #staysClaimed
         summary "The spawn carried no branch, so the hook refuses to file work anywhere."
         description """
-`BO_BRANCH` was not on the spawn line — so the loop never got as far as deriving the branch off the ticket's id.
+`SF_BRANCH` was not on the spawn line — so the loop never got as far as deriving the branch off the ticket's id.
 """
       }
       noPrTarget = alarm "ERROR reason=no-pr-target" {
         #staysClaimed
         summary "The spawn carried no pull-request target, so the hook refuses to aim blind."
         description """
-`BO_PR_TARGET` was not on the spawn. The loop derived that
+`SF_PR_TARGET` was not on the spawn. The loop derived that
 target off the ticket's epic gate — the gate its uuid names, `main` when the owner is the epic gate
-itself — and carried it through the claims line as `target=` and the spawn as `BO_PR_TARGET`; the hook reads the
+itself — and carried it through the claims line as `target=` and the spawn as `SF_PR_TARGET`; the hook reads the
 claims line first and the spawn variable after it. An absent target means the hook would be aiming blind, and it
 refuses to.
 """
@@ -1243,7 +1243,7 @@ refuses to.
         #staysClaimed
         summary "The worker never touched its done marker: no commit, no push, no pull request, no close."
         description """
-**The gate.** `$BO_DONE_FILE` does not exist: the session ended without saying, out loud, in the one place both
+**The gate.** `$SF_DONE_FILE` does not exist: the session ended without saying, out loud, in the one place both
 programs read, that its brief is finished. The session ending is not that statement — the marker is.
 
 No commit, no push, no PR, no close. The ticket stays claimed so its lease parks it off the frontier and every
@@ -1257,7 +1257,7 @@ the marker early files half a task onto a branch its siblings are queued behind.
         summary "The worker changed branch anyway, so the hook will not file its work under this ticket."
         description """
 The worker was told never to change branches; if it did anyway, this is the last place that can refuse to file
-its work under the wrong ticket's name. `git branch --show-current` must equal `BO_BRANCH` exactly — a detached
+its work under the wrong ticket's name. `git branch --show-current` must equal `SF_BRANCH` exactly — a detached
 tree reads as `got=\"detached\"`.
 """
       }
@@ -1282,7 +1282,7 @@ on to push, PR and close), so this is a genuine commit failure, not an empty tre
         #staysClaimed
         summary "Pushing the branch to the remote failed; its output is quoted on the line."
         description """
-`git push -u origin <BO_BRANCH>` failed; the first 160 characters of its output are the `msg=`.
+`git push -u origin <SF_BRANCH>` failed; the first 160 characters of its output are the `msg=`.
 """
       }
       forgeUnknown = alarm "ERROR reason=forge-unknown remote=<url>" {
@@ -1353,7 +1353,7 @@ this one, so the hook deliberately passes the real `session_id` rather than over
       ticketNotFoundFail = alarm "ERROR reason=ticket-not-found" {
         summary "The ticket the spawn named is gone or not in progress; the hook leaves it alone."
         description """
-`bd show --json` for `BO_TICKET` returned no state at all. Anything not `in_progress` (already parked, already
+`bd show --json` for `SF_TICKET` returned no state at all. Anything not `in_progress` (already parked, already
 shipped) is somebody else's business and the hook leaves silently — a dead session must not rewrite a ticket
 another worker owns.
 """
@@ -1436,7 +1436,7 @@ tier behind it simply waits. An alarm would fire every tick forever; this is a l
       #idle
       summary "The cap is reached and tickets are in progress, so this tick claims nothing."
       description """
-`BO_MAX_PARALLEL` background sessions are already alive and N tickets are in progress — the workers are working,
+`SF_MAX_PARALLEL` background sessions are already alive and N tickets are in progress — the workers are working,
 so the tick simply does not claim.
 """
     }
@@ -1445,7 +1445,7 @@ so the tick simply does not claim.
       summary "At capacity with nothing in progress: the counted workers are ghosts."
       description """
 At capacity with **nothing in progress**: the slots are ghosts — sessions counted busy whose tickets are gone. The
-count comes fresh from `$BO_AGENT_COMMAND agents --json` every tick precisely so this state is visible rather than silent.
+count comes fresh from `$SF_AGENT_COMMAND agents --json` every tick precisely so this state is visible rather than silent.
 """
     }
   }

@@ -72,16 +72,16 @@ Read `issue_type` and the graph for what a ticket *is*; read the id for where it
 
 ## The two id generators
 
-`CLI/create-beads/` holds the only two things in this system that decide a number. Both print **one id on
+`CLI/src/create-beads/` holds the only two things in this system that decide a number. Both print **one id on
 stdout and nothing else**; every failure writes to stderr, prints nothing on stdout, and exits non-zero — so a
 failed run can never feed a half id into a `bd create` command line. Run them from inside the tower.
 
 ```bash
-EPIC=$(CLI/create-beads/create-gate.sh foobar)                    # foobar-epic-a7f3c9-0
-FEAT=$(CLI/create-beads/create-gate.sh foobar "$EPIC")            # foobar-feature-a7f3c9-1
-SUITE=$(CLI/create-beads/create-task.sh foobar "$FEAT" suite)     # foobar-task-a7f3c9-1.1
-REVIEW=$(CLI/create-beads/create-task.sh foobar "$FEAT" review)   # foobar-task-a7f3c9-1.2
-TASK=$(CLI/create-beads/create-task.sh foobar "$FEAT")            # foobar-task-a7f3c9-1.3
+EPIC=$(CLI/src/create-beads/create-gate.sh foobar)                    # foobar-epic-a7f3c9-0
+FEAT=$(CLI/src/create-beads/create-gate.sh foobar "$EPIC")            # foobar-feature-a7f3c9-1
+SUITE=$(CLI/src/create-beads/create-task.sh foobar "$FEAT" suite)     # foobar-task-a7f3c9-1.1
+REVIEW=$(CLI/src/create-beads/create-task.sh foobar "$FEAT" review)   # foobar-task-a7f3c9-1.2
+TASK=$(CLI/src/create-beads/create-task.sh foobar "$FEAT")            # foobar-task-a7f3c9-1.3
 ```
 
 | Script | Takes | Prints |
@@ -190,7 +190,7 @@ and beads then refuses the `blocks` edge that would have made it real.
 | `-f`, `--file <file.md>` | creates many issues from one markdown file | one `## Heading` + body per issue; prints every id |
 | `--dry-run` | shows what would be created, writes nothing | the cheap way to check your flags before you commit a row |
 | `--json` | machine-readable output | pair with `jq` |
-| `--id <id>` | explicit id instead of an assigned one | **every ticket in a tower needs one, and it comes from a generator** — `CLI/create-beads/create-gate.sh` or `create-task.sh`, never typed by hand. A flat id reaches no gate and the loop refuses it. Must match the database prefix or it errors; `--force` overrides |
+| `--id <id>` | explicit id instead of an assigned one | **every ticket in a tower needs one, and it comes from a generator** — `CLI/src/create-beads/create-gate.sh` or `create-task.sh`, never typed by hand. A flat id reaches no gate and the loop refuses it. Must match the database prefix or it errors; `--force` overrides |
 | `--validate` | refuses when the description lacks the sections its type requires | `-t task` demands `## Acceptance Criteria` **in the description** |
 | `--force` | create despite a prefix mismatch | almost never what you meant |
 
@@ -200,7 +200,7 @@ and beads then refuses the `blocks` edge that would have made it real.
 and that alone names the specialist, so a ticket with **zero or two** is left claimed and logged
 `ERROR reason=label-ambiguous`: work that silently never happens.
 
-The dispatchable set is closed and the loop owns it (`CLI/beads-loop.sh`, the `AGENT` map):
+The dispatchable set is closed and the loop owns it (`CLI/src/beads-loop.sh`, the `AGENT` map):
 `backend-logic` · `frontend-ui` · `unit-tests` · `feature-test` · `epic-e2e-test` ·
 `feature-review` · `epic-review`. Anything the map does not name dispatches nothing, however
 plausible it reads. Two things have no label because no label reaches them: **a gate** (the loop dispatches
@@ -315,5 +315,5 @@ isn't there is a ticket that belongs to no tier and blocks nothing.
 
 `bd create` makes rows. It does not order them beyond the edges you pass at create (real ordering is
 `bd dep add <blocked> <blocker> --type blocks`), and it does not claim, unclaim, close or heartbeat —
-`ready --claim`, `update --claim`, `unclaim` and `reclaim` belong to `CLI/beads-loop.sh` and the
+`ready --claim`, `update --claim`, `unclaim` and `reclaim` belong to `CLI/src/beads-loop.sh` and the
 operator alone. A creator's job is finished when the rows exist, carry their keys, and read back right.

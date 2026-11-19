@@ -5,7 +5,7 @@
 # of a tier blocks its gate; the next tier is blocked by the gate itself so the tower stalls until a
 # human closes it; one feature's tasks are one chained line; and every ticket's id reads
 # <repo>-<kind>-<uuid>-<hierarchy>, because that id is the only thing the loop reads to find a branch.
-# Every id here comes out of CLI/create-beads/ and none is typed by hand — a hand-typed id is exactly
+# Every id here comes out of CLI/src/create-beads/ and none is typed by hand — a hand-typed id is exactly
 # the thing the loop refuses.
 #
 # Usage: rm -rf /tmp/sf-tower-walk2 && ./tower-walk.sh   (fresh run)
@@ -14,8 +14,8 @@ set -euo pipefail
 export BD_NO_DEP_TYPE_WARNING=1
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-newGateId="$here/../CLI/create-beads/create-gate.sh"
-newTaskId="$here/../CLI/create-beads/create-task.sh"
+newGateId="$here/../CLI/src/create-beads/create-gate.sh"
+newTaskId="$here/../CLI/src/create-beads/create-task.sh"
 
 root="${1:-/tmp/sf-tower-walk2}"
 walkLog="$root/walk-log.txt"

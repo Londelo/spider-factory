@@ -20,7 +20,7 @@ memory, from an earlier version of the diagram, from a commit message, or from w
 the code says one thing and the diagram says another, **the diagram is wrong** — including when you wrote
 it yesterday.
 
-The files the diagrams describe: `CLI/bin/sf`, `CLI/beads-loop.sh`, `CLI/loop-log.sh`, `CLI/forge.sh`,
+The files the diagrams describe: `CLI/bin/sf`, `CLI/src/beads-loop.sh`, `CLI/src/loop-log.sh`, `CLI/src/forge.sh`,
 `CLI/install-cli.sh`, `hooks/worker-stop.sh`, `hooks/worker-fail.sh`, `hooks/hooks.json`, `agents/*`,
 `skills/*`.
 

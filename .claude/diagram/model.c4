@@ -2,8 +2,8 @@ model {
 
   // ═════════════════════════════════════════════════════════════════════════════
   // THE MACHINE — one command in, background workers out.
-  // Every value here was read off CLI/bin/sf, CLI/beads-loop.sh, CLI/loop-log.sh,
-  // CLI/forge.sh, hooks/worker-stop.sh, hooks/worker-fail.sh, hooks/hooks.json.
+  // Every value here was read off CLI/bin/sf, CLI/src/beads-loop.sh, CLI/src/loop-log.sh,
+  // CLI/src/forge.sh, hooks/worker-stop.sh, hooks/worker-fail.sh, hooks/hooks.json.
   // The cast only: the story is told by the four walkthroughs in views.c4.
   // Rules for editing these files: ./REFERENCE.md — the code is the only source of truth.
   // ═════════════════════════════════════════════════════════════════════════════
@@ -43,7 +43,7 @@ it to get the defaults back. `sf` itself is six commands: `loop`, `plan:epic`, `
     preflight = noteDoc "The checks — everything that must hold before the first tick" {
       summary "The seven checks that must hold before the first tick; six of them refuse the run outright."
       description """
-In the order the code runs them (`CLI/beads-loop.sh` bottom of the file). Six of the seven `exit 1` and no tick
+In the order the code runs them (`CLI/src/beads-loop.sh` bottom of the file). Six of the seven `exit 1` and no tick
 ever happens; a run that cannot report on itself is not a run.
 
 | # | Check | Refuses when |
@@ -59,13 +59,13 @@ ever happens; a run that cannot report on itself is not a run.
 `sf` itself runs check 6 and one before it — `requireEngine`, that `../beads-loop.sh` is actually there — so a
 broken install names itself instead of failing deep in a tick.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/beads-loop.sh#L53-L155 "Source — beads-loop.sh lines 53–155"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/beads-loop.sh#L53-L155 "Source — beads-loop.sh lines 53–155"
     }
 
     knobs = knobPanel "The run's parameters (env, read once at startup)" {
       summary "The run's parameters, read once at startup out of `~/.spider-factory.env`; what you export yourself still wins."
       description """
-Both engines source `CLI/user-env.sh` and call `loadSpiderFactoryEnv` as their first act. It takes only
+Both engines source `CLI/src/user-env.sh` and call `loadSpiderFactoryEnv` as their first act. It takes only
 `SF_*=` lines out of `~/.spider-factory.env` (`CLI/default.env` copied there on install), expands `$HOME` in a
 value, and **exports only what is unset** — so a value you exported yourself still beats the file.
 `SF_ENV_FILE` points it elsewhere, which is the whole test hook; no file at all is a normal state, and
@@ -84,7 +84,7 @@ to be installed, so it and the engines are kept in step by hand.
 | `SF_LOG_ROOT` | `~/.spider-factory/logs` | parent of the one timestamped dir this run writes |
 | `SF_ALLOWED_LABELS` | unset or `*` = the whole AGENT set | a comma list narrows which labels may dispatch |
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/beads-loop.sh#L39-L59 "Source — beads-loop.sh lines 39–59"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/beads-loop.sh#L39-L59 "Source — beads-loop.sh lines 39–59"
     }
 
     dispatcher = dispatcher "beads-loop.sh — the dispatcher" {
@@ -131,7 +131,7 @@ itself, never closes a ticket, and never derives an agent name from a label. It 
 `bd reclaim`**: a lease that lapses leaves its ticket parked `in_progress`, off the frontier — sweeping
 claims back is the supervisor's job, not the loop's.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/beads-loop.sh "Source — CLI/beads-loop.sh"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/beads-loop.sh "Source — CLI/src/beads-loop.sh"
       link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/.claude/design.yaml "Source — the design model"
     }
 
@@ -166,7 +166,7 @@ labelled with its category matches nothing. There is no merge label at either ti
 feature or an epic, each branch is merged by the **lead agent** standing on the gate above it, and the
 lead agent is reached by the gate dispatch, not by a key of this map.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/beads-loop.sh#L20-L30 "Source — beads-loop.sh lines 20–30"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/beads-loop.sh#L20-L30 "Source — beads-loop.sh lines 20–30"
     }
 
     spawnEnv = knobPanel "SF_* — the environment the spawn carries" {
@@ -195,7 +195,7 @@ done_file kind` — and the Stop hook reads it back as `SF_WORK_KIND="${claimKin
 claims line first and the context file only as a fallback. It is the only thing that tells the hook it is
 finishing a **gate** rather than a task.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/beads-loop.sh#L525-L545 "Source — beads-loop.sh lines 525–545"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/beads-loop.sh#L525-L545 "Source — beads-loop.sh lines 525–545"
     }
 
     claim = cliTool "bd ready --claim — the hand that takes one ticket" {
@@ -223,7 +223,7 @@ title, description, notes — the loop never reads.
 loop moves it to `in_progress` itself with `bd update <gate> --status in_progress --if-status open`, which is
 step 1 of the tick and the only claim in the system made by status.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/beads-loop.sh "Source — CLI/beads-loop.sh"
+      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/beads-loop.sh "Source — CLI/src/beads-loop.sh"
     }
 
   }  // machine
@@ -237,7 +237,7 @@ same and neither hides a silent failure — `closes` and `failures` are written 
 long after the run ended. Three more appear as needed (`bd-stderr`, `claude-stderr`) and one pair per
 worker (`spawn-<ticket>`, `done-<ticket>`).
 
-**One line format, sourced by the engine and by both hooks** (`CLI/loop-log.sh`), or the files cannot be
+**One line format, sourced by the engine and by both hooks** (`CLI/src/loop-log.sh`), or the files cannot be
 read against each other:
 
 ```
@@ -255,7 +255,7 @@ names the ticket, label, agent, branch, target, repo and session, and the same k
 CLAIMS   2026-11-04T09:12:03\trun=2026-11-04_09-12-01 repo=/home/dev/record-box ticket=back-end label=backend-logic agent=engineer branch=feature/add-record target=epic/record-box session=287d3c4c worktree=/home/dev/record-box/.claude/worktrees/feature+add-record reason=dispatched
 ```
 """
-    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/loop-log.sh "Source — CLI/loop-log.sh"
+    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/loop-log.sh "Source — CLI/src/loop-log.sh"
 
     fClaims = logFile "claims" {
       summary "Every ticket taken, and every one put back."
@@ -432,8 +432,8 @@ fact that can disagree with the gate that decides it, which is why neither is a 
 made a gate unenforceable: beads refuses a `blocks` edge from an ancestor to its own descendant. With nothing
 to walk, the id is the only thing pointing at a gate — so every ticket of a tower is created with an explicit
 `--id`, and a flat one reaches no gate: the loop refuses it, `ERROR reason=no-epic-gate ticket=<id>`, and
-leaves it claimed on purpose. Every id comes out of `CLI/create-beads/create-gate.sh` or
-`CLI/create-beads/create-task.sh` and never from an eye. A gate is a **custom type** and must be registered
+leaves it claimed on purpose. Every id comes out of `CLI/src/create-beads/create-gate.sh` or
+`CLI/src/create-beads/create-task.sh` and never from an eye. A gate is a **custom type** and must be registered
 (`bd config set types.custom \"gate\"`), as is the parking status
 (`bd config set status.custom \"failed-agent:frozen\"`): `bd` does not reject an unregistered type or status, it
 **accepts it silently and then refuses it**, so a broken gate and a working one look identical. Check
@@ -449,14 +449,14 @@ leaves it claimed on purpose. Every id comes out of `CLI/create-beads/create-gat
 **What it is:** the forge the tower publishes to. `main` at the bottom, one PR per branch above it:
 `feature/<slug>` → PR → the epic branch, `epic/<slug>` → PR → `main`.
 
-**Which forge it is, is settled three ways, in this order** (`detectForge` in `CLI/forge.sh`, used by both the
+**Which forge it is, is settled three ways, in this order** (`detectForge` in `CLI/src/forge.sh`, used by both the
 loop and the Stop hook): an honest host name in the remote URL (`*gitlab*`, `*github*`); then the refs that host
 actually publishes, because only GitHub serves `refs/pull/` and only GitLab serves
 `refs/merge-requests|pipelines|environments/`; then a machine holding **exactly one** of `gh`/`glab`.
 Where all three are ambiguous the hook refuses to guess and logs `forge-unknown` — a wrong guess pushes
 a branch to the wrong forge.
 """
-    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/forge.sh "Source — CLI/forge.sh"
+    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/forge.sh "Source — CLI/src/forge.sh"
   }
 
   toolbelt = layer "The commands the loop shells out to" {
@@ -478,8 +478,8 @@ a branch to the wrong forge.
 | `bd update <id> --status <s> --if-status <from>` | **the gate claim**, and the only conditional write in the system: `moveGateTo <gate> in_progress open` is the take, `moveGateTo <gate> open in_progress` is the put-back, and a non-zero exit (the gate was no longer in `<from>`) is the `gate-claim-lost` alarm. A gate never reaches `bd ready`, so this is the only way it moves |
 | `bd close <id> --session <id> --reason …` | only the Stop hook, only on the done marker — a task or a gate, never by the worker itself |
 | `bd list --include-gates --ready --type gate --limit 0 --json` | the ready gates, `.id` alone — the only listing that shows a gate at all, and the input to `dispatchReadyGates`. The tier is not on the row; `gateTierOf` reads it off the id's kind word |
-| `CLI/create-beads/create-gate.sh <repo> [<epicGateId>]` then `bd create -t gate --id <what it printed> --metadata '{"branch":…}'` | a plan agent mints a gate id and nothing else: no gate id is ever typed. With an epic gate id in hand it numbers the next feature, with none it mints the epic and its one uuid |
-| `CLI/create-beads/create-task.sh <repo> <gateId> [suite\|review]` then `bd create -t task -l <label> --id <what it printed>` | a plan agent mints a task id and nothing else: a gate carries **zero** labels and the `branch` key alone, a task exactly one dispatching label and **no metadata at all**. `.1` and `.2` are fixed to a gate's suite and review, and asking for a second one refuses; above `.2` it takes
+| `CLI/src/create-beads/create-gate.sh <repo> [<epicGateId>]` then `bd create -t gate --id <what it printed> --metadata '{"branch":…}'` | a plan agent mints a gate id and nothing else: no gate id is ever typed. With an epic gate id in hand it numbers the next feature, with none it mints the epic and its one uuid |
+| `CLI/src/create-beads/create-task.sh <repo> <gateId> [suite\|review]` then `bd create -t task -l <label> --id <what it printed>` | a plan agent mints a task id and nothing else: a gate carries **zero** labels and the `branch` key alone, a task exactly one dispatching label and **no metadata at all**. `.1` and `.2` are fixed to a gate's suite and review, and asking for a second one refuses; above `.2` it takes
 the highest of that gate's existing task ids and adds one — counted off the database, not off the graph, so a
 ticket whose edge was never written still holds its number. Every ticket of a tower carries an explicit `--id` — a flat one reaches no gate. There is **no `--parent`** anywhere in a tower |
 | `bd dep add <blocked> <blocker> --type blocks` | the **one edge type in a tower**, read "blocker blocks blocked"; what a tier *is* = the tickets that block its gate |
@@ -503,7 +503,7 @@ pointing it at your own build moves all of them. Three uses:
 - `$SF_AGENT_COMMAND agents --json` — the capacity count, recounted fresh every tick: background
   sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower.
 - `$SF_AGENT_COMMAND --agent <planner> \"<prompt>\"` — the three plan agents, foreground, through
-  `CLI/plan-agent.sh`, which is what `sf plan:epic`, `sf plan:feature` and `sf plan:task` run.
+  `CLI/src/plan-agent.sh`, which is what `sf plan:epic`, `sf plan:feature` and `sf plan:task` run.
 
 It is split on spaces, so it may carry its own arguments, and its first word is what the startup check
 looks for on the PATH.
@@ -527,7 +527,7 @@ The loop owns the folders, because a worktree belongs to a **branch**, not to a 
 - `git -C <tower> fetch --quiet origin` before each lookup, and the loop's one push —
   `git -C <tower> push --quiet origin <start>:refs/heads/<gateBranch>`, publishing an epic branch that has none.
 - **Nothing else here commits.** `git add -A`, `git commit -m \"agent:branch:message\"` and
-  `git push -u origin <branch>` all live inside `sf commit` (`CLI/commit.sh`) — the only way anything
+  `git push -u origin <branch>` all live inside `sf commit` (`CLI/src/commit.sh`) — the only way anything
   commits in this plugin. The agent is `SF_AGENT`, `manual` when a person typed it; the branch is
   `git symbolic-ref --short HEAD`, and a detached HEAD is refused because a branch it cannot name is a
   subject it cannot write.
@@ -710,7 +710,7 @@ planner names `epic/<slug>` on the epic gate, the feature planner names `feature
 nothing below a gate carries a copy of either, because a copy is a fact that can disagree with the gate that
 decides it. The other half of what a plan agent writes is the **id**: every ticket of a tower is created with
 an explicit `--id`, because that id is the only thing the loop reads to find the two gates above it — and no
-plan agent ever numbers one itself, it runs `CLI/create-beads/create-gate.sh` or `create-task.sh` and passes
+plan agent ever numbers one itself, it runs `CLI/src/create-beads/create-gate.sh` or `create-task.sh` and passes
 what comes back. Nothing below recomputes a branch, and there is no parent chain to walk.
 
 Each is one foreground command — `sf plan:epic`, `sf plan:feature`, `sf plan:task` — and anything you type

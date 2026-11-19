@@ -9,7 +9,7 @@ set -euo pipefail
 
 locateLauncherPaths() {
     here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-    pluginRoot="$(dirname "$here")"
+    pluginRoot="$(cd "$here/.." && pwd)"
     binDir="$HOME/.local/bin"
     launcher="$binDir/sf"
     envFile="$HOME/.spider-factory.env"

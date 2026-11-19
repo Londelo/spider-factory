@@ -15,6 +15,8 @@
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
+    "cli:install": "bash CLI/install-cli.sh",
+    "cli:uninstall": "bash CLI/uninstall-cli.sh",
     "test": "echo \"Error: no test specified\" && exit 1"
   }
 }

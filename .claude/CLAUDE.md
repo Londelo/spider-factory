@@ -28,14 +28,18 @@ spider-factory/
 │                                   #   framework-{jest,playwright}
 ├── CLI/                            # the `sf` package — bash, no node
 │   ├── bin/sf                      # six commands: loop, plan:epic, plan:feature, plan:task, overseer, commit
-│   ├── beads-loop.sh               # the dispatcher engine
-│   ├── plan-agent.sh               # the planner engine — one plan agent, foreground
-│   ├── overseer-agent.sh           # the reader engine — the overseer agent, foreground, `sf` denied to it
-│   ├── commit.sh                   # the only thing that commits, anywhere
-│   ├── loop-log.sh                 # one log-line definition, sourced by the engine and both hooks
-│   ├── forge.sh                    # GitHub vs GitLab, and which tool names the right CLI
-│   ├── user-env.sh + default.env   # the loader for ~/.spider-factory.env, and what it holds
-│   └── install-cli.sh              # puts a real launcher on PATH and ~/.spider-factory.env down the first time
+│   ├── default.env                 # what you get when you set nothing, copied to ~/.spider-factory.env on install
+│   ├── install-cli.sh              # puts a real launcher on PATH and ~/.spider-factory.env down the first time
+│   ├── uninstall-cli.sh            # removes that launcher, and only that launcher
+│   └── src/                        # the engines bin/sf runs
+│       ├── beads-loop.sh           # the dispatcher engine
+│       ├── plan-agent.sh           # the planner engine — one plan agent, foreground
+│       ├── overseer-agent.sh       # the reader engine — the overseer agent, foreground, `sf` denied to it
+│       ├── commit.sh               # the only thing that commits, anywhere
+│       ├── loop-log.sh             # one log-line definition, sourced by the engine and both hooks
+│       ├── forge.sh                # GitHub vs GitLab, and which tool names the right CLI
+│       ├── user-env.sh             # the loader for ~/.spider-factory.env
+│       └── create-beads/           # create-gate.sh + create-task.sh, the only two things that mint an id
 ├── .claude/hooks/                  # hooks.json, worker-stop.sh (fail-closed), worker-fail.sh (parks a dead worker)
 ├── scripts/tower-walk.sh           # experiment harness — builds a tower and walks the frontier by hand
 └── .claude/shared/plan-tasks/      # the templates plan-task fills: engineer, frontend, tester-unit
@@ -90,19 +94,19 @@ id, never a graph walked. An id that does not read that grammar, a task whose hi
 number, or an epic gate that is not a gate row belongs to no tower: the loop refuses it, logs
 `ERROR reason=no-epic-gate ticket=<id>`, and leaves it claimed, unworked, on purpose. That is why every
 ticket in a tower is created with an explicit `--id`, and why every id comes out of
-`CLI/create-beads/create-gate.sh` or `CLI/create-beads/create-task.sh` and never from an eye: a bare
+`CLI/src/create-beads/create-gate.sh` or `CLI/src/create-beads/create-task.sh` and never from an eye: a bare
 `bd create` mints a flat id, and a flat id reaches no gate. The worktree is `.claude/worktrees/<branch with / → +>`, and it belongs to
 the *branch*, not the ticket.
 
 ### The moving parts, and who owns what
 | Part | Owns |
 |---|---|
-| `CLI/beads-loop.sh` | the tick: read the busy branches, dispatch any ready gate its tier flag opens, `bd ready --claim`, match the one dispatching label, derive `branch` and `prTarget` off the ticket's id, publish the epic branch and PR if there is none, build the worktree, spawn the worker **with cwd inside it**, log one line |
+| `CLI/src/beads-loop.sh` | the tick: read the busy branches, dispatch any ready gate its tier flag opens, `bd ready --claim`, match the one dispatching label, derive `branch` and `prTarget` off the ticket's id, publish the epic branch and PR if there is none, build the worktree, spawn the worker **with cwd inside it**, log one line |
 | `hooks/worker-stop.sh` | **fail-closed on `$SF_DONE_FILE`**: no marker → no commit, no push, no PR, no close. Then it closes the *task*; on a gate claim (`kind=gate`) it commits and pushes, finds that branch's PR at any state, and closes the **gate** without ever opening a new PR |
 | `hooks/worker-fail.sh` | parks a dead worker's ticket in `failed-agent` with the reason, and commits nothing |
-| `CLI/commit.sh` | **the only way anything commits in this plugin** — `sf commit` = `git add -A`, one commit subject `agent:branch:message`, `git push -u origin <branch>` |
-| `CLI/loop-log.sh` | the one line format, sourced by the engine and both hooks: nine fixed keys, `-` for the unknown |
-| `CLI/user-env.sh` + `~/.spider-factory.env` | every knob; `default.env` is copied there on install and never touched again |
+| `CLI/src/commit.sh` | **the only way anything commits in this plugin** — `sf commit` = `git add -A`, one commit subject `agent:branch:message`, `git push -u origin <branch>` |
+| `CLI/src/loop-log.sh` | the one line format, sourced by the engine and both hooks: nine fixed keys, `-` for the unknown |
+| `CLI/src/user-env.sh` + `~/.spider-factory.env` | every knob; `default.env` is copied there on install and never touched again |
 | `agents/*.md` | the worker's own contract — the lease, never closing its own ticket, `sf commit` as it goes, the done marker last |
 
 ### Rules that break the system when broken

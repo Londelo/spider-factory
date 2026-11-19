@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sf — the spider-factory CLI. Six commands, all foreground, each one an engine beside it in CLI/.
+# sf — the spider-factory CLI. Six commands, all foreground, each one an engine beside it in CLI/src/.
 #   sf loop          the dispatcher, ../beads-loop.sh; Ctrl-C stops dispatching.
 #   sf plan:epic     the planner, ../plan-agent.sh, epic kind
 #   sf plan:feature  the planner, ../plan-agent.sh, feature kind
@@ -35,8 +35,8 @@ The three plan commands each run one planner in the foreground, and hand it anyt
 you type after the command as the prompt:
 
   sf plan:epic a record box for my diary entries
-  sf plan:feature BO-12
-  sf plan:task BO-31
+  sf plan:feature SF-12
+  sf plan:task SF-31
 
 `sf overseer` runs the reader in the foreground, over the tower in this directory. It
 reads the beads database, the run logs under SF_LOG_ROOT and git, and reports: alive or
@@ -72,10 +72,10 @@ USAGE
 
 locateEngines() {
     here="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-    dispatcher="$here/../beads-loop.sh"
-    planner="$here/../plan-agent.sh"
-    watcher="$here/../overseer-agent.sh"
-    committer="$here/../commit.sh"
+    dispatcher="$here/../src/beads-loop.sh"
+    planner="$here/../src/plan-agent.sh"
+    watcher="$here/../src/overseer-agent.sh"
+    committer="$here/../src/commit.sh"
 }
 
 requireEngine() {

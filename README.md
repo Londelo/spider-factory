@@ -2,9 +2,17 @@
 
 An agent factory for the web.
 
-You plan a tower of tickets top-down. One command turns that tower into background workers — each ticket
-claimed, built on the branch its own id names, committed, pushed, and put up as a pull request — while you
-stay out of the way and close the gates when a tier is proved.
+This repo is literally a factory. Your projects live inside it, in [`webs/`](./webs) — every web the factory
+builds is cloned there. And everything you need to run the factory lives here beside them: the planners, the
+workers, the dispatcher, the CLI.
+
+You plan a tower of tickets top-down. One command runs the tower and hands its tickets to background
+workers — each one claimed, built on the branch its own id names, committed, pushed, and put up as a pull
+request — while you stay out of the way and close the gates when a tier is proved: when everything under a
+feature gate, or under the epic gate, is done and passing.
+
+The factory runs on three assumptions: you use Claude Code, you are happy with beads (`bd`) as your ticket
+manager, and you can run bash scripts.
 
 ## The idea in one breath
 
@@ -40,8 +48,10 @@ Or skip the ceremony and say "setup spider-factory" to your AI agent — the `se
 repo, the ticket database and the CLI, then installs on your say-so.
 
 **2 · Initialize beads in the project you want to build.** The tower lives in the target repo, not here.
-Say "initialize beads" there, or use the `bead-initialize` skill — it installs `bd`, runs `bd init`, and
-registers the `gate` type and `failed-agent` status the tower needs.
+Say "initialize beads" there, or use the `bead-initialize` skill — it installs `bd`, runs `bd init`,
+registers the `gate` type and `failed-agent` status the tower needs, writes a SessionStart hook and a beads
+section into that repo's `CLAUDE.md`, and puts four git hooks in it: pre-commit, post-merge, pre-push,
+post-checkout. Your repo is touched, not just its database.
 
 **3 · Every setting lives in `CLI/spider-factory.env`** — copied down from
 `CLI/spider-factory.example.env` on install and never touched again. Workers at once, tick length, how many

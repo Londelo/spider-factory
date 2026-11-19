@@ -739,10 +739,11 @@ has one shape, built by one function that the loop and both hooks share.
     // ═ ACT II — the writers, one file each
 
     machine.dispatcher -> logRun.fClaims "CLAIMS" {
-      title "Every ticket taken, every gate taken, and every one put back"
+      title "Every ticket taken, every gate taken, and the epic branch published"
       notes """
-A dispatched line is the run's heartbeat. A put-back means another worker already holds that branch. Neither is
-a failure. A ticket you expected that never appears here was never unblocked — go look at its blockers.
+A dispatched line is the run's heartbeat, and a dispatch or a publish is the only thing this file ever holds —
+a claim the loop puts back writes **nothing here**, so a ticket claimed and handed back leaves no trace. A ticket
+you expected that never appears here was never unblocked — go look at its blockers.
 A gate dispatch reads `kind=gate gate=<id> tier=<tier>` instead of a ticket id, and the epic branch's first
 publish is a claims line too — `gate=<id> reason=epic-published` with the branch and the url it just wrote onto
 the gate.
@@ -752,10 +753,9 @@ the gate.
     machine.dispatcher -> logRun.fWaiting "WAITING" {
       title "The quiet ticks: alive, with nothing to do"
       notes """
-Written only when a tick dispatched nothing, and at most once a minute per reason. Six reasons: two just mean
-full, two mean nothing to do or something is holding it, one means the branch is already at work, and one is a
-**gate** the loop refuses to work — its id reaches no branch or no target, which is a person's to fix, and the
-gate sits `open` until someone does. A gate whose tier switch is off is not a waiting line at all: it is skipped
+Written only when a tick dispatched nothing, and at most once a minute per reason. Five reasons: two just mean
+full, two mean nothing to do or something is holding it, and one is a **gate** the loop refuses to work — its id
+reaches no branch or no target, which is a person's to fix, and the gate sits `open` until someone does. A gate whose tier switch is off is not a waiting line at all: it is skipped
 in silence.
 """
       navigateTo everyFailure
@@ -1034,15 +1034,6 @@ written in exactly one place — on a gate — so this is a plan bug too, and th
       navigateTo index
     }
 
-    machine.dispatcher -> beads "reason=branch-busy — put the claim back and try the next" {
-      title "The branch it just claimed was already working"
-      notes """
-The claim goes straight back and the next ticket is tried, up to six attempts a tick. On a properly chained
-tower this never happens — the chain already keeps two workers off one branch, so this alarm is how you find a
-tower that was never chained.
-"""
-    }
-
     machine.dispatcher -> alarms.tickAlarms.epicPrFailed "ERROR reason=epic-pr-failed step=push · UNCLAIMED" {
       title "The epic's branch or pull request could not be published"
       notes """
@@ -1293,16 +1284,6 @@ that died quietly cannot hold a slot forever.
       title "Full, with nothing in progress: the slots are ghosts"
       notes """
 Sessions counted busy, no ticket being worked. The two counts disagreeing is the whole alarm.
-"""
-    }
-
-    machine.dispatcher -> waiting.branchBusyWaiting "WAITING … reason=branch_busy held=3" {
-      title "Every claim this tick wanted a busy branch"
-      notes """
-Three claims taken and put back inside the six-attempt limit. On a chained tower this line never appears — its
-appearance says the tower was built as a fan. The same reason arrives from a gate dispatch too, where it reads
-`held=1 gate=<id>`: that branch is already at work, and because the busy check runs **before** the gate is
-claimed, the gate is left exactly as it was — the one gate failure that never touches its status.
 """
     }
 

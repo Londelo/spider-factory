@@ -35,10 +35,6 @@ configureWaitingLineCadence() {
     waitingLineCadence=$(( 60 / pollSeconds ))
 }
 
-configureMaximumClaimsPerTick() {
-    maximumClaimsPerTick=$(( maximumParallelWorkers + 2 ))
-}
-
 resolveTowerPaths() {
     towerDir="$PWD"
     worktreesRoot="$towerDir/.claude/worktrees"

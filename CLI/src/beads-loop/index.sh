@@ -48,10 +48,8 @@ agentCommand=""
 agentHandlesFeatureGates=0
 agentHandlesEpicGates=0
 waitingLineCadence=0
-maximumClaimsPerTick=0
 tickCount=0
 claimedThisRun=0
-tryNextClaim=0
 
 source "$engineDir/console.sh"
 source "$engineDir/loop-log.sh"
@@ -69,26 +67,15 @@ source "$loopDir/gates.sh"
 nameTheSpeaker beads-loop
 
 claimAndDispatchOneTicket() {
-    tryNextClaim=0
     readClaimFromFrontier || return
     if frontierHeldNoTicket; then
         reportEmptyFrontier
         return
     fi
     readTicketIdentityFromClaim || return
-    if claimWasAlreadySkippedThisTick; then
-        releaseClaim "$ticketId"
-        tryNextClaim=1
-        return
-    fi
     readClaimFields
     claimCarriesExactlyOneDispatchLabel || return
     claimBelongsToATower || return
-    if claimedBranchIsAlreadyAtWork; then
-        skipClaimedTicketForThisTick
-        tryNextClaim=1
-        return
-    fi
     ensureEpicGatePr "$gateId" || {
         releaseClaim "$ticketId"
         return 1
@@ -97,21 +84,13 @@ claimAndDispatchOneTicket() {
 }
 
 tick() {
-    local -A skippedTicket=()
-    local busyBranches claimAttempts claimJson claimExitCode ticketId ticketLabels matchedLabels branch prTarget gateId
-
-    busyBranches=$'\n'"$(branchesCurrentlyAtWork)"$'\n'
+    local claimJson claimExitCode ticketId ticketLabels matchedLabels branch prTarget gateId
+    
     dispatchReadyGates
-    claimAttempts=0
-    while (( claimAttempts < maximumClaimsPerTick )); do
-        claimAttempts=$((claimAttempts + 1))
-        boClearIdentity
-        atDispatchCapacity && return
-        claimAndDispatchOneTicket
-        (( tryNextClaim )) || return
-    done
 
-    waiting branch_busy "held=${#skippedTicket[@]}"
+    boClearIdentity
+    atDispatchCapacity && return
+    claimAndDispatchOneTicket
 }
 
 logRunTallyForTicketLimit() {
@@ -151,7 +130,6 @@ createRunLogDirectory
 resolveTowerPaths
 boSeedIdentity "$logDir" "$towerDir"
 configureWaitingLineCadence
-configureMaximumClaimsPerTick
 installInterruptTrap
 announceRunLogDirectory
 runLoop

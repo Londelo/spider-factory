@@ -60,24 +60,10 @@ claimCarriesExactlyOneDispatchLabel() {
     return 1
 }
 
-claimWasAlreadySkippedThisTick() { [[ -n "${skippedTicket["$ticketId"]-}" ]]; }
-
-claimedBranchIsAlreadyAtWork() { [[ "$busyBranches" == *$'\n'"$branch"$'\n'* ]]; }
-
 releaseClaim() { bd unclaim "$1" >/dev/null 2>&1 || true; }
-
-skipClaimedTicketForThisTick() {
-    logTo claims "reason=branch-busy unclaimed"
-    releaseClaim "$ticketId"
-    skippedTicket["$ticketId"]=1
-}
 
 reportEmptyFrontier() {
     local stalledTickets
-    if (( ${#skippedTicket[@]} > 0 )); then
-        waiting branch_busy "held=${#skippedTicket[@]}"
-        return
-    fi
     stalledTickets="$(countOf "$(numberOfStalledTickets)")"
     if [[ "$stalledTickets" == "0" ]]; then
         waiting frontier_empty

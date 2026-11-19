@@ -154,7 +154,7 @@ to be installed, so it and the engines are kept in step by hand.
     }
 
     dispatcher = dispatcher "beads-loop/ — the dispatcher" {
-      summary "The engine: a tick dispatches any ready gate its tier flag opens, then claims tickets, derives their branches off the id, spawns workers."
+      summary "The engine: a tick dispatches any ready gate its tier flag opens, then claims one ready ticket, derives its branch off the id, spawns its worker."
       description """
 **What it is:** the engine `sf loop` runs. A `while true` loop: test the ticket cap, `tick`, `sleep $SF_POLL_S`,
 again. It ends by itself only when `SF_MAX_TICKETS` tickets have closed this run — the test is against the run's
@@ -179,18 +179,21 @@ One tick, in the order the code runs it (`tick()`, `index.sh`):
 
 | # | Step | Reads | On failure |
 |---|---|---|---|
-| 0 | `branchesCurrentlyAtWork` — the branches already at work, read **before** claiming so the ticket in hand is never counted against itself | `bd list --status in_progress --limit 0 --json` → `.[] \| .id`, each one through `resolveTicketBranches`, `sort -u` | — |
 | 1 | **dispatch any ready gate its tier flag opens** — `dispatchReadyGates`, before a single ticket is claimed. Returns at once when neither `SF_AGENT_FEATURE_GATES` nor `SF_AGENT_EPIC_GATES` is `1` | `bd list --include-gates --ready --type gate --limit 0 --json` → `.id`; the tier is `gateTierOf`, never a key | see the gate rows below |
-| 2 | capacity check — **re-tested before every claim attempt**, not once per tick: the tick keeps claiming while there is room | `$SF_AGENT_COMMAND agents --json`, background sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled`, and the tick ends |
-| 3 | **claim** | `bd ready --claim --json` — atomic: assignee + `in_progress` + a 5-minute lease | `bd-failure`; an empty answer is a waiting line, not an error |
-| 4 | is this the ticket the tick already parked? — a ticket put back earlier this tick can come straight off the frontier again | is `ticketId` in the tick's own skipped set? | `bd unclaim` it straight back and take another claim, without reading its labels |
-| 5 | match labels against the `AGENT` map — **exactly one** may match | `.[0].labels` | `label-ambiguous`, left claimed |
-| 6 | derive the branch and the PR target off the **id** | `resolveTicketBranches <id>` — `splitTowerId` reads `<repo>-<kind>-<uuid>-<hierarchy>` off the right; the uuid names the tower, the kind word swapped to `feature` with the hierarchy cut at the last dot is the feature gate whose `branch` the work lands on, the kind word swapped to `epic` at hierarchy `0` the epic gate whose `branch` is `prTarget`; `prTarget` is `main` when the owner is the epic gate itself. Nothing is walked and no key on the ticket is read | `no-epic-gate ticket=…` (id does not read the grammar · `step=not-below-a-gate` · `gate=<the epic it names>`), `gate-unworkable ticket=…` (`owner-carries-no-branch` · `epic-carries-no-branch`), left claimed |
-| 7 | one pair of hands per branch | is `branch` in the busy set? | `bd unclaim`, park the ticket id for this tick, try the next claim — at most `SF_MAX_PARALLEL + 2` attempts a tick |
-| 8 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
-| 9 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
-| 10 | spawn | `$SF_AGENT_COMMAND --bg --agent <plugin>:<agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
-| 11 | one log line, move on | `logTo claims \"reason=dispatched\"` | — |
+| 2 | capacity check — once per tick, before the claim, and the tick ends there when it fails | `$SF_AGENT_COMMAND agents --json`, background sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled`, and the tick ends |
+| 3 | **claim** — one claim a tick, and once it has been read the tick is over | `bd ready --claim --json` — atomic: assignee + `in_progress` + a 5-minute lease | `bd-failure`; an empty answer is a waiting line, not an error |
+| 4 | match labels against the `AGENT` map — **exactly one** may match | `.[0].labels` | `label-ambiguous`, left claimed |
+| 5 | derive the branch and the PR target off the **id** | `resolveTicketBranches <id>` — `splitTowerId` reads `<repo>-<kind>-<uuid>-<hierarchy>` off the right; the uuid names the tower, the kind word swapped to `feature` with the hierarchy cut at the last dot is the feature gate whose `branch` the work lands on, the kind word swapped to `epic` at hierarchy `0` the epic gate whose `branch` is `prTarget`; `prTarget` is `main` when the owner is the epic gate itself. Nothing is walked and no key on the ticket is read | `no-epic-gate ticket=…` (id does not read the grammar · `step=not-below-a-gate` · `gate=<the epic it names>`), `gate-unworkable ticket=…` (`owner-carries-no-branch` · `epic-carries-no-branch`), left claimed |
+| 6 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
+| 7 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
+| 8 | spawn | `$SF_AGENT_COMMAND --bg --agent <plugin>:<agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
+| 9 | one log line, move on | `logTo claims \"reason=dispatched\"` | — |
+
+**One pair of hands per branch is the tower's job, not the loop's.** Every ticket below a feature gate sits on
+that gate's one branch in a single linked line of `blocks` edges, so only one of them is ever ready and only one
+is ever `in_progress` on that branch; the same holds at the epic. The loop runs **no busy-branch check**: it
+reads the frontier once a tick, never puts a claim back to try another, and never counts what is already at
+work. A tower that fans into two ready tickets on one branch is a mis-built tower, and the loop works both.
 
 **The gate half of the tick** (`dispatchOneGate`, step 1) is the only place a worker is spawned without a
 label. A gate never appears in `bd ready`, so it is claimed **by status**: `bd update <gate> --status
@@ -201,7 +204,6 @@ ready list until its lead agent dies.
 |---|---|---|
 | the tier is worked out, then switched on | `gateTierOf` — the kind word of the gate's own id: `epic` or `feature`, nothing read from the database; matched against the two flags | a tier whose flag is `0` is skipped in silence; an id carrying neither word logs `gate-unworkable gate=…` |
 | derive the gate's branch and target | `resolveTicketBranches <gate>` — the gate's own `branch`, and the epic gate's `branch` (or `main`) as the target | waiting `gate_unworkable gate=… step=…` |
-| one pair of hands per branch | is the gate's branch in the busy set? | waiting `branch_busy held=1 gate=…` |
 | **claim it** | `bd update <gate> --status in_progress --if-status open` | `gate-claim-lost`, no lead agent spawned |
 | make the branch's folder | `ensureWorktree gateBranch gatePrTarget` | `worktree-failed step=gate`, and the gate is put back `open` |
 | spawn the **lead agent** | `--agent <plugin>:lead`, label on the line is `gate:<tier>` | `worker-not-dispatched gate=…`, the gate put back `open` |
@@ -293,10 +295,10 @@ same statement, stamps an assignee, moves it to `in_progress`, and starts a **fi
 | Property | Consequence |
 |---|---|
 | atomic | a bare `bd ready` is a peek, not a take — two loops reading with it would both work the same ticket |
-| one ticket per call | the tick loops: claim, work it or put it back, claim again — at most `SF_MAX_PARALLEL + 2` times a tick |
+| one ticket per call | and the tick makes exactly **one** of them: read the claim, dispatch or refuse, and the tick is over — there is no second claim waiting behind it |
 | an **empty** answer is not an error | that is a waiting line: `frontier_empty` if nothing is waiting elsewhere, `tower_stalled waiting=N` if work exists behind a blocker |
 | the lease is the only watchdog | a lapsed lease parks the ticket `in_progress` and off the frontier — nothing in this plugin runs `bd reclaim`, so sweeping claims back is a human's act |
-| `bd unclaim` puts a claim back | `releaseClaim` is one line, called from four places: the branch is already at work · the ticket was already parked earlier this tick and came back off the frontier · the epic branch and its PR could not be published · the spawn died |
+| `bd unclaim` puts a claim back | `releaseClaim` is one line, called from **two** places: the epic branch and its PR could not be published · the spawn died. Everything else that refuses — a mislabelled ticket, an id that reaches no gate, a worktree that could not be made — leaves the claim where it is, on purpose |
 
 A claim is a JSON object, and **two** fields decide everything downstream: `.id` (which two gates it sits
 under, and therefore which branch the work lands on and which its pull request aims at — `resolveTicketBranches`
@@ -344,11 +346,12 @@ CLAIMS   2026-11-04T09:12:03\trun=2026-11-04_09-12-01 repo=/home/dev/record-box 
     link https://github.com/Londelo/spider-factory/blob/main/CLI/src/loop-log.sh "Source — CLI/src/loop-log.sh"
 
     fClaims = logFile "claims" {
-      summary "Every ticket taken, and every one put back."
+      summary "Every ticket taken, and the epic branch the first time it is published."
       description """
-Every ticket taken, and every one put back. `reason=dispatched` on a spawn, `reason=branch-busy unclaimed`
-on a put-back, and `gate=… reason=epic-published gateBranch=… pr=…` when the loop publishes the epic branch —
-that one line names no ticket of its own, because the identity the tick already carries is on it.
+Every ticket the loop took. `reason=dispatched` on a spawn, and `gate=… reason=epic-published gateBranch=…
+pr=…` when the loop publishes the epic branch — that one line names no ticket of its own, because the identity
+the tick already carries is on it. A claim the loop puts back (`bd unclaim`) writes **nothing here**: the
+release is silent, so a ticket that was claimed and handed back leaves no trace in this file.
 
 A **gate** dispatch is the dispatched line with three keys added: `reason=dispatched kind=gate gate=<id>
 tier=<epic|feature>`, and its fixed identity already reads `ticket=<gate id> agent=lead label=gate:<tier>
@@ -1192,18 +1195,6 @@ Left claimed, same reason as the label alarm. The gate is the only place a branc
 with no `branch` is a plan bug, and the loop never guesses one to cover it.
 """
       }
-      branchBusyAlarm = alarm "CLAIMS reason=branch-busy unclaimed" {
-        #unclaimed
-        summary "This ticket's branch is already at work: put the claim back, try the next one."
-        description """
-The branch this ticket wants is already checked out by a worker: `bd unclaim`, remember the ticket id in
-`skippedTicket`, try the next claim — at most `SF_MAX_PARALLEL + 2` attempts a tick, then the waiting line
-`branch_busy held=N`. One pair of hands per branch.
-
-This is the **fallback**, not the mechanism: the graph already makes a feature one linked line, so the frontier
-can only hand out one task per feature. The guard is for a tower that was never chained.
-"""
-      }
       epicPrFailed = alarm "ERROR reason=epic-pr-failed step=…" {
         #unclaimed
         summary "The epic branch or its pull request could not be published; seven steps say where."
@@ -1540,18 +1531,6 @@ The other half of an empty frontier, and the two need different alarms: work tic
 an open gate two levels below, most often. That is the expected shape of a run: a gate is a checkpoint, and while
 its tier's flag is `0` nothing dispatches it, so everything behind it waits for a person. `bd list` hides closed
 tickets and gates by default, so N counts work tickets only. A broken tower must never read as a calm one.
-"""
-    }
-    branchBusyWaiting = waitingLine "reason=branch_busy held=N" {
-      #idle
-      summary "Every claimable ticket wanted a branch already at work, so all were put back."
-      description """
-Tickets were claimable and every one of them wanted a branch already at work: N were unclaimed and skipped this
-tick. The graph makes a feature sequential, so this is the fallback for a tower that was never chained.
-
-The same reason arrives from the gate dispatch too, and there it reads `held=1 gate=<id>`: the gate's own branch is
-already at work, so the gate is left `open` and untouched — the busy check runs **before** the claim, so unlike
-every other gate failure this one never moves the gate's status at all.
 """
     }
     gateUnworkable = waitingLine "reason=gate_unworkable gate=<id> step=<why>" {

@@ -129,7 +129,7 @@ the *branch*, not the ticket.
 ### The moving parts, and who owns what
 | Part | Owns |
 |---|---|
-| `CLI/src/beads-loop/` | the tick: read the busy branches, dispatch any ready gate its tier flag opens, `bd ready --claim`, match the one dispatching label, derive `branch` and `prTarget` off the ticket's id, publish the epic branch and PR if there is none, build the worktree, spawn the worker **with cwd inside it**, log one line per event. `index.sh` is the whole run — the knobs, the `AGENT` map, the source order, `tick()`, `runLoop()`, and the startup checks in order; the nine files beside it each own one concern and nothing else. What `sf loop` actually executes is `CLI/src/beads-loop/index.sh` |
+| `CLI/src/beads-loop/` | the tick: dispatch any ready gate its tier flag opens, `bd ready --claim`, match the one dispatching label, derive `branch` and `prTarget` off the ticket's id, publish the epic branch and PR if there is none, build the worktree, spawn the worker **with cwd inside it**, log one line per event. `index.sh` is the whole run — the knobs, the `AGENT` map, the source order, `tick()`, `runLoop()`, and the startup checks in order; the nine files beside it each own one concern and nothing else. What `sf loop` actually executes is `CLI/src/beads-loop/index.sh` |
 | `.claude/hooks/worker-stop.sh` | **fail-closed on `$SF_DONE_FILE`**: no marker → no commit, no push, no PR, no close. Then it closes the *task*; on a gate claim (`kind=gate`) it commits and pushes, finds that branch's PR at any state, and closes the **gate** without ever opening a new PR |
 | `.claude/hooks/worker-fail.sh` | the StopFailure hook: parks a dead worker's ticket in `failed-agent` with the reason, and commits nothing |
 | `CLI/src/commit.sh` | **the only way anything commits in this plugin** — `sf commit` = `git add -A`, one commit subject `agent:branch:message`, `git push -u origin <branch>` |
@@ -145,8 +145,11 @@ the *branch*, not the ticket.
 - **Never dispatch on a guess** (zero or two dispatching labels → left claimed, never a chosen worker), and
   **never invent a branch** (no `branch` in the claim → left claimed). Left claimed is deliberate: the lease
   parks the unworkable ticket off the frontier instead of the loop spinning on it.
-- **Never work two tickets on one branch at a time.** The chain inside a feature guarantees it; the loop's
-  unclaim-and-skip is the fallback, not the mechanism.
+- **Never work two tickets on one branch at a time.** The `blocks` chain is the **only** thing that guarantees
+  it: one feature's tasks sit on its gate's branch in a single linked line, so only one of them is ever ready,
+  so only one is ever `in_progress` on that branch. Same at the epic. The loop no longer checks — there is no
+  busy-branch sweep and no second claim a tick. A tower that fans into two ready tickets on one branch is a
+  mis-built tower, and the loop will happily work both.
 - **Nobody but the Stop hook closes a task, and no worker closes its own** — a ticket already closed makes the
   hook exit before it commits, so the work never lands. Only a human closes a gate, unless its tier's flag is on.
 - **No `parent-child` edge, and no `--parent`, anywhere.** The tower is `blocks` edges only. Parenthood is

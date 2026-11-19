@@ -17,14 +17,6 @@ numberOfBusyWorkers() {
                  | select((.cwd // "") | startswith($root) or . == $tower) ] | length' 2>/dev/null
 }
 
-branchesCurrentlyAtWork() {
-    local id
-    bd list --status in_progress --limit 0 --json 2>/dev/null \
-        | jq -r '.[].id' | while read -r id; do
-            ( resolveTicketBranches "$id" && printf '%s\n' "$branch" ) 2>/dev/null
-        done | sort -u
-}
-
 numberOfTicketsInWork() {
     bd list --status in_progress --limit 50 --json 2>/dev/null | jq 'length' 2>/dev/null
 }

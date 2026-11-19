@@ -17,10 +17,6 @@ dispatchOneGate() {
     resolveTicketBranches "$gateId" || { waiting gate_unworkable "gate=$gateId step=$branchResolveFailure"; return 1; }
     gateBranch="$branch"
     gatePrTarget="$prTarget"
-    if [[ "$busyBranches" == *$'\n'"$gateBranch"$'\n'* ]]; then
-        waiting branch_busy "held=1 gate=$gateId"
-        return 1
-    fi
     moveGateTo "$gateId" in_progress open || {
         logTo errors "reason=gate-claim-lost gate=$gateId msg=\"$msgGateClaimLost\""
         return 1

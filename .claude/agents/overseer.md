@@ -174,13 +174,11 @@ untrustworthy.
 | `errors` | empty, or lines you can explain | any line is an alarm — errors are never rate-limited |
 
 The loop is alive and idle is not the same as stalled: `waiting` says which. A waiting line is
-`reason=<why> working=<n> next=<ticket|(none)>`, and its four reasons are all normal:
+`reason=<why> working=<n> next=<ticket|(none)>`, and every reason it can give is normal:
 
 - `max_parallel` — `working=` has reached `SF_MAX_PARALLEL`. Full, not broken.
 - `max_parallel_stalled` — at capacity but `in_progress=0`: the workers are gone and the leases are not.
   A real fault; see the checks below.
-- `branch_busy held=<n>` — the next ticket sits on a branch already being worked. Correct behaviour, and
-  it is also what a gate says when its own branch is under a worker: the line carries `gate=<id>`.
 - `gate_unworkable gate=<id> step=<why>` — a ready gate whose id reaches no usable pair of branches, so the
   loop cannot stand a lead on it. `step` is `owner-carries-no-branch` (the gate carries no `branch` — a
   hand-made or hand-edited gate; a plan agent always writes it), `epic-carries-no-branch` (the epic gate
@@ -242,9 +240,10 @@ Run these when the human asks you to spot trouble, or when a waiting reason does
    `$SF_AGENT_COMMAND agents --json` shows no background session whose `cwd` is that ticket's worktree,
    and there is no `done-<ticket>` in the run dir. The StopFailure hook should have parked it in
    `failed-agent`; if it is still `in_progress`, the park failed — look for `status-not-set`.
-2. **A branch held by nobody.** Repeated `branch_busy` with no live session in that worktree → a stale
-   registration. `git -C <tower> worktree list` is ground truth; a folder under `.claude/worktrees/`
-   that is not in that list is a stray, and a listed worktree whose directory is gone is a dangling one.
+2. **A worktree registration that lies.** `git -C <tower> worktree list` is ground truth; a folder under
+   `.claude/worktrees/` that is not in that list is a stray — the loop moves it aside and raises
+   `worktree-folder-moved-aside` — and a listed worktree whose directory is gone is a dangling one.
+   `git worktree prune`, then look again.
 3. **A ticket closed by the wrong hand.** A closed task with no `closes` line for it in any run's log was
    not finished by the Stop hook — no commit, no push, no PR happened. Check whether it carries `pr`
    metadata; a closed task without a PR url is work that never landed.

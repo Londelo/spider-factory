@@ -6,8 +6,10 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$here/console.sh"
 source "$here/user-env.sh"
 loadSpiderFactoryEnv
+nameTheSpeaker plan-agent
 
 agentCommand="${SF_AGENT_COMMAND:-claude}"
 agentPluginName="${SF_AGENT_PLUGIN:-spider-factory}"
@@ -37,18 +39,12 @@ USAGE
 }
 
 requireBeadsProject() {
-    bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 || {
-        echo "plan-agent: no beads DB found from $PWD — cd into a tower project and re-run." >&2
-        exit 1
-    }
+    bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 || reportNoBeadsDatabase
 }
 
 requireAgentCommand() {
     local commandWord="${agentCommand%% *}"
-    command -v "$commandWord" >/dev/null 2>&1 || {
-        echo "plan-agent: the agent command '$commandWord' is not on PATH — fix SF_AGENT_COMMAND, or leave it unset to get 'claude'." >&2
-        exit 1
-    }
+    command -v "$commandWord" >/dev/null 2>&1 || reportAgentCommandNotOnPath "$commandWord"
 }
 
 runPlanAgent() {
@@ -56,13 +52,12 @@ runPlanAgent() {
     shift
     requireBeadsProject
     requireAgentCommand
-    echo "plan-agent: running the $agentName planner through '$agentCommand' in $PWD" >&2
+    tell "running the $agentName planner through '$agentCommand' in $PWD"
     exec $agentCommand --agent "$agentPluginName:$agentName" "$@"
 }
 
 unknownPlanKind() {
-    echo "plan-agent: unknown plan '$1' — there are three: 'epic', 'feature', 'task'. Try 'plan-agent.sh --help'." >&2
-    exit 1
+    die "unknown plan '$1' — there are three: 'epic', 'feature', 'task'. Try 'plan-agent.sh --help'."
 }
 
 runRequestedPlan() {

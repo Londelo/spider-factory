@@ -7,6 +7,8 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+source "$here/console.sh"
+nameTheSpeaker webs
 pluginRoot="$(cd "$here/../.." && pwd)"
 websDir="$pluginRoot/webs"
 listFile="$websDir/webs.yml"
@@ -38,12 +40,9 @@ USAGE
 
 ensureListFile() {
     [[ -f "$listFile" ]] && return 0
-    [[ -f "$exampleListFile" ]] || {
-        echo "webs: the example list is missing at $exampleListFile — this install is broken." >&2
-        exit 1
-    }
+    [[ -f "$exampleListFile" ]] || reportMissingFromInstall "example list" "$exampleListFile"
     cp "$exampleListFile" "$listFile"
-    echo "webs: wrote your list to $listFile from $exampleListFile — add a repo url under 'repos:' and run this again."
+    say "wrote your list to $listFile from $exampleListFile — add a repo url under 'repos:' and run this again."
 }
 
 readRepoUrls() {
@@ -80,17 +79,17 @@ cloneRepo() {
     local url="$1" name="$2"
     if [[ -e "$websDir/$name" ]]; then
         if [[ -d "$websDir/$name/.git" ]]; then
-            echo "skipped name=$name reason=already-cloned"
+            plain "skipped name=$name reason=already-cloned"
         else
-            echo "skipped name=$name reason=not-a-clone"
+            plain "skipped name=$name reason=not-a-clone"
         fi
         return 2
     fi
     if git clone -- "$url" "$websDir/$name"; then
-        echo "cloned name=$name url=$url"
+        plain "cloned name=$name url=$url"
         return 0
     fi
-    echo "failed name=$name url=$url reason=git-clone"
+    plain "failed name=$name url=$url reason=git-clone"
     return 1
 }
 
@@ -99,13 +98,13 @@ cloneAllRepos() {
     while IFS= read -r url; do
         [[ -n "$url" ]] || continue
         if ! checkRepoUrl "$url"; then
-            echo "failed url=$url reason=not-a-git-url"
+            plain "failed url=$url reason=not-a-git-url"
             ((++failed))
             continue
         fi
         name="$(nameRepoFromUrl "$url")"
         if [[ -z "$name" || "$name" == . || "$name" == .. ]]; then
-            echo "failed url=$url reason=no-directory-name"
+            plain "failed url=$url reason=no-directory-name"
             ((++failed))
             continue
         fi
@@ -118,10 +117,10 @@ cloneAllRepos() {
         esac
     done < <(readRepoUrls)
     if ((cloned + skipped + failed == 0)); then
-        echo "webs: nothing listed — add a '- <repo url>' line under 'repos:' in $listFile"
+        say "nothing listed — add a '- <repo url>' line under 'repos:' in $listFile"
         return 0
     fi
-    echo "webs: $cloned cloned, $skipped skipped, $failed failed into $websDir"
+    say "$cloned cloned, $skipped skipped, $failed failed into $websDir"
     ((failed == 0))
 }
 

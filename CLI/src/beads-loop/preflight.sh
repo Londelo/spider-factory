@@ -5,7 +5,7 @@
 requireToolsOnPath() {
     local requiredTool
     for requiredTool in bd jq git "${agentCommand%% *}"; do
-        command -v "$requiredTool" >/dev/null 2>&1 || die "$requiredTool not found on PATH"
+        command -v "$requiredTool" >/dev/null 2>&1 || reportToolNotOnPath "$requiredTool"
     done
 }
 
@@ -39,7 +39,7 @@ runningInABeadsProject() {
 }
 
 requireBeadsProject() {
-    runningInABeadsProject || die "no beads database found from $PWD — cd into the tower project and re-run"
+    runningInABeadsProject || reportNoBeadsDatabase
 }
 
 gateTierIsSwitchedOn() {

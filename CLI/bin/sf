@@ -10,6 +10,9 @@
 #   The contracts are .claude/CLAUDE.md §The dispatcher and §Plan agents.
 set -uo pipefail
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../src/console.sh"
+nameTheSpeaker sf
+
 declare -A planKindOf=(
     [plan:epic]=epic
     [plan:feature]=feature
@@ -82,25 +85,19 @@ locateEngines() {
 }
 
 requireEngine() {
-    [[ -f "$1" ]] || {
-        echo "sf: the engine is missing at $1 — this install is broken. Re-run its CLI/install-cli.sh." >&2
-        exit 1
-    }
+    [[ -f "$1" ]] || reportMissingFromInstall "engine" "$1" "Re-run its CLI/install-cli.sh"
 }
 
 requireBeadsProject() {
-    bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 || {
-        echo "sf: no beads DB found from $PWD — cd into a tower project and re-run." >&2
-        exit 1
-    }
+    bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 || reportNoBeadsDatabase
 }
 
 dispatchOverCurrentTower() {
     requireEngine "$dispatcher"
     requireBeadsProject
-    echo "sf: dispatching $PWD — Ctrl-C to stop."
+    say "dispatching $PWD — Ctrl-C to stop."
     bash "$dispatcher"
-    echo "sf: the engine ended (exit $?)."
+    say "the engine ended (exit $?)."
 }
 
 dispatchPlanAgent() {
@@ -135,8 +132,7 @@ openFactorySession() {
 }
 
 unknownCommand() {
-    echo "sf: unknown command '$1' — there are six: 'sf loop', 'sf plan:epic', 'sf plan:feature', 'sf plan:task', 'sf overseer', 'sf commit'. Try 'sf --help'." >&2
-    exit 1
+    die "unknown command '$1' — there are six: 'sf loop', 'sf plan:epic', 'sf plan:feature', 'sf plan:task', 'sf overseer', 'sf commit'. Try 'sf --help'."
 }
 
 runRequestedCommand() {

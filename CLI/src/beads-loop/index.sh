@@ -53,10 +53,10 @@ tickCount=0
 claimedThisRun=0
 tryNextClaim=0
 
+source "$engineDir/console.sh"
 source "$engineDir/loop-log.sh"
 source "$engineDir/forge.sh"
 source "$loopDir/logs.sh"
-source "$loopDir/console.sh"
 source "$loopDir/config.sh"
 source "$loopDir/preflight.sh"
 source "$loopDir/tower-id.sh"
@@ -65,6 +65,8 @@ source "$loopDir/beads.sh"
 source "$loopDir/claim.sh"
 source "$loopDir/worker.sh"
 source "$loopDir/gates.sh"
+
+nameTheSpeaker beads-loop
 
 claimAndDispatchOneTicket() {
     tryNextClaim=0

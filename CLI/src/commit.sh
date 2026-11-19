@@ -4,6 +4,10 @@
 #   The subject is written as agent:branch:message — SF_AGENT (manual) and the branch you are standing on.
 set -uo pipefail
 
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$here/console.sh"
+nameTheSpeaker commit
+
 agentName="${SF_AGENT:-manual}"
 
 usage() {
@@ -31,10 +35,7 @@ currentBranch() {
 commitEverything() {
     local branch
     branch="$(currentBranch 2>/dev/null)" || branch=""
-    [[ -n "$branch" ]] || {
-        echo "commit: this is a detached HEAD — there is no branch to name in the message." >&2
-        exit 1
-    }
+    [[ -n "$branch" ]] || die "this is a detached HEAD — there is no branch to name in the message."
     git add -A
     git commit -m "$agentName:$branch:$*" || exit 1
     git push -u origin "$branch"

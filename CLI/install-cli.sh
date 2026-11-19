@@ -7,6 +7,9 @@
 # touches CLI/spider-factory.env once it exists: those are your edits by then. Delete it to get the defaults back.
 set -euo pipefail
 
+source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/src/console.sh"
+nameTheSpeaker sf
+
 locateLauncherPaths() {
     here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
     pluginRoot="$(cd "$here/.." && pwd)"
@@ -41,10 +44,7 @@ installExampleEnvFile() {
         envFileState="kept your edits"
         return 0
     fi
-    [[ -f "$exampleEnvFile" ]] || {
-        echo "sf: the environment example is missing at $exampleEnvFile — this install is broken." >&2
-        exit 1
-    }
+    [[ -f "$exampleEnvFile" ]] || reportMissingFromInstall "environment example" "$exampleEnvFile"
     cp "$exampleEnvFile" "$envFile"
     chmod 600 "$envFile"
     envFileState="wrote the example"
@@ -53,13 +53,13 @@ installExampleEnvFile() {
 warnWhenBinDirMissingFromPath() {
     case ":$PATH:" in
         *":$binDir:"*) ;;
-        *) echo "sf: add  export PATH=\"$binDir:\$PATH\"  to your shell profile." >&2 ;;
+        *) tell "add  export PATH=\"$binDir:\$PATH\"  to your shell profile." ;;
     esac
 }
 
 announceInstallation() {
-    echo "installed: $launcher -> $pluginRoot/CLI/bin/sf"
-    echo "env:       $envFile ($envFileState) — edit it by hand, the CLI reads it on every run"
+    plain "installed: $launcher -> $pluginRoot/CLI/bin/sf"
+    plain "env:       $envFile ($envFileState) — edit it by hand, the CLI reads it on every run"
 }
 
 locateLauncherPaths

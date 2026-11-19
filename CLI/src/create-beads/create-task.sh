@@ -10,7 +10,8 @@
 # stdout stays empty, so a failed run can never feed a half id into a plan agent's command line.
 set -uo pipefail
 
-name="create-task"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../console.sh"
+nameTheSpeaker create-task
 
 usage() {
     cat <<'USAGE'
@@ -38,11 +39,6 @@ nothing on stdout, and exits non-zero.
 USAGE
 }
 
-die() {
-    echo "$name: $*" >&2
-    exit 1
-}
-
 dbPrefix() {
     bd config list 2>/dev/null \
         | sed -n 's/^[[:space:]]*issue_prefix[[:space:]]*=[[:space:]]*//p' \
@@ -51,7 +47,7 @@ dbPrefix() {
 
 requireBeadsProject() {
     bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 \
-        || die "no beads DB found from $PWD — cd into a tower project and re-run"
+        || reportNoBeadsDatabase
 }
 
 requireRepo() {

@@ -51,12 +51,14 @@ spider-factory/
 │   ├── install-cli.sh              # puts a real launcher on PATH and CLI/spider-factory.env down the first time
 │   ├── uninstall-cli.sh            # removes that launcher, and only that launcher
 │   └── src/                        # the engines bin/sf runs
-│       ├── beads-loop/             # the dispatcher engine — one file a concern, `index.sh` the one `sf loop`
-│       │                           #   runs: it holds the knobs, the `AGENT` map, the order the other ten are
+│       ├── beads-loop/             # the dispatcher engine — ten files, one a concern, `index.sh` the one `sf loop`
+│       │                           #   runs: it holds the knobs, the `AGENT` map, the order the other nine are
 │       │                           #   sourced in, the tick, the loop, and the startup checks in order
 │       ├── plan-agent.sh           # the planner engine — one plan agent, foreground
 │       ├── overseer-agent.sh       # the reader engine — the overseer agent, foreground, `sf` denied to it
 │       ├── commit.sh               # the only thing that commits, anywhere
+│       ├── console.sh              # the only file in CLI/ that writes to a terminal: `nameTheSpeaker` once per
+│       │                           #   script, then `say` / `tell` / `plain` / `die`, and the four reused refusals
 │       ├── loop-log.sh             # one log-line definition, sourced by the engine and both hooks
 │       ├── forge.sh                # GitHub vs GitLab, and which tool names the right CLI
 │       ├── user-env.sh             # the loader for CLI/spider-factory.env
@@ -127,10 +129,11 @@ the *branch*, not the ticket.
 ### The moving parts, and who owns what
 | Part | Owns |
 |---|---|
-| `CLI/src/beads-loop/` | the tick: read the busy branches, dispatch any ready gate its tier flag opens, `bd ready --claim`, match the one dispatching label, derive `branch` and `prTarget` off the ticket's id, publish the epic branch and PR if there is none, build the worktree, spawn the worker **with cwd inside it**, log one line per event. `index.sh` is the whole run — the knobs, the `AGENT` map, the source order, `tick()`, `runLoop()`, and the startup checks in order; the ten files beside it each own one concern and nothing else. What `sf loop` actually executes is `CLI/src/beads-loop/index.sh` |
+| `CLI/src/beads-loop/` | the tick: read the busy branches, dispatch any ready gate its tier flag opens, `bd ready --claim`, match the one dispatching label, derive `branch` and `prTarget` off the ticket's id, publish the epic branch and PR if there is none, build the worktree, spawn the worker **with cwd inside it**, log one line per event. `index.sh` is the whole run — the knobs, the `AGENT` map, the source order, `tick()`, `runLoop()`, and the startup checks in order; the nine files beside it each own one concern and nothing else. What `sf loop` actually executes is `CLI/src/beads-loop/index.sh` |
 | `.claude/hooks/worker-stop.sh` | **fail-closed on `$SF_DONE_FILE`**: no marker → no commit, no push, no PR, no close. Then it closes the *task*; on a gate claim (`kind=gate`) it commits and pushes, finds that branch's PR at any state, and closes the **gate** without ever opening a new PR |
 | `.claude/hooks/worker-fail.sh` | the StopFailure hook: parks a dead worker's ticket in `failed-agent` with the reason, and commits nothing |
 | `CLI/src/commit.sh` | **the only way anything commits in this plugin** — `sf commit` = `git add -A`, one commit subject `agent:branch:message`, `git push -u origin <branch>` |
+| `CLI/src/console.sh` | **the only file in `CLI/` that writes to a terminal** — sourced by every engine, by `bin/sf`, and by both installers; nothing else there runs `echo` or `printf` at a screen. `nameTheSpeaker <name>` once per script, and every line it says comes out `<name>: <line>` (`sf`, `beads-loop`, `plan-agent`, `overseer`, `commit`, `webs`, `create-gate`, `create-task`); `say` → stdout, `tell` → stderr, `plain` → stdout unprefixed (the key=value event lines), `die` = `tell` then exit 1. The four reused refusals — no beads database, a file missing from the install, a tool not on `PATH`, the agent command not on `PATH` — are each worded here and nowhere else. A run's log lines are **not** here: those are `loop-log.sh`'s, and a `printf` whose stdout a caller captures with `$( )` is that caller's return value, not output |
 | `CLI/src/loop-log.sh` | the one line format, sourced by the engine and both hooks: nine fixed keys, `-` for the unknown |
 | `CLI/src/user-env.sh` + `CLI/spider-factory.env` | every knob; `spider-factory.example.env` is copied there on install and never touched again |
 | `CLI/src/clone-webs.sh` + `webs/webs.yml` | the webs the factory builds, and nothing to do with `sf` or the installer — one repo url a line, cloned into `webs/`; `webs/webs.example.yml` is the tracked template that engine copies to `webs/webs.yml` and nothing else ever writes that file |

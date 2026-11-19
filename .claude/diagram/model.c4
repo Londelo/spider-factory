@@ -2,8 +2,8 @@ model {
 
   // ═════════════════════════════════════════════════════════════════════════════
   // THE MACHINE — one command in, background workers out.
-  // Every value here was read off CLI/bin/sf, CLI/src/beads-loop/ (index.sh and the ten beside it),
-  // CLI/src/loop-log.sh,
+  // Every value here was read off CLI/bin/sf, CLI/src/beads-loop/ (index.sh and the nine beside it),
+  // CLI/src/console.sh, CLI/src/loop-log.sh,
   // CLI/src/forge.sh, CLI/src/user-env.sh, CLI/src/clone-webs.sh, CLI/spider-factory.example.env,
   // .claude/hooks/worker-stop.sh, .claude/hooks/worker-fail.sh, .claude/hooks/hooks.json.
   // The cast only: the story is told by the four walkthroughs in views.c4.
@@ -100,8 +100,14 @@ says so out loud instead of cloning nothing quietly. The run exits non-zero only
       description """
 In the order the code runs them — the bootstrap at the bottom of `CLI/src/beads-loop/index.sh`, which calls
 them one after another; checks 2–6 live in `preflight.sh` beside it, checks 1 and 7 in `config.sh`. Six of the seven
-end the run through `die` (`console.sh`) — `beads-loop: <what is wrong>` on stderr, exit 1 — and no tick ever
-happens; a run that cannot report on itself is not a run.
+end the run through `die` — `beads-loop: <what is wrong>` on stderr, exit 1 — and no tick ever happens; a run that
+cannot report on itself is not a run. `die` is not theirs: it lives in `CLI/src/console.sh`, the one file in the CLI
+that writes to a terminal — every engine, `bin/sf` and both installers source it and call `nameTheSpeaker <name>`
+once, so every line each one says comes out `<name>: <line>`. Check 2 refuses through `reportToolNotOnPath` and
+check 6 through `reportNoBeadsDatabase`; that second sentence is the one `sf`, `plan-agent.sh` and
+`overseer-agent.sh` refuse with too, and `reportMissingFromInstall` (a file the install should have put down) and
+`reportAgentCommandNotOnPath` (the first word of `SF_AGENT_COMMAND`) are the other two reused refusals.
+Checks 3–5 pass their own sentence to `die` directly.
 
 | # | Check | Refuses when |
 |---|---|---|
@@ -116,8 +122,9 @@ happens; a run that cannot report on itself is not a run.
 `sf` itself runs check 6 and one before it — `requireEngine`, that `../src/beads-loop/index.sh` is actually
 there — so a broken install names itself instead of failing deep in a tick.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L141-L155 "Source — beads-loop/index.sh lines 141–155, the bootstrap that runs them in order"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L143-L157 "Source — beads-loop/index.sh lines 143–157, the bootstrap that runs them in order"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/preflight.sh#L5-L43 "Source — beads-loop/preflight.sh lines 5–43, checks 2–6"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/console.sh "Source — CLI/src/console.sh, die and the four reused refusals"
     }
 
     knobs = knobPanel "The run's parameters (env, read once at startup)" {
@@ -154,17 +161,19 @@ again. It ends by itself only when `SF_MAX_TICKETS` tickets have closed this run
 `closes` file, not against the tick count, so a run waiting on workers still ticking is never cut off.
 It is the only thing in the system that claims, dispatches, publishes the epic branch, or owns folders.
 
-**Where the engine lives:** `CLI/src/beads-loop/` — eleven bash files, one concern each, no node, no build.
+**Where the engine lives:** `CLI/src/beads-loop/` — ten bash files, one concern each, no node, no build.
 `index.sh` is the file `sf loop` executes and the only one with a bootstrap: the knobs, the `AGENT` map, the
-order the other ten are sourced in, `claimAndDispatchOneTicket`, `tick()`, `runLoop()`, the interrupt trap.
+order the other nine are sourced in, `claimAndDispatchOneTicket`, `tick()`, `runLoop()`, the interrupt trap.
 Beside it: `config.sh` the knobs, the waiting cadence, the tower paths, the log folder · `preflight.sh` the
-checks that end the run before the first tick, and the gate tier flags · `console.sh` the only thing that
-writes to the terminal on its own account — three lines, `die` / the startup announcement / the stop report —
-while every other word a run says is a log line first, which `logTo` also echoes while the loop runs ·
-`logs.sh` the human text of every message, so no call site carries a sentence · `tower-id.sh` the id grammar and everything derived off it · `git.sh` the worktree, the epic branch
+checks that end the run before the first tick, and the gate tier flags · `logs.sh` the human text of every
+message, so no call site carries a sentence · `tower-id.sh` the id grammar and everything derived off it · `git.sh` the worktree, the epic branch
 and its PR · `beads.sh` every beads read that is not a claim · `claim.sh` the frontier, the guards a claim must
 pass, the waiting line · `worker.sh` the prompt, the spawn, the dispatch · `gates.sh` the gate side of the tick.
-Every function named below lives in one of these.
+Every function named below lives in one of these. **What the run says to the terminal is nobody's business
+here:** that is `CLI/src/console.sh`, sourced from `../` beside `loop-log.sh` and `forge.sh`, which `index.sh`
+names `beads-loop` — the startup announcement and the closing summary are its `announceRunLogDirectory` and
+`reportStopped`, and every other word a run says is a log line first, which `logTo` also echoes while the
+loop runs.
 
 One tick, in the order the code runs it (`tick()`, `index.sh`):
 
@@ -204,7 +213,8 @@ itself, never closes a ticket, and never derives an agent name from a label. It 
 claims back is the supervisor's job, not the loop's.
 """
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh "Source — CLI/src/beads-loop/index.sh, the tick and the run"
-      link https://github.com/Londelo/spider-factory/tree/main/CLI/src/beads-loop "Source — the whole CLI/src/beads-loop/ directory, the eleven files"
+      link https://github.com/Londelo/spider-factory/tree/main/CLI/src/beads-loop "Source — the whole CLI/src/beads-loop/ directory, the ten files"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/console.sh "Source — CLI/src/console.sh, the run's terminal lines"
     }
 
     agentMap = noteDoc "The AGENT map — the only label→worker binding" {

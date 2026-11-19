@@ -10,7 +10,7 @@ description: >
   it its reason. Use it before running any `bd show` / `bd list` / `bd dep` / `bd graph`, and whenever
   an instruction says "read the ticket" and you would otherwise guess a flag: a truncated read, a
   hidden gate, or a skipped gate read silently becomes an agent building the thing nobody asked for.
-  Reads only — the claim belongs to `CLI/src/beads-loop.sh`, no worker ever closes its own ticket (the Stop
+  Reads only — the claim belongs to `CLI/src/beads-loop/claim.sh`, no worker ever closes its own ticket (the Stop
   hook closes a task once its worker declares done; a gate waits for a human or the lead agent), and
   authoring tickets lives in `bead-create`.
   Trigger: "read the ticket", "read the bead", "what does my ticket say", "read the epic", "what is my
@@ -217,7 +217,7 @@ survives in an old tower is a lie you should see clearly, not one you silently o
   report the contradiction; do not quietly reconcile it.
 - **A missing fact belongs on the ticket, never in a guess**: write exactly what remains into the ticket
   and say the gap out loud. Half-doing an unseen brief and hiding it is worse than stopping.
-- **Never claim from here**: `bd ready --claim`, `bd update --claim`, `bd unclaim` and `bd reclaim` belong
-  to `CLI/src/beads-loop.sh` and the operator alone. Your ticket arrived already claimed.
+- **Never claim from here**: `bd ready --claim` and `bd unclaim` belong
+  to `CLI/src/beads-loop/claim.sh` and the operator alone. Your ticket arrived already claimed.
 - Your ticket is your whole assignment: read it, read the gate above it and the tier beside it, work
   nothing else.

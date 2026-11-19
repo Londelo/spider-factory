@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# loop-log.sh — the one definition of a log line, sourced by CLI/src/beads-loop.sh and both worker hooks.
+# loop-log.sh — the one definition of a log line, sourced by CLI/src/beads-loop/index.sh and both worker hooks.
 #   <tag padded to 8> <ISO time>\trun=… repo=… ticket=… label=… agent=… branch=… target=… session=… worktree=… <detail>
 #   The tag is also the file the line appends to under $logDir. Carry a value on every line with
 #   boIdent <key> <value>; pass anything one line only (a step, a gate, an exit code) to logTo as detail.

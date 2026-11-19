@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# beads-loop — the claim-beads dispatcher: each tick claims one ready ticket and spawns its worker.
+#   sf loop   (or ./beads-loop/index.sh) from inside the tower project; Ctrl-C stops dispatching.
+#   This file is the whole run: the knobs, the order the pieces are sourced in, the tick, and the loop.
+#   What each piece owns is one file beside it here; the contract of the engine is still this file's to keep.
+#   SF_MAX_PARALLEL (4) workers at once | SF_POLL_S (3) seconds per tick, must divide 60 | SF_MAX_TICKETS (0 = never ends)
+#   SF_MAX_TICKETS counts tickets the Stop hook closed this run, not ticks — the loop keeps ticking while it waits
+#   SF_LOG_ROOT (~/.spider-factory/logs) one directory per run | SF_ALLOWED_LABELS unset or * = the whole AGENT set, a comma list narrows it
+#   SF_AGENT_COMMAND (claude) the command that runs an agent — every worker spawn and the worker count go through it
+#   SF_AGENT_FEATURE_GATES / SF_AGENT_EPIC_GATES (0) — 1 lets the lead agent verify and merge that tier's gate every tick
+#   Every one of them may live in CLI/spider-factory.env, which CLI/install-cli.sh puts there and you edit by hand.
+#   Contract: this directory is the contract. .claude/diagram/ is its human-terms account; .claude/CLAUDE.md points at both.
+set -uo pipefail
+
+loopDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+engineDir="$(dirname "$loopDir")"
+source "$engineDir/user-env.sh"
+loadSpiderFactoryEnv
+
+agentPluginName="${SF_AGENT_PLUGIN:-spider-factory}"
+
+declare -A AGENT=(
+    [backend-logic]=engineer
+    [frontend-ui]=frontend
+    [unit-tests]=tester-unit
+    [feature-test]=tester-feature
+    [epic-e2e-test]=tester-e2e
+    [feature-review]=review
+    [epic-review]=review
+)
+
+leadAgentName="lead"
+
+declare -A numericSettingEnvName=(
+    [maximumParallelWorkers]=SF_MAX_PARALLEL
+    [pollSeconds]=SF_POLL_S
+    [maximumTicketsDone]=SF_MAX_TICKETS
+)
+
+declare -A allowedLabel=()
+declare -A lastTickForWaitingReason=()
+
+maximumParallelWorkers=0
+pollSeconds=0
+maximumTicketsDone=0
+logRoot=""
+agentCommand=""
+agentHandlesFeatureGates=0
+agentHandlesEpicGates=0
+waitingLineCadence=0
+maximumClaimsPerTick=0
+tickCount=0
+claimedThisRun=0
+tryNextClaim=0
+
+source "$engineDir/loop-log.sh"
+source "$engineDir/forge.sh"
+source "$loopDir/logs.sh"
+source "$loopDir/console.sh"
+source "$loopDir/config.sh"
+source "$loopDir/preflight.sh"
+source "$loopDir/tower-id.sh"
+source "$loopDir/git.sh"
+source "$loopDir/beads.sh"
+source "$loopDir/claim.sh"
+source "$loopDir/worker.sh"
+source "$loopDir/gates.sh"
+
+claimAndDispatchOneTicket() {
+    tryNextClaim=0
+    readClaimFromFrontier || return
+    if frontierHeldNoTicket; then
+        reportEmptyFrontier
+        return
+    fi
+    readTicketIdentityFromClaim || return
+    if claimWasAlreadySkippedThisTick; then
+        releaseClaim "$ticketId"
+        tryNextClaim=1
+        return
+    fi
+    readClaimFields
+    claimCarriesExactlyOneDispatchLabel || return
+    claimBelongsToATower || return
+    if claimedBranchIsAlreadyAtWork; then
+        skipClaimedTicketForThisTick
+        tryNextClaim=1
+        return
+    fi
+    ensureEpicGatePr "$gateId" || {
+        releaseClaim "$ticketId"
+        return 1
+    }
+    dispatchWorker "$ticketId" "${AGENT["${matchedLabels[0]}"]}" "$branch" "$prTarget" "${matchedLabels[0]}"
+}
+
+tick() {
+    local -A skippedTicket=()
+    local busyBranches claimAttempts claimJson claimExitCode ticketId ticketLabels matchedLabels branch prTarget gateId
+
+    busyBranches=$'\n'"$(branchesCurrentlyAtWork)"$'\n'
+    dispatchReadyGates
+    claimAttempts=0
+    while (( claimAttempts < maximumClaimsPerTick )); do
+        claimAttempts=$((claimAttempts + 1))
+        boClearIdentity
+        atDispatchCapacity && return
+        claimAndDispatchOneTicket
+        (( tryNextClaim )) || return
+    done
+
+    waiting branch_busy "held=${#skippedTicket[@]}"
+}
+
+logRunTallyForTicketLimit() {
+    boClearIdentity
+    logTo results "ticks=$tickCount claimed=$claimedThisRun done=$(numberOfTicketsDoneThisRun) note=\"$(formatMessage "$msgHitTicketLimitTemplate" "$maximumTicketsDone")\""
+}
+
+runLoop() {
+    while true; do
+        if (( maximumTicketsDone > 0 )) && (( $(numberOfTicketsDoneThisRun) >= maximumTicketsDone )); then
+            logRunTallyForTicketLimit
+            break
+        fi
+        tickCount=$((tickCount + 1))
+        tick
+        sleep "$pollSeconds"
+    done
+}
+
+onInterrupt() {
+    boClearIdentity
+    logTo results "ticks=$tickCount claimed=$claimedThisRun done=$(numberOfTicketsDoneThisRun)"
+    reportStopped
+    exit 0
+}
+
+installInterruptTrap() { trap 'onInterrupt' INT TERM; }
+
+configureFromEnvironment
+configureAllowedLabels
+requireToolsOnPath
+requireNumericSettingsFromEnvironment
+requireGateFlagsAreSwitches
+requireUsablePollInterval
+requireBeadsProject
+createRunLogDirectory
+resolveTowerPaths
+boSeedIdentity "$logDir" "$towerDir"
+configureWaitingLineCadence
+configureMaximumClaimsPerTick
+installInterruptTrap
+announceRunLogDirectory
+runLoop

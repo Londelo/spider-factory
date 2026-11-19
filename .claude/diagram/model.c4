@@ -2,7 +2,8 @@ model {
 
   // ═════════════════════════════════════════════════════════════════════════════
   // THE MACHINE — one command in, background workers out.
-  // Every value here was read off CLI/bin/sf, CLI/src/beads-loop.sh, CLI/src/loop-log.sh,
+  // Every value here was read off CLI/bin/sf, CLI/src/beads-loop/ (index.sh and the ten beside it),
+  // CLI/src/loop-log.sh,
   // CLI/src/forge.sh, CLI/src/user-env.sh, CLI/src/clone-webs.sh, CLI/spider-factory.example.env,
   // .claude/hooks/worker-stop.sh, .claude/hooks/worker-fail.sh, .claude/hooks/hooks.json.
   // The cast only: the story is told by the four walkthroughs in views.c4.
@@ -22,7 +23,7 @@ model {
 |---|---|
 | `sf` | an agent session through `SF_AGENT_COMMAND` (default `claude`), **always from the factory root** — already inside it, you stay put; anything you type after it goes to that session |
 | `sf --help` / `-h` / `help` | the usage block: the six commands, the prompt forms, and where every setting lives |
-| `sf loop` | `CLI/src/beads-loop.sh`, foreground — the dispatcher over the tower in the current directory |
+| `sf loop` | `CLI/src/beads-loop/index.sh`, foreground — the dispatcher over the tower in the current directory |
 | `sf plan:epic` / `sf plan:feature` / `sf plan:task` | `CLI/src/plan-agent.sh` with that kind, and everything you typed after the command handed to it as the prompt |
 | `sf overseer` | `CLI/src/overseer-agent.sh`, foreground — the reader, `sf` denied to it |
 | `sf commit <line>` | `CLI/src/commit.sh` — the only thing that commits, anywhere |
@@ -97,8 +98,10 @@ says so out loud instead of cloning nothing quietly. The run exits non-zero only
     preflight = noteDoc "The checks — everything that must hold before the first tick" {
       summary "The seven checks that must hold before the first tick; six of them refuse the run outright."
       description """
-In the order the code runs them (`CLI/src/beads-loop.sh` bottom of the file). Six of the seven `exit 1` and no tick
-ever happens; a run that cannot report on itself is not a run.
+In the order the code runs them — the bootstrap at the bottom of `CLI/src/beads-loop/index.sh`, which calls
+them one after another; checks 2–6 live in `preflight.sh` beside it, checks 1 and 7 in `config.sh`. Six of the seven
+end the run through `die` (`console.sh`) — `beads-loop: <what is wrong>` on stderr, exit 1 — and no tick ever
+happens; a run that cannot report on itself is not a run.
 
 | # | Check | Refuses when |
 |---|---|---|
@@ -110,10 +113,11 @@ ever happens; a run that cannot report on itself is not a run.
 | 6 | `requireBeadsProject` — `bd list --limit 1 --json` must answer an **array** | `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the environment does not save a wrong directory |
 | 7 | `createRunLogDirectory` — `mkdir -p` the run's dir, then seed `claims errors waiting results closes failures` | fatal on purpose: a run that cannot write its logs cannot raise an alarm |
 
-`sf` itself runs check 6 and one before it — `requireEngine`, that `../beads-loop.sh` is actually there — so a
-broken install names itself instead of failing deep in a tick.
+`sf` itself runs check 6 and one before it — `requireEngine`, that `../src/beads-loop/index.sh` is actually
+there — so a broken install names itself instead of failing deep in a tick.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop.sh#L808-L824 "Source — beads-loop.sh lines 808–824"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L141-L155 "Source — beads-loop/index.sh lines 141–155, the bootstrap that runs them in order"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/preflight.sh#L5-L43 "Source — beads-loop/preflight.sh lines 5–43, checks 2–6"
     }
 
     knobs = knobPanel "The run's parameters (env, read once at startup)" {
@@ -142,7 +146,7 @@ to be installed, so it and the engines are kept in step by hand.
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/user-env.sh "Source — CLI/src/user-env.sh"
     }
 
-    dispatcher = dispatcher "beads-loop.sh — the dispatcher" {
+    dispatcher = dispatcher "beads-loop/ — the dispatcher" {
       summary "The engine: a tick dispatches any ready gate its tier flag opens, then claims tickets, derives their branches off the id, spawns workers."
       description """
 **What it is:** the engine `sf loop` runs. A `while true` loop: test the ticket cap, `tick`, `sleep $SF_POLL_S`,
@@ -150,21 +154,34 @@ again. It ends by itself only when `SF_MAX_TICKETS` tickets have closed this run
 `closes` file, not against the tick count, so a run waiting on workers still ticking is never cut off.
 It is the only thing in the system that claims, dispatches, publishes the epic branch, or owns folders.
 
-One tick, in the order the code runs it (`tick()`):
+**Where the engine lives:** `CLI/src/beads-loop/` — eleven bash files, one concern each, no node, no build.
+`index.sh` is the file `sf loop` executes and the only one with a bootstrap: the knobs, the `AGENT` map, the
+order the other ten are sourced in, `claimAndDispatchOneTicket`, `tick()`, `runLoop()`, the interrupt trap.
+Beside it: `config.sh` the knobs, the waiting cadence, the tower paths, the log folder · `preflight.sh` the
+checks that end the run before the first tick, and the gate tier flags · `console.sh` the only thing that
+writes to the terminal on its own account — three lines, `die` / the startup announcement / the stop report —
+while every other word a run says is a log line first, which `logTo` also echoes while the loop runs ·
+`logs.sh` the human text of every message, so no call site carries a sentence · `tower-id.sh` the id grammar and everything derived off it · `git.sh` the worktree, the epic branch
+and its PR · `beads.sh` every beads read that is not a claim · `claim.sh` the frontier, the guards a claim must
+pass, the waiting line · `worker.sh` the prompt, the spawn, the dispatch · `gates.sh` the gate side of the tick.
+Every function named below lives in one of these.
+
+One tick, in the order the code runs it (`tick()`, `index.sh`):
 
 | # | Step | Reads | On failure |
 |---|---|---|---|
 | 0 | `branchesCurrentlyAtWork` — the branches already at work, read **before** claiming so the ticket in hand is never counted against itself | `bd list --status in_progress --limit 0 --json` → `.[] \| .id`, each one through `resolveTicketBranches`, `sort -u` | — |
 | 1 | **dispatch any ready gate its tier flag opens** — `dispatchReadyGates`, before a single ticket is claimed. Returns at once when neither `SF_AGENT_FEATURE_GATES` nor `SF_AGENT_EPIC_GATES` is `1` | `bd list --include-gates --ready --type gate --limit 0 --json` → `.id`; the tier is `gateTierOf`, never a key | see the gate rows below |
-| 2 | capacity check | `$SF_AGENT_COMMAND agents --json`, background sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled` |
+| 2 | capacity check — **re-tested before every claim attempt**, not once per tick: the tick keeps claiming while there is room | `$SF_AGENT_COMMAND agents --json`, background sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled`, and the tick ends |
 | 3 | **claim** | `bd ready --claim --json` — atomic: assignee + `in_progress` + a 5-minute lease | `bd-failure`; an empty answer is a waiting line, not an error |
-| 4 | match labels against the `AGENT` map — **exactly one** may match | `.[0].labels` | `label-ambiguous`, left claimed |
-| 5 | derive the branch and the PR target off the **id** | `resolveTicketBranches <id>` — `splitTowerId` reads `<repo>-<kind>-<uuid>-<hierarchy>` off the right; the uuid names the tower, the kind word swapped to `feature` with the hierarchy cut at the last dot is the feature gate whose `branch` the work lands on, the kind word swapped to `epic` at hierarchy `0` the epic gate whose `branch` is `prTarget`; `prTarget` is `main` when the owner is the epic gate itself. Nothing is walked and no key on the ticket is read | `no-epic-gate ticket=…` (id does not read the grammar · `step=not-below-a-gate` · `gate=<the epic it names>`), `gate-unworkable ticket=…` (`owner-carries-no-branch` · `epic-carries-no-branch`), left claimed |
-| 6 | one pair of hands per branch | is `branch` in the busy set? | `bd unclaim`, try the next claim, at most `SF_MAX_PARALLEL + 2` attempts a tick |
-| 7 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
-| 8 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
-| 9 | spawn | `$SF_AGENT_COMMAND --bg --agent <plugin>:<agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
-| 10 | one log line, move on | `logTo claims \"reason=dispatched\"` | — |
+| 4 | is this the ticket the tick already parked? — a ticket put back earlier this tick can come straight off the frontier again | is `ticketId` in the tick's own skipped set? | `bd unclaim` it straight back and take another claim, without reading its labels |
+| 5 | match labels against the `AGENT` map — **exactly one** may match | `.[0].labels` | `label-ambiguous`, left claimed |
+| 6 | derive the branch and the PR target off the **id** | `resolveTicketBranches <id>` — `splitTowerId` reads `<repo>-<kind>-<uuid>-<hierarchy>` off the right; the uuid names the tower, the kind word swapped to `feature` with the hierarchy cut at the last dot is the feature gate whose `branch` the work lands on, the kind word swapped to `epic` at hierarchy `0` the epic gate whose `branch` is `prTarget`; `prTarget` is `main` when the owner is the epic gate itself. Nothing is walked and no key on the ticket is read | `no-epic-gate ticket=…` (id does not read the grammar · `step=not-below-a-gate` · `gate=<the epic it names>`), `gate-unworkable ticket=…` (`owner-carries-no-branch` · `epic-carries-no-branch`), left claimed |
+| 7 | one pair of hands per branch | is `branch` in the busy set? | `bd unclaim`, park the ticket id for this tick, try the next claim — at most `SF_MAX_PARALLEL + 2` attempts a tick |
+| 8 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
+| 9 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
+| 10 | spawn | `$SF_AGENT_COMMAND --bg --agent <plugin>:<agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
+| 11 | one log line, move on | `logTo claims \"reason=dispatched\"` | — |
 
 **The gate half of the tick** (`dispatchOneGate`, step 1) is the only place a worker is spawned without a
 label. A gate never appears in `bd ready`, so it is claimed **by status**: `bd update <gate> --status
@@ -186,7 +203,8 @@ itself, never closes a ticket, and never derives an agent name from a label. It 
 `bd reclaim`**: a lease that lapses leaves its ticket parked `in_progress`, off the frontier — sweeping
 claims back is the supervisor's job, not the loop's.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop.sh "Source — CLI/src/beads-loop.sh"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh "Source — CLI/src/beads-loop/index.sh, the tick and the run"
+      link https://github.com/Londelo/spider-factory/tree/main/CLI/src/beads-loop "Source — the whole CLI/src/beads-loop/ directory, the eleven files"
     }
 
     agentMap = noteDoc "The AGENT map — the only label→worker binding" {
@@ -194,13 +212,16 @@ claims back is the supervisor's job, not the loop's.
       description """
 ```bash
 declare -A AGENT=(
-    [backend-logic]=engineer      [frontend-ui]=frontend
-    [unit-tests]=tester-unit      [feature-test]=tester-feature
-    [epic-e2e-test]=tester-e2e    [feature-review]=review
+    [backend-logic]=engineer
+    [frontend-ui]=frontend
+    [unit-tests]=tester-unit
+    [feature-test]=tester-feature
+    [epic-e2e-test]=tester-e2e
+    [feature-review]=review
     [epic-review]=review
 )
 
-leadAgentName="lead"   # the one worker no key of this map reaches
+leadAgentName="lead"
 ```
 
 **Three names, never interchangeable** — collapsing any two is how a tower silently dispatches nothing:
@@ -220,7 +241,7 @@ labelled with its category matches nothing. There is no merge label at either ti
 feature or an epic, each branch is merged by the **lead agent** standing on the gate above it, and the
 lead agent is reached by the gate dispatch, not by a key of this map.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop.sh#L19-L29 "Source — beads-loop.sh lines 19–29"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L22-L32 "Source — beads-loop/index.sh lines 22–32, the AGENT map and the lead agent's name"
     }
 
     spawnEnv = knobPanel "SF_* — the environment the spawn carries" {
@@ -249,7 +270,7 @@ done_file kind` — and the Stop hook reads it back as `SF_WORK_KIND="${claimKin
 claims line first and the context file only as a fallback. It is the only thing that tells the hook it is
 finishing a **gate** rather than a task.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop.sh#L608-L626 "Source — beads-loop.sh lines 608–626"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/worker.sh#L54-L72 "Source — beads-loop/worker.sh lines 54–72, spawnWorker: the context file, then the env block on the --bg line"
     }
 
     claim = cliTool "bd ready --claim — the hand that takes one ticket" {
@@ -265,7 +286,7 @@ same statement, stamps an assignee, moves it to `in_progress`, and starts a **fi
 | one ticket per call | the tick loops: claim, work it or put it back, claim again — at most `SF_MAX_PARALLEL + 2` times a tick |
 | an **empty** answer is not an error | that is a waiting line: `frontier_empty` if nothing is waiting elsewhere, `tower_stalled waiting=N` if work exists behind a blocker |
 | the lease is the only watchdog | a lapsed lease parks the ticket `in_progress` and off the frontier — nothing in this plugin runs `bd reclaim`, so sweeping claims back is a human's act |
-| `bd unclaim` puts a claim back | the loop does it exactly twice: the branch is already at work, or the spawn died |
+| `bd unclaim` puts a claim back | `releaseClaim` is one line, called from four places: the branch is already at work · the ticket was already parked earlier this tick and came back off the frontier · the epic branch and its PR could not be published · the spawn died |
 
 A claim is a JSON object, and **two** fields decide everything downstream: `.id` (which two gates it sits
 under, and therefore which branch the work lands on and which its pull request aims at — `resolveTicketBranches`
@@ -277,7 +298,8 @@ title, description, notes — the loop never reads.
 loop moves it to `in_progress` itself with `bd update <gate> --status in_progress --if-status open`, which is
 step 1 of the tick and the only claim in the system made by status.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop.sh "Source — CLI/src/beads-loop.sh"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/claim.sh "Source — CLI/src/beads-loop/claim.sh, the frontier and the guards"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/gates.sh#L13-L53 "Source — CLI/src/beads-loop/gates.sh lines 13–53, dispatchOneGate: the claim made by status"
     }
 
   }  // machine
@@ -288,8 +310,8 @@ step 1 of the tick and the only claim in the system made by status.
 **What it is:** the central home for everything a run leaves behind. The engine seeds **six** files up
 front (`claims errors waiting results closes failures`), so a missing file and an empty file look the
 same and neither hides a silent failure — `closes` and `failures` are written by the hooks, possibly
-long after the run ended. Three more appear as needed (`bd-stderr`, `claude-stderr`) and one pair per
-worker (`spawn-<ticket>`, `done-<ticket>`).
+long after the run ended. Two more appear only when something writes them (`bd-stderr`, from the claim,
+and `claude-stderr`, from the capacity count), and one pair per worker (`spawn-<ticket>`, `done-<ticket>`).
 
 **One line format, sourced by the engine and by both hooks** (`CLI/src/loop-log.sh`), or the files cannot be
 read against each other:
@@ -551,7 +573,7 @@ a branch to the wrong forge.
 |---|---|
 | `bd ready --claim --json` | the **only** sanctioned claim: atomic assignee + `in_progress` + 5-minute lease |
 | `bd ready --json` (peek) | used once, inside `waiting()`, purely to name `next=` |
-| `bd unclaim <id>` | put a claim back — branch already at work, or the spawn died |
+| `bd unclaim <id>` | put a claim back — the four places `releaseClaim` is called, listed on the claim node |
 | `bd heartbeat <id>` | the worker keeps its lease alive; it never closes its own ticket |
 | `bd list --status in_progress --limit 0 --json` | the `.id`s of everything in progress, each through `resolveTicketBranches` → the branches currently at work, read before the claim so the ticket in hand is never counted against itself |
 | `bd list --status open,blocked --limit 0 --json` | the probe that tells `frontier_empty` from `tower_stalled` |

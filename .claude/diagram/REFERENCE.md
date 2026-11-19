@@ -20,7 +20,9 @@ memory, from an earlier version of the diagram, from a commit message, or from w
 the code says one thing and the diagram says another, **the diagram is wrong** — including when you wrote
 it yesterday.
 
-The files the diagrams describe: `CLI/bin/sf`, `CLI/src/beads-loop.sh`, `CLI/src/plan-agent.sh`,
+The files the diagrams describe: `CLI/bin/sf`, `CLI/src/beads-loop/` (`index.sh` plus the ten files beside it —
+the engine is a directory now, and a link into it must name the file that actually holds the code),
+`CLI/src/plan-agent.sh`,
 `CLI/src/overseer-agent.sh`, `CLI/src/commit.sh`, `CLI/src/loop-log.sh`, `CLI/src/forge.sh`,
 `CLI/src/user-env.sh`, `CLI/src/clone-webs.sh`, `CLI/src/create-beads/*`, `CLI/install-cli.sh`,
 `CLI/spider-factory.example.env`, `webs/webs.example.yml`, `.claude/hooks/worker-stop.sh`,

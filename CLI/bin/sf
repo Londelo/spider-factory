@@ -62,7 +62,7 @@ it is split on spaces, so it may carry its own arguments. The loop also asks it 
 that too or the loop will spawn past SF_MAX_PARALLEL.
 
 Every setting — SF_AGENT_COMMAND, SF_MAX_PARALLEL, SF_POLL_S, SF_MAX_TICKETS, SF_LOG_ROOT,
-SF_ALLOWED_LABELS — lives in ~/.spider-factory.env, which the installer wrote there with its
+SF_ALLOWED_LABELS — lives in CLI/spider-factory.env, which the installer wrote there with its
 defaults. Edit that file; something you export yourself still wins for one run.
 
 The loop, the three planners and the watcher run from inside a tower project (one with a

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # overseer-agent.sh — runs the overseer agent, in the foreground, through SF_AGENT_COMMAND.
 #   overseer-agent.sh [prompt]
-#   SF_AGENT_COMMAND (claude) the command that runs an agent — it may live in ~/.spider-factory.env
+#   SF_AGENT_COMMAND (claude) the command that runs an agent — it may live in CLI/spider-factory.env
 #   sf overseer is this file; the contract is agents/overseer.md.
 #   The watcher is denied 'sf' outright — --disallowedTools Bash(sf:*), which stops sf commit, sf loop and
 #   sf plan:* while leaving bd, git and every other read alone. Verified: bd and git still run under it.
@@ -31,7 +31,7 @@ wrong. It has no Write, Edit or Agent tools, and 'sf' is denied to it outright �
 where the fix is a mutation it hands you the command to run.
 
 SF_AGENT_COMMAND (claude) — the command that runs an agent; it is split on spaces,
-so it may carry its own arguments. Set it in ~/.spider-factory.env, or export it for one run.
+so it may carry its own arguments. Set it in CLI/spider-factory.env, or export it for one run.
 
 Run it from inside a tower project (one with a beads DB).
 USAGE

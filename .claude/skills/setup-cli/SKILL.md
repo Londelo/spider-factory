@@ -50,7 +50,7 @@ its own problem). Run the installer:
 bash "$(claude plugin details spider-factory --json | jq -r '.root')/CLI/install-cli.sh"
 ```
 
-That writes `~/.local/bin/sf`, and — only the first time — `~/.spider-factory.env`, a copy of `CLI/default.env`
+That writes `~/.local/bin/sf`, and — only the first time — `CLI/spider-factory.env`, a copy of `CLI/default.env`
 holding every setting the CLI reads at its default. That file belongs to the user: re-running the installer
 never touches it, and both engines read it on every run, so it is where they change how the CLI behaves
 (`SF_MAX_PARALLEL`, `SF_AGENT_COMMAND`, `SF_POLL_S` …). Tell them it exists and what it is for. Re-running
@@ -68,7 +68,7 @@ rm -f "$HOME/.local/bin/sf"
 the plugin path it can no longer find, plus the two ways out: remove the launcher, or reinstall the plugin
 and run its `CLI/install-cli.sh` again. If they report that message, ask which they want — the reinstall is
 Step 3, the removal is the `rm` above. Either way nothing else on the machine needs cleaning, except
-`~/.spider-factory.env` if they want it gone too — that one is their own edits, so never remove it unasked.
+`CLI/spider-factory.env` if they want it gone too — that one is their own edits, so never remove it unasked.
 
 **Uninstall beads from this repo** — this deletes the beads database. Confirm the repo path first;
 this is destructive to the tower:
@@ -88,4 +88,4 @@ reverse (`brew uninstall beads` / `npm rm -g @beads/bd`).
 | uninstall the CLI | `rm -f ~/.local/bin/sf` |
 | uninstall beads (repo) | `rm -rf .beads` (destructive — confirm path) |
 | run the dispatcher | `sf loop` (foreground — Ctrl-C stops it) |
-| change how the CLI behaves | edit `~/.spider-factory.env` — read on every run; an exported value still wins |
+| change how the CLI behaves | edit `CLI/spider-factory.env` — read on every run; an exported value still wins |

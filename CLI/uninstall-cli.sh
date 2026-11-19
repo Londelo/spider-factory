@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # uninstall-cli.sh — take `sf` off PATH by removing the launcher CLI/install-cli.sh wrote, and nothing else.
-# Your ~/.spider-factory.env survives: those are your edits by then. Delete it yourself for a clean slate.
+# Your CLI/spider-factory.env survives: those are your edits by then. Delete it yourself for a clean slate.
 set -euo pipefail
 
 launcher="$HOME/.local/bin/sf"
@@ -21,7 +21,7 @@ refuseForeignLauncher() {
 removeLauncher() {
     rm -f "$launcher"
     echo "removed: $launcher"
-    echo "env:     $HOME/.spider-factory.env kept — delete it to get the defaults back"
+    echo "env:     $(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/spider-factory.env kept — delete it to get the defaults back"
 }
 
 refuseForeignLauncher

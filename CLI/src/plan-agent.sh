@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # plan-agent.sh — runs one of the three plan agents, in the foreground, through SF_AGENT_COMMAND.
 #   plan-agent.sh epic [prompt] | plan-agent.sh feature [prompt] | plan-agent.sh task [prompt]
-#   SF_AGENT_COMMAND (claude) the command that runs an agent — it may live in ~/.spider-factory.env
+#   SF_AGENT_COMMAND (claude) the command that runs an agent — it may live in CLI/spider-factory.env
 #   sf plan:epic / plan:feature / plan:task are this file; the contract is .claude/CLAUDE.md §Plan agents.
 set -uo pipefail
 
@@ -30,7 +30,7 @@ Foreground, and the planner talks back to you: it asks what it needs before it
 writes anything. Anything after the kind is handed to it as the prompt.
 
 SF_AGENT_COMMAND (claude) — the command that runs an agent; it is split on spaces,
-so it may carry its own arguments. Set it in ~/.spider-factory.env, or export it for one run.
+so it may carry its own arguments. Set it in CLI/spider-factory.env, or export it for one run.
 
 Run it from inside a tower project (one with a beads DB).
 USAGE

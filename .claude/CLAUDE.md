@@ -28,8 +28,8 @@ spider-factory/
 │                                   #   framework-{jest,playwright}
 ├── CLI/                            # the `sf` package — bash, no node
 │   ├── bin/sf                      # six commands: loop, plan:epic, plan:feature, plan:task, overseer, commit
-│   ├── default.env                 # what you get when you set nothing, copied to ~/.spider-factory.env on install
-│   ├── install-cli.sh              # puts a real launcher on PATH and ~/.spider-factory.env down the first time
+│   ├── default.env                 # what you get when you set nothing, copied to CLI/spider-factory.env on install
+│   ├── install-cli.sh              # puts a real launcher on PATH and CLI/spider-factory.env down the first time
 │   ├── uninstall-cli.sh            # removes that launcher, and only that launcher
 │   └── src/                        # the engines bin/sf runs
 │       ├── beads-loop.sh           # the dispatcher engine
@@ -38,7 +38,7 @@ spider-factory/
 │       ├── commit.sh               # the only thing that commits, anywhere
 │       ├── loop-log.sh             # one log-line definition, sourced by the engine and both hooks
 │       ├── forge.sh                # GitHub vs GitLab, and which tool names the right CLI
-│       ├── user-env.sh             # the loader for ~/.spider-factory.env
+│       ├── user-env.sh             # the loader for CLI/spider-factory.env
 │       └── create-beads/           # create-gate.sh + create-task.sh, the only two things that mint an id
 ├── .claude/hooks/                  # hooks.json, worker-stop.sh (fail-closed), worker-fail.sh (parks a dead worker)
 ├── scripts/tower-walk.sh           # experiment harness — builds a tower and walks the frontier by hand
@@ -106,7 +106,7 @@ the *branch*, not the ticket.
 | `hooks/worker-fail.sh` | parks a dead worker's ticket in `failed-agent` with the reason, and commits nothing |
 | `CLI/src/commit.sh` | **the only way anything commits in this plugin** — `sf commit` = `git add -A`, one commit subject `agent:branch:message`, `git push -u origin <branch>` |
 | `CLI/src/loop-log.sh` | the one line format, sourced by the engine and both hooks: nine fixed keys, `-` for the unknown |
-| `CLI/src/user-env.sh` + `~/.spider-factory.env` | every knob; `default.env` is copied there on install and never touched again |
+| `CLI/src/user-env.sh` + `CLI/spider-factory.env` | every knob; `default.env` is copied there on install and never touched again |
 | `agents/*.md` | the worker's own contract — the lease, never closing its own ticket, `sf commit` as it goes, the done marker last |
 
 ### Rules that break the system when broken

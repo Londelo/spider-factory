@@ -6,7 +6,7 @@
 #   SF_LOG_ROOT (~/.spider-factory/logs) one directory per run | SF_ALLOWED_LABELS unset or * = the whole AGENT set, a comma list narrows it
 #   SF_AGENT_COMMAND (claude) the command that runs an agent — every worker spawn and the worker count go through it
 #   SF_AGENT_FEATURE_GATES / SF_AGENT_EPIC_GATES (0) — 1 lets the lead agent verify and merge that tier's gate every tick
-#   Every one of them may live in ~/.spider-factory.env, which CLI/install-cli.sh puts there and you edit by hand.
+#   Every one of them may live in CLI/spider-factory.env, which CLI/install-cli.sh puts there and you edit by hand.
 #   Contract: this file is the contract. .claude/diagram/ is its human-terms account; .claude/CLAUDE.md points at both.
 set -uo pipefail
 

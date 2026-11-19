@@ -49,7 +49,7 @@ Four consequences you can only check with these in mind:
 
 - **A gate is a checkpoint, not work.** `bd ready` never shows one, and a tower stopped at a gate is the
   design working, not a stall. By default **only a human closes one**. `SF_AGENT_FEATURE_GATES=1` /
-  `SF_AGENT_EPIC_GATES=1` (in `~/.spider-factory.env`, one flag per tier) instead hand that tier to the **lead**
+  `SF_AGENT_EPIC_GATES=1` (in `CLI/spider-factory.env`, one flag per tier) instead hand that tier to the **lead**
   agent: the loop finds a ready gate each tick, moves it to `in_progress` itself — a gate never appears in
   `bd ready`, so `bd ready --claim` cannot claim it — and spawns a lead for it. A lead proves the tier
   (every blocker of the gate closed, the review answered, the tests green, the PR's pipeline green) and
@@ -120,7 +120,7 @@ claude logs <session>                           # what that worker has been sayi
 | Thing | Path |
 |---|---|
 | The run's logs | `$SF_LOG_ROOT/<%F_%H-%M-%S>` — default `~/.spider-factory/logs/2026-11-12_20-47-45/` |
-| The knobs | `~/.spider-factory.env` (`SF_MAX_PARALLEL` 4 · `SF_POLL_S` 3 · `SF_MAX_TICKETS` 0 · `SF_LOG_ROOT` · `SF_ALLOWED_LABELS` · `SF_AGENT_COMMAND` · `SF_AGENT_FEATURE_GATES` 0 · `SF_AGENT_EPIC_GATES` 0) |
+| The knobs | `CLI/spider-factory.env` (`SF_MAX_PARALLEL` 4 · `SF_POLL_S` 3 · `SF_MAX_TICKETS` 0 · `SF_LOG_ROOT` · `SF_ALLOWED_LABELS` · `SF_AGENT_COMMAND` · `SF_AGENT_FEATURE_GATES` 0 · `SF_AGENT_EPIC_GATES` 0) |
 | The worktrees | `<tower>/.claude/worktrees/<branch with / → +>` — one per **branch**, not per ticket |
 | The tower itself | the beads database in the tower repo — `bd where` names which one you are reading |
 

@@ -2,9 +2,9 @@
 # install-cli.sh — put `sf` on PATH as a real file at ~/.local/bin/sf, never a symlink, so it outlives an
 # uninstalled plugin and can name its own problem. No node, no package manager.
 #   bash "$(claude plugin details spider-factory --json | jq -r '.root')/CLI/install-cli.sh"
-# It also puts the environment file at ~/.spider-factory.env, the defaults copied from CLI/default.env.
+# It also puts the environment file at CLI/spider-factory.env, the defaults copied from CLI/default.env.
 # Re-running it overwrites the launcher, which is how you repoint it after a reinstall — but it never
-# touches ~/.spider-factory.env once it exists: those are your edits by then. Delete it to get the defaults back.
+# touches CLI/spider-factory.env once it exists: those are your edits by then. Delete it to get the defaults back.
 set -euo pipefail
 
 locateLauncherPaths() {
@@ -12,7 +12,7 @@ locateLauncherPaths() {
     pluginRoot="$(cd "$here/.." && pwd)"
     binDir="$HOME/.local/bin"
     launcher="$binDir/sf"
-    envFile="$HOME/.spider-factory.env"
+    envFile="$here/spider-factory.env"
     defaultEnvFile="$here/default.env"
 }
 

@@ -29,7 +29,7 @@ spider-factory/
 ├── CLI/                            # the `sf` package — bash, no node
 │   ├── bin/sf                      # bare `sf` = an agent session at the factory root; six commands:
 │                                   #   loop, plan:epic, plan:feature, plan:task, overseer, commit
-│   ├── default.env                 # what you get when you set nothing, copied to CLI/spider-factory.env on install
+│   ├── spider-factory.example.env  # what you get when you set nothing, copied to CLI/spider-factory.env on install
 │   ├── install-cli.sh              # puts a real launcher on PATH and CLI/spider-factory.env down the first time
 │   ├── uninstall-cli.sh            # removes that launcher, and only that launcher
 │   └── src/                        # the engines bin/sf runs
@@ -40,7 +40,12 @@ spider-factory/
 │       ├── loop-log.sh             # one log-line definition, sourced by the engine and both hooks
 │       ├── forge.sh                # GitHub vs GitLab, and which tool names the right CLI
 │       ├── user-env.sh             # the loader for CLI/spider-factory.env
+│       ├── clone-webs.sh           # the cloner — `npm run webs:clone`, reads webs/webs.yml, clones each repo into webs/
 │       └── create-beads/           # create-gate.sh + create-task.sh, the only two things that mint an id
+├── webs/                           # every web the workers build — the directory is in the repo, nothing inside it is
+│   ├── .gitkeep                    # the one tracked file, so webs/ exists in a fresh checkout
+│   ├── webs.example.yml            # the shipped empty list, tracked — clone-webs.sh copies it to webs.yml only when that is missing
+│   └── webs.yml                    # your repo urls, gitignored — the list clone-webs.sh actually reads
 ├── .claude/hooks/                  # hooks.json, worker-stop.sh (fail-closed), worker-fail.sh (parks a dead worker)
 ├── scripts/tower-walk.sh           # experiment harness — builds a tower and walks the frontier by hand
 └── .claude/shared/plan-tasks/      # the templates plan-task fills: engineer, frontend, tester-unit
@@ -107,7 +112,9 @@ the *branch*, not the ticket.
 | `hooks/worker-fail.sh` | parks a dead worker's ticket in `failed-agent` with the reason, and commits nothing |
 | `CLI/src/commit.sh` | **the only way anything commits in this plugin** — `sf commit` = `git add -A`, one commit subject `agent:branch:message`, `git push -u origin <branch>` |
 | `CLI/src/loop-log.sh` | the one line format, sourced by the engine and both hooks: nine fixed keys, `-` for the unknown |
-| `CLI/src/user-env.sh` + `CLI/spider-factory.env` | every knob; `default.env` is copied there on install and never touched again |
+| `CLI/src/user-env.sh` + `CLI/spider-factory.env` | every knob; `spider-factory.example.env` is copied there on install and never touched again |
+| `CLI/src/clone-webs.sh` + `webs/webs.yml` | the webs the factory builds, and nothing to do with `sf` or the installer — one repo url a line, cloned into `webs/`; `webs/webs.example.yml` is the tracked template that engine copies to `webs/webs.yml` and nothing else ever writes that file |
+| `webs/` | in the repo by `.gitkeep` alone — `webs/*` is ignored, so the directory ships and the clones inside it never do |
 | `agents/*.md` | the worker's own contract — the lease, never closing its own ticket, `sf commit` as it goes, the done marker last |
 
 ### Rules that break the system when broken

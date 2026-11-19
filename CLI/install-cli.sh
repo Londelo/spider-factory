@@ -2,7 +2,7 @@
 # install-cli.sh — put `sf` on PATH as a real file at ~/.local/bin/sf, never a symlink, so it outlives an
 # uninstalled plugin and can name its own problem. No node, no package manager.
 #   bash "$(claude plugin details spider-factory --json | jq -r '.root')/CLI/install-cli.sh"
-# It also puts the environment file at CLI/spider-factory.env, the defaults copied from CLI/default.env.
+# It also puts the environment file at CLI/spider-factory.env, copied from CLI/spider-factory.example.env.
 # Re-running it overwrites the launcher, which is how you repoint it after a reinstall — but it never
 # touches CLI/spider-factory.env once it exists: those are your edits by then. Delete it to get the defaults back.
 set -euo pipefail
@@ -13,7 +13,7 @@ locateLauncherPaths() {
     binDir="$HOME/.local/bin"
     launcher="$binDir/sf"
     envFile="$here/spider-factory.env"
-    defaultEnvFile="$here/default.env"
+    exampleEnvFile="$here/spider-factory.example.env"
 }
 
 writeLauncher() {
@@ -36,18 +36,18 @@ EOF
     chmod +x "$launcher"
 }
 
-installDefaultEnvFile() {
+installExampleEnvFile() {
     if [[ -f "$envFile" ]]; then
         envFileState="kept your edits"
         return 0
     fi
-    [[ -f "$defaultEnvFile" ]] || {
-        echo "sf: the defaults are missing at $defaultEnvFile — this install is broken." >&2
+    [[ -f "$exampleEnvFile" ]] || {
+        echo "sf: the environment example is missing at $exampleEnvFile — this install is broken." >&2
         exit 1
     }
-    cp "$defaultEnvFile" "$envFile"
+    cp "$exampleEnvFile" "$envFile"
     chmod 600 "$envFile"
-    envFileState="wrote the defaults"
+    envFileState="wrote the example"
 }
 
 warnWhenBinDirMissingFromPath() {
@@ -64,6 +64,6 @@ announceInstallation() {
 
 locateLauncherPaths
 writeLauncher
-installDefaultEnvFile
+installExampleEnvFile
 warnWhenBinDirMissingFromPath
 announceInstallation

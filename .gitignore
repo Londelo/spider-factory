@@ -1,1 +1,5 @@
 CLI/spider-factory.env
+webs.yml
+webs/*
+!webs/.gitkeep
+!webs/webs.example.yml

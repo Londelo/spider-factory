@@ -17,6 +17,7 @@
   "scripts": {
     "cli:install": "bash CLI/install-cli.sh",
     "cli:uninstall": "bash CLI/uninstall-cli.sh",
+    "webs:clone": "bash CLI/src/clone-webs.sh",
     "test": "echo \"Error: no test specified\" && exit 1"
   }
 }

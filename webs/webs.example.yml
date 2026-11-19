@@ -1,0 +1,15 @@
+# The repo list the clone engine reads — one repo per line under 'repos:', each starting with a dash.
+# A '#' starts a comment, so a line you comment out is not cloned. Every clone lands in webs/ beside
+# this list, in a directory named after the last segment of its url.
+#
+# Two files only are ever in the repo here: webs/.gitkeep, which is what keeps the directory itself in
+# the repo, and webs.example.yml, the shipped list. Everything else under webs/ is gitignored — the
+# clones and this list alike. The live list is webs.yml and it is yours: CLI/src/clone-webs.sh copies the
+# example to it whenever it is missing and never writes it after that. Delete it to get the shipped one
+# back.
+#
+#   repos:
+#     - https://github.com/Londelo/my-web.git
+#     - git@github.com:Londelo/my-other-web.git
+
+repos:

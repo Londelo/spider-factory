@@ -29,9 +29,9 @@ outlives an uninstalled plugin and names its own problem — the missing-plugin 
 that clears it and the two ways to get it back. If `~/.local/bin` is not on your path, the installer
 prints the exact `export PATH=` line your shell profile is missing.
 
-**Its second write:** `CLI/default.env` copied to `CLI/spider-factory.env`, the run's parameters at their
-defaults — yours to edit by hand. The installer touches that file only when it does not exist; delete
-it to get the defaults back. `sf` with nothing after it opens an agent session through `SF_AGENT_COMMAND`,
+**Its second write:** `CLI/spider-factory.example.env` copied to `CLI/spider-factory.env`, the run's
+parameters at their defaults — yours to edit by hand. The installer touches that file only when it does
+not exist; delete it to get the defaults back. `sf` with nothing after it opens an agent session through `SF_AGENT_COMMAND`,
 always from the factory root — you stay put if you are already inside it. `sf --help` prints the six
 commands: `loop`, `plan:epic`, `plan:feature`, `plan:task`, `overseer`, `commit`.
 
@@ -67,10 +67,10 @@ broken install names itself instead of failing deep in a tick.
       summary "The run's parameters, read once at startup out of `CLI/spider-factory.env`; what you export yourself still wins."
       description """
 Both engines source `CLI/src/user-env.sh` and call `loadSpiderFactoryEnv` as their first act. It takes only
-`SF_*=` lines out of `CLI/spider-factory.env` (`CLI/default.env` copied there on install), expands `$HOME` in a
+`SF_*=` lines out of `CLI/spider-factory.env` (`CLI/spider-factory.example.env` copied there on install), expands `$HOME` in a
 value, and **exports only what is unset** — so a value you exported yourself still beats the file.
 `SF_ENV_FILE` points it elsewhere, which is the whole test hook; no file at all is a normal state, and
-the engines' own `:-` defaults are the floor under it. `CLI/default.env` is documentation that happens
+the engines' own `:-` defaults are the floor under it. `CLI/spider-factory.example.env` is documentation that happens
 to be installed, so it and the engines are kept in step by hand.
 
 | Knob | Default | What it does |

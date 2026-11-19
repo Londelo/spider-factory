@@ -50,8 +50,8 @@ its own problem). Run the installer:
 bash "$(claude plugin details spider-factory --json | jq -r '.root')/CLI/install-cli.sh"
 ```
 
-That writes `~/.local/bin/sf`, and — only the first time — `CLI/spider-factory.env`, a copy of `CLI/default.env`
-holding every setting the CLI reads at its default. That file belongs to the user: re-running the installer
+That writes `~/.local/bin/sf`, and — only the first time — `CLI/spider-factory.env`, a copy of
+`CLI/spider-factory.example.env` holding every setting the CLI reads at its default. That file belongs to the user: re-running the installer
 never touches it, and both engines read it on every run, so it is where they change how the CLI behaves
 (`SF_MAX_PARALLEL`, `SF_AGENT_COMMAND`, `SF_POLL_S` …). Tell them it exists and what it is for. Re-running
 the installer overwrites the launcher, which is how you repoint it after a reinstall. If it prints a PATH

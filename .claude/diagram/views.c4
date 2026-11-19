@@ -180,7 +180,9 @@ gates wait for a person. The database is all the loop ever reads.
     include
       human,
       machine,
+      machine.sfCli,
       machine.setupSkill,
+      machine.websCloner,
       machine.knobs,
       machine.preflight,
       machine.dispatcher,
@@ -207,7 +209,7 @@ gates wait for a person. The database is all the loop ever reads.
       waiting,
       waiting.towerStalled
 
-    // ═ ACT I — the setup skill puts the dispatcher on your path, once
+    // ═ ACT I — setup, once per machine: the skill, the command, the webs, the settings, the checks
 
     human -> machine.setupSkill "setup spider-factory · install the CLI" {
       title "You ask your AI agent to set it up — once per machine"
@@ -218,6 +220,25 @@ If only the CLI is missing, it asks you once, then runs the installer: one real 
 finds the plugin and runs the engine in the foreground, and — the first time only — the one settings file
 the parameters node names, which is yours to edit after that.
 If nothing is missing, it says so and gets out of the way.
+"""
+    }
+
+    human -> machine.sfCli "sf · or one of its six commands" {
+      title "Everything the machine can do goes through one command"
+      notes """
+Six commands, each one an engine file beside it — the six are listed on the node itself. Bare `sf` opens a
+session at the factory root, and a word that is not one of the six is refused by name rather than guessed at.
+Before any engine runs it checks that the engine file is there; for `loop` it also checks this folder answers
+a ticket list.
+"""
+    }
+
+    human -> machine.websCloner "npm run webs:clone · the repos the workers build" {
+      title "The webs themselves, once per machine, before any tower means anything"
+      notes """
+An npm script, not a `sf` command — the CLI has no webs command at all. Every url under `repos:` in
+`webs/webs.yml` is cloned into `webs/`; a first run writes that list from the shipped example and tells you to
+fill it in rather than cloning nothing quietly. A repo already sitting there is left exactly as it is.
 """
     }
 
@@ -701,7 +722,7 @@ closed nothing.
   dynamic view theLogs {
     title "Spider Factory/Walkthrough/3 · The run log — who writes what, and how to read a tower that is not moving"
 
-    include human, machine.dispatcher, beads, workers.engineer, stopHook, failHook, logRun, logRun.*
+    include human, machine.dispatcher, beads, workers.engineer, stopHook, failHook, overseerAgent, logRun, logRun.*
 
     // ═ ACT I — one directory per run, and one line format that never varies
 
@@ -830,6 +851,24 @@ many tickets it claimed is the number that says whether the run did anything at 
 | Why is a ticket claimed and never worked? | `errors` for `no-epic-gate` or `gate-unworkable` — both print `ticket=<id>`, and both leave it claimed on purpose |
 """
       navigateTo everyFailure
+    }
+
+    human -> overseerAgent "how's the tower going?" {
+      title "Or ask the reader instead of reading the files yourself"
+      notes """
+`sf overseer` runs it in the foreground, over the tower in the folder you are standing in, and anything you
+type after the command goes to it as the prompt. It reads those same log files, the database and git, and
+answers the three questions above: is the loop alive, how far along is the tower, what is wrong.
+"""
+    }
+
+    overseerAgent -> beads "reads the tower, never writes it" {
+      title "Where the fix is a mutation, it hands you the command"
+      notes """
+`sf` is denied to it outright and its own file carries no Write, Edit or Agent tools — so it names the fault
+and the command that fixes it, and you are the one who runs it. A reader that could mutate would be a second
+loop nobody dispatched.
+"""
     }
 
     beads -> logRun "and the log is not the state" {
@@ -1055,10 +1094,28 @@ gate the line names the gate instead of a ticket, and what goes back is its stat
 """
     }
 
-    // ═ PART C — the Stop hook refuses sixteen times, in code order
+    // ═ PART C — the Stop hook refuses eighteen times, in code order
+
+    stopHook -> alarms.stopAlarms.claimMalformedHook "ERROR reason=claim-malformed" {
+      title "1 of 18 · the first refusal in the file"
+      notes """
+This session's line in the run's `claims` file carries no ticket or no run, so the hook cannot tell what it
+stands for: no ticket, no run directory, no done marker. Only a session the loop did dispatch can reach this
+line — one with **no** claims line at all exits quietly one step earlier.
+"""
+    }
+
+    stopHook -> alarms.stopAlarms.noContextHook "ERROR reason=no-context worktree=<dir>" {
+      title "2 of 18"
+      notes """
+The dispatch context file for that worktree is unreadable **and** the claims line carries no branch or no
+target to fall back on — the two are each other's backup, and with neither there is nothing to commit, push
+or file. The ticket stays claimed.
+"""
+    }
 
     stopHook -> alarms.stopAlarms.missingToolHook "ERROR reason=missing-tool tool=git" {
-      title "1 of 16 · the ticket stays claimed"
+      title "3 of 18 · the ticket stays claimed"
       notes """
 Checked before anything else the hook does, but after the check that this is a dispatched worker at all — a
 session the loop never started exits quietly instead of alarming about somebody else's project.
@@ -1066,7 +1123,7 @@ session the loop never started exits quietly instead of alarming about somebody 
     }
 
     stopHook -> alarms.stopAlarms.noWorktreeHook "ERROR reason=no-worktree" {
-      title "2 of 16"
+      title "4 of 18"
       notes """
 The hook was not told which folder the work is in, and it will not guess from its own location — guessing here
 means committing whatever happens to be lying around.
@@ -1074,7 +1131,7 @@ means committing whatever happens to be lying around.
     }
 
     stopHook -> alarms.stopAlarms.ticketNotInWork "ERROR reason=ticket-not-in-work state=open" {
-      title "3 of 16 · and silent when the ticket is already closed"
+      title "5 of 18 · and silent when the ticket is already closed"
       notes """
 The ticket is not in progress. If it is closed this is a second stop in a session that already shipped, and the
 hook leaves quietly — committing onto a shared branch twice is exactly what it is there to prevent.
@@ -1082,21 +1139,21 @@ hook leaves quietly — committing onto a shared branch twice is exactly what it
     }
 
     stopHook -> alarms.stopAlarms.noBranchHook "ERROR reason=no-branch" {
-      title "4 of 16"
+      title "6 of 18"
       notes """
 The branch never reached the session, so the loop never got as far as reading it off the claim.
 """
     }
 
     stopHook -> alarms.stopAlarms.noPrTarget "ERROR reason=no-pr-target" {
-      title "5 of 16"
+      title "7 of 18"
       notes """
 The pull request's target never reached the session. The hook will not open a pull request into a guess.
 """
     }
 
     stopHook -> alarms.stopAlarms.notDeclaredDone "ERROR reason=not-declared-done" {
-      title "6 of 16 · the gate of the whole design"
+      title "8 of 18 · the gate of the whole design"
       notes """
 The done marker is not there: the session ended without saying, in the one place both programs read, that its
 work is finished. No commit, no push, no pull request, no close. The ticket stays claimed, which parks it off
@@ -1105,7 +1162,7 @@ the queue, and everything chained behind it waits.
     }
 
     stopHook -> alarms.stopAlarms.wrongBranch "ERROR reason=wrong-branch want=feature/add-record" {
-      title "7 of 16"
+      title "9 of 18"
       notes """
 The folder is not on the branch it should be — the worker was told never to change branches, and this is the
 last place that can refuse to file the work under the wrong ticket's name.
@@ -1113,7 +1170,7 @@ last place that can refuse to file the work under the wrong ticket's name.
     }
 
     stopHook -> alarms.stopAlarms.noTitle "ERROR reason=ticket-has-no-title" {
-      title "8 of 16"
+      title "10 of 18"
       notes """
 The commit message is the ticket's title, so a ticket with no title cannot be filed — it would be an anonymous
 commit on a shared branch.
@@ -1121,7 +1178,7 @@ commit on a shared branch.
     }
 
     stopHook -> alarms.stopAlarms.commitFailed "ERROR reason=commit-failed" {
-      title "9 of 16 · and an empty tree is NOT this"
+      title "11 of 18 · and an empty tree is NOT this"
       notes """
 The commit itself failed. A review or test ticket landing nothing is normal and is skipped quietly, so this line
 means a genuine failure.
@@ -1129,7 +1186,7 @@ means a genuine failure.
     }
 
     stopHook -> alarms.stopAlarms.pushFailed "ERROR reason=push-failed" {
-      title "10 of 16"
+      title "12 of 18"
       notes """
 The push failed and its output is quoted in the alarm. The commit stays where it is and the ticket stays
 claimed — nothing is rolled back, because a local commit is evidence, not a mistake to hide.
@@ -1137,7 +1194,7 @@ claimed — nothing is rolled back, because a local commit is evidence, not a mi
     }
 
     stopHook -> alarms.stopAlarms.forgeUnknown "ERROR reason=forge-unknown remote=<url>" {
-      title "11 of 16 · reached only after the commit and the push"
+      title "13 of 18 · reached only after the commit and the push"
       notes """
 It could not tell whether this is GitHub or GitLab, and it refuses to guess: a wrong guess pushes a branch to
 the wrong forge.
@@ -1145,7 +1202,7 @@ the wrong forge.
     }
 
     stopHook -> alarms.stopAlarms.forgeToolMissing "ERROR reason=missing-tool tool=gh forge=github" {
-      title "12 of 16 · same reason as alarm 1, different tool"
+      title "14 of 18 · same reason as alarm 3, different tool"
       notes """
 It knows the forge now, but that forge's command line tool is not installed. The forge name on the line is how
 you tell this from the up-front check.
@@ -1153,7 +1210,7 @@ you tell this from the up-front check.
     }
 
     stopHook -> alarms.stopAlarms.prNotFoundGate "ERROR reason=pr-not-found forge=github" {
-      title "13 of 16 · the gate path's own refusal"
+      title "15 of 18 · the gate path's own refusal"
       notes """
 Reached only when the claim is a gate, and this path never opens a pull request — the lead agent was sent to
 **merge** one. So the hook only looks that branch's pull request up, at any state, and finds nothing: there was
@@ -1163,7 +1220,7 @@ failing to raise a pull request of its own.
     }
 
     stopHook -> alarms.stopAlarms.prNotCreated "ERROR reason=pr-not-created forge=github" {
-      title "14 of 16"
+      title "16 of 18"
       notes """
 Looking for an existing pull request and making a new one both failed, or the tool printed an error quoting some
 other address — only something that reads like a pull request number counts as one.
@@ -1171,7 +1228,7 @@ other address — only something that reads like a pull request number counts as
     }
 
     stopHook -> alarms.stopAlarms.ticketNotAnnotated "ERROR reason=ticket-not-annotated pr=<url>" {
-      title "15 of 16 · the work is out there, the ticket cannot say where"
+      title "17 of 18 · the work is out there, the ticket cannot say where"
       notes """
 Writing the pull request url onto the ticket failed, so the hook stops rather than close a ticket whose pull
 request nobody could find again.
@@ -1179,7 +1236,7 @@ request nobody could find again.
     }
 
     stopHook -> alarms.stopAlarms.closeFailed "ERROR reason=close-failed pr=<url>" {
-      title "16 of 16 · everything else already succeeded"
+      title "18 of 18 · everything else already succeeded"
       notes """
 The commit, the push and the pull request are all out there with no record in the tower. The ticket tool will
 not close a ticket unless the closer is who it says it is — the loop claimed this one, so the hook passes the

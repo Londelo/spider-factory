@@ -1,14 +1,31 @@
 ### Summary
 Spider Factory is a plugin: an SDL toolkit for building web applications with
 Claude Code, driven by Beads (`bd`). You plan a tower of tickets top-down, then one command turns that tower
-into background workers — each ticket claimed, worked on its own branch, committed, pushed, and put up as a
-pull request — while you stay out of the way and close the gates when a tier is proved.
+into background workers — each ticket claimed, worked on the branch its own id names, committed, pushed, and
+put up as a pull request — while you stay out of the way and close the gates when a tier is proved.
+
+### Documentation — three tiers, and the rule before every commit
+
+There are three documents. They are not interchangeable: each has its reader and its depth, a fact belongs
+at the deepest tier that owns it, and the shallower tiers point down instead of repeating it.
+
+| Tier | File | Reader | Depth |
+|---|---|---|---|
+| 1 · the snapshot | `README.md` (repo root) | a human passing through | the idea, the setup, the webs, the CLI, the workflow, and where to read more. Brief, always — it owns no fact nobody else owns. |
+| 2 · the reference | `.claude/CLAUDE.md` (this file) | an agent doing the work | the vocabulary, the moving parts, the rules that break the system. Detailed, not exhaustive — it points down, it never duplicates. |
+| 3 · the account | [`diagram/`](./diagram/) | a human who is not in the code | the most detailed thing outside the code: the machine, the tower, the workers, every alarm, step by step. The **translated** source of truth, and the thing people quote — so it must not drift. |
+
+Above all three: **the code is the only source of truth.** A document is a set of claims about the code, and
+a claim nobody checked is a bug. When any tier disagrees with the code, that tier is wrong — including the
+one you wrote yesterday.
+
+**The rule: nothing commits until all three match the code.** Before every `commit` — every commit, every
+push — **spawn an agent** to bring `README.md`, this file, and `diagram/` in line with what the code now
+does, and commit the code and the documents together. A change that leaves a document stale is not finished.
+The agent you spawn reads the code, never its own memory of it; the diagram half of the job reads
+`diagram/REFERENCE.md` before it touches a box and rebuilds `dist/` when it is done.
 
 ### Source of truth — read this first
-**The code is the only source of truth.** [`diagram/`](./diagram/) is its **translated** source of truth: the
-account a human reads when they are not in the code, and the thing people quote, so it must not drift. This
-file is neither — it is a pointer and a vocabulary list. It holds no fact you cannot get from the code, and
-when it disagrees with either of the two above, it is wrong.
 
 | You want | Go to |
 |---|---|
@@ -21,7 +38,8 @@ when it disagrees with either of the two above, it is wrong.
 ```
 spider-factory/
 ├── .claude/CLAUDE.md               # this file — pointer and vocabulary
-├── .claude/diagram/                # the translated source of truth — likec4 model, views, build.sh, dist/
+├── .claude/diagram/                # the translated source of truth — likec4 model, specification, views,
+│                                   #   build.sh, and the built dist/
 ├── .claude/agents/                 # 7 tower agents + 3 plan agents + the overseer watcher
 ├── .claude/skills/                 # bead-initialize, bead-create, bead-read, bead-comment,
 │                                   #   setup-cli, pr-comments, standards-{coding,naming,errors,file-organization},
@@ -107,9 +125,9 @@ the *branch*, not the ticket.
 ### The moving parts, and who owns what
 | Part | Owns |
 |---|---|
-| `CLI/src/beads-loop.sh` | the tick: read the busy branches, dispatch any ready gate its tier flag opens, `bd ready --claim`, match the one dispatching label, derive `branch` and `prTarget` off the ticket's id, publish the epic branch and PR if there is none, build the worktree, spawn the worker **with cwd inside it**, log one line |
-| `hooks/worker-stop.sh` | **fail-closed on `$SF_DONE_FILE`**: no marker → no commit, no push, no PR, no close. Then it closes the *task*; on a gate claim (`kind=gate`) it commits and pushes, finds that branch's PR at any state, and closes the **gate** without ever opening a new PR |
-| `hooks/worker-fail.sh` | parks a dead worker's ticket in `failed-agent` with the reason, and commits nothing |
+| `CLI/src/beads-loop.sh` | the tick: read the busy branches, dispatch any ready gate its tier flag opens, `bd ready --claim`, match the one dispatching label, derive `branch` and `prTarget` off the ticket's id, publish the epic branch and PR if there is none, build the worktree, spawn the worker **with cwd inside it**, log one line per event |
+| `.claude/hooks/worker-stop.sh` | **fail-closed on `$SF_DONE_FILE`**: no marker → no commit, no push, no PR, no close. Then it closes the *task*; on a gate claim (`kind=gate`) it commits and pushes, finds that branch's PR at any state, and closes the **gate** without ever opening a new PR |
+| `.claude/hooks/worker-fail.sh` | the StopFailure hook: parks a dead worker's ticket in `failed-agent` with the reason, and commits nothing |
 | `CLI/src/commit.sh` | **the only way anything commits in this plugin** — `sf commit` = `git add -A`, one commit subject `agent:branch:message`, `git push -u origin <branch>` |
 | `CLI/src/loop-log.sh` | the one line format, sourced by the engine and both hooks: nine fixed keys, `-` for the unknown |
 | `CLI/src/user-env.sh` + `CLI/spider-factory.env` | every knob; `spider-factory.example.env` is copied there on install and never touched again |
@@ -138,7 +156,9 @@ the *branch*, not the ticket.
 - **`failed-agent` and `gate` are per-database custom settings.** `bd` accepts an unknown type or status
   silently and then refuses it, so a broken gate and a working one look identical. `bead-initialize` registers
   both; an older tower needs the two `bd config set` lines run in it.
-- **No agent file hardcodes a beads query.** Reading, authoring and commenting belong to the skills; an agent
-  file names the skill to load. The two commands a worker runs about itself — `bd heartbeat` and `sf commit` —
-  are named in its own file, because nothing else is theirs to name.
+- **Beads queries belong to the skills, not to an agent file.** A worker file names the skill to load —
+  `bead-read`, `bead-create`, `bead-comment` — and writes no query of its own; a plan agent names only the
+  `blocks` edges its own tier owns, and the overseer only the whole-tower reads nobody else makes. The two
+  commands a worker runs about itself — `bd heartbeat` and `sf commit` — are named in its own file, because
+  nothing else is theirs to name.
 - **Workers run `bypassPermissions` unattended** → only run the loop in a repo you fully trust.

@@ -3,25 +3,54 @@ model {
   // ═════════════════════════════════════════════════════════════════════════════
   // THE MACHINE — one command in, background workers out.
   // Every value here was read off CLI/bin/sf, CLI/src/beads-loop.sh, CLI/src/loop-log.sh,
-  // CLI/src/forge.sh, hooks/worker-stop.sh, hooks/worker-fail.sh, hooks/hooks.json.
+  // CLI/src/forge.sh, CLI/src/user-env.sh, CLI/src/clone-webs.sh, CLI/spider-factory.example.env,
+  // .claude/hooks/worker-stop.sh, .claude/hooks/worker-fail.sh, .claude/hooks/hooks.json.
   // The cast only: the story is told by the four walkthroughs in views.c4.
   // Rules for editing these files: ./REFERENCE.md — the code is the only source of truth.
   // ═════════════════════════════════════════════════════════════════════════════
 
   machine = layer "The machine — one command in, background workers out" {
-    summary "One command in, background workers out: the setup skill, the checks, the parameters, the dispatcher, the claim."
+    summary "One command in, background workers out: the command, the setup skill, the webs cloner, the checks, the parameters, the dispatcher, the claim."
+
+    sfCli = cliTool "sf — the one command, and its six" {
+      summary "The whole CLI: one bash file, six commands, each one an engine beside it in CLI/src/. Anything unknown is refused by name."
+      description """
+**What it is:** `CLI/bin/sf` — one bash file, no node. The installer puts a launcher for it at
+`~/.local/bin/sf`. Every command is an arm of one `case` block, and nothing else is reachable.
+
+| You type | What runs |
+|---|---|
+| `sf` | an agent session through `SF_AGENT_COMMAND` (default `claude`), **always from the factory root** — already inside it, you stay put; anything you type after it goes to that session |
+| `sf --help` / `-h` / `help` | the usage block: the six commands, the prompt forms, and where every setting lives |
+| `sf loop` | `CLI/src/beads-loop.sh`, foreground — the dispatcher over the tower in the current directory |
+| `sf plan:epic` / `sf plan:feature` / `sf plan:task` | `CLI/src/plan-agent.sh` with that kind, and everything you typed after the command handed to it as the prompt |
+| `sf overseer` | `CLI/src/overseer-agent.sh`, foreground — the reader, `sf` denied to it |
+| `sf commit <line>` | `CLI/src/commit.sh` — the only thing that commits, anywhere |
+
+**Two checks, and where each one lives.** `requireEngine` runs before every command: the engine file is
+actually there, or the message names the missing path and says re-run `CLI/install-cli.sh`.
+`requireBeadsProject` — a beads database reachable from here — `sf` runs only for `loop`; the three planners
+and the watcher each run their own inside their engine, and `commit` needs only a git repo.
+
+**What is not a command.** Anything starting with `-` is not a command at all — it goes to the bare session as
+arguments. Anything else unknown is refused **by name**, with the six listed and `Try 'sf --help'` under it,
+exit 1. There is no webs command: the cloner beside this one is an npm script, not a `sf` one.
+"""
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/bin/sf "Source — CLI/bin/sf"
+    }
 
     setupSkill = skill "setup-cli — the skill that puts the CLI in your AI agent" {
-      summary "One conversation inside your AI agent: it checks the repo, the tickets and the CLI, then installs `sf` on your say-so."
+      summary "One conversation inside your AI agent: it checks the repo, the tickets and the CLI, then installs or removes `sf` on your say-so."
       description """
-**What it is:** `skills/setup-cli/SKILL.md` — a conversation, not a command you remember. Say
-"setup spider-factory" or "install the CLI" to the AI agent and it runs three steps.
+**What it is:** `.claude/skills/setup-cli/SKILL.md` — a conversation, not a command you remember. Say
+"setup spider-factory" or "install the CLI" to the AI agent and it runs four steps.
 
 | Step | What the agent does |
 |---|---|
-| 1 · detect | `git rev-parse --show-toplevel`, `bd where`, `command -v sf` — the repo, whether tickets live here yet, whether `sf` is on the path |
+| 1 · detect | `git rev-parse --show-toplevel`, `bd where`, `command -v sf && sf help` — the repo, whether tickets live here yet, whether `sf` is on the path |
 | 2 · report and branch | reads back the three answers **before** offering anything; no repo → stop and name the folder to `cd` into; no ticket database → hand off to `bead-initialize`; no CLI → step 3; all present → nothing to do, run `sf loop` |
-| 3 · install | runs `CLI/install-cli.sh` — only after you confirm: it never blind-runs anything |
+| 3 · install | runs the plugin's `CLI/install-cli.sh`, located through `claude plugin details spider-factory --json` — only after you confirm: it never blind-runs anything |
+| 4 · uninstall | either or both, each confirmed: `rm -f ~/.local/bin/sf` leaves the plugin files put; `rm -rf .beads` deletes the tower and is confirmed against the repo path first |
 
 **What the installer writes:** one real file at `~/.local/bin/sf` (`CLI/bin/sf`'s launcher), never a
 symlink, which finds the plugin folder and execs the real `CLI/bin/sf`. A real file is deliberate: it
@@ -31,14 +60,38 @@ prints the exact `export PATH=` line your shell profile is missing.
 
 **Its second write:** `CLI/spider-factory.example.env` copied to `CLI/spider-factory.env`, the run's
 parameters at their defaults — yours to edit by hand. The installer touches that file only when it does
-not exist; delete it to get the defaults back. `sf` with nothing after it opens an agent session through `SF_AGENT_COMMAND`,
-always from the factory root — you stay put if you are already inside it. `sf --help` prints the six
-commands: `loop`, `plan:epic`, `plan:feature`, `plan:task`, `overseer`, `commit`.
+not exist; delete it to get the defaults back. The six commands themselves belong to the node above.
 
 **Nothing here runs the loop.** The skill's whole job is to make `sf loop` reachable.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/skills/setup-cli/SKILL.md "Source — the setup-cli skill"
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/install-cli.sh "Source — CLI/install-cli.sh"
+      link https://github.com/Londelo/spider-factory/blob/main/.claude/skills/setup-cli/SKILL.md "Source — the setup-cli skill"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/install-cli.sh "Source — CLI/install-cli.sh"
+    }
+
+    websCloner = cliTool "npm run webs:clone — the webs the factory builds" {
+      summary "Clone every repo url in `webs/webs.yml` into `webs/` beside it. Never pulls, never resets, never deletes; `sf` has no webs command."
+      description """
+**What it is:** `CLI/src/clone-webs.sh`, run by `npm run webs:clone` and by nothing else — `sf` has no webs
+command, and the installer never touches it. Every web the workers build is a clone sitting in `webs/`.
+
+| Fact | Where it comes from |
+|---|---|
+| the list | `webs/webs.yml` — one repo url a line under `repos:`, each line starting with a dash; a `#` comments a line out, and quotes around a url are stripped |
+| its first copy | copied from the tracked `webs/webs.example.yml` **only when it is missing** — nothing else ever writes that file, not the installer and not `sf`; delete it and the next run writes the shipped one back |
+| where a clone lands | `webs/<last segment of the url, .git stripped>` |
+| what is in the plugin | `webs/.gitkeep` and `webs.example.yml` alone — `webs/*` is gitignored, so a clone belongs to the machine and never to the plugin |
+
+**One line per url, then it moves on.** `cloned name=… url=…`; `skipped name=… reason=already-cloned` when a
+`.git` is already there, or `reason=not-a-clone` when something else is; `failed name=… reason=git-clone`.
+Two more refuse before anything is attempted: `reason=not-a-git-url` when the url does not start `https://`,
+`http://`, `ssh://`, `git://` or read like `user@host:path`, and `reason=no-directory-name` when the url names
+no folder. An existing directory is left exactly as it is — **never pulls, never resets, never deletes.**
+
+One summary line closes the run, `webs: N cloned, M skipped, K failed into <webs/>`; a list with nothing in it
+says so out loud instead of cloning nothing quietly. The run exits non-zero only when something failed.
+"""
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/clone-webs.sh "Source — CLI/src/clone-webs.sh"
+      link https://github.com/Londelo/spider-factory/blob/main/webs/webs.example.yml "Source — webs/webs.example.yml"
     }
 
     preflight = noteDoc "The checks — everything that must hold before the first tick" {
@@ -49,8 +102,8 @@ ever happens; a run that cannot report on itself is not a run.
 
 | # | Check | Refuses when |
 |---|---|---|
-| 1 | `requireToolsOnPath` — `bd jq git` plus the first word of `SF_AGENT_COMMAND` | the first one missing is named on stderr |
-| 2 | `configureAllowedLabels` — `SF_ALLOWED_LABELS` against the `AGENT` map | **not fatal** — a typo'd list matches no ticket, and the tower sits still while waiting lines keep arriving |
+| 1 | `configureAllowedLabels` — `SF_ALLOWED_LABELS` against the `AGENT` map | **not fatal** — a typo'd list matches no ticket, and the tower sits still while waiting lines keep arriving |
+| 2 | `requireToolsOnPath` — `bd jq git` plus the first word of `SF_AGENT_COMMAND` | the first one missing is named on stderr |
 | 3 | `requireNumericSettingsFromEnvironment` | `SF_MAX_PARALLEL` / `SF_POLL_S` / `SF_MAX_TICKETS` set to anything but digits — never defaulted silently, because they govern unattended workers |
 | 4 | `requireGateFlagsAreSwitches` — `SF_AGENT_FEATURE_GATES` and `SF_AGENT_EPIC_GATES`, each read by `configureFromEnvironment` | either one is anything but `0` or `1` — the line names the flag and says what each value means: `0` a human closes that gate, `1` the lead agent does. A half-open gate tier is not a state the loop will guess its way through |
 | 5 | `requireUsablePollInterval` — `SF_POLL_S` must divide 60 | the permitted list is printed: `1 2 3 4 5 6 10 12 15 20 30 60`; the waiting lines are rate-limited at one per minute, so a poll that does not divide the minute makes that cadence a lie |
@@ -60,7 +113,7 @@ ever happens; a run that cannot report on itself is not a run.
 `sf` itself runs check 6 and one before it — `requireEngine`, that `../beads-loop.sh` is actually there — so a
 broken install names itself instead of failing deep in a tick.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/beads-loop.sh#L53-L155 "Source — beads-loop.sh lines 53–155"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop.sh#L808-L824 "Source — beads-loop.sh lines 808–824"
     }
 
     knobs = knobPanel "The run's parameters (env, read once at startup)" {
@@ -85,7 +138,8 @@ to be installed, so it and the engines are kept in step by hand.
 | `SF_LOG_ROOT` | `~/.spider-factory/logs` | parent of the one timestamped dir this run writes |
 | `SF_ALLOWED_LABELS` | unset or `*` = the whole AGENT set | a comma list narrows which labels may dispatch |
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/beads-loop.sh#L39-L59 "Source — beads-loop.sh lines 39–59"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/spider-factory.example.env "Source — CLI/spider-factory.example.env"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/user-env.sh "Source — CLI/src/user-env.sh"
     }
 
     dispatcher = dispatcher "beads-loop.sh — the dispatcher" {
@@ -132,8 +186,7 @@ itself, never closes a ticket, and never derives an agent name from a label. It 
 `bd reclaim`**: a lease that lapses leaves its ticket parked `in_progress`, off the frontier — sweeping
 claims back is the supervisor's job, not the loop's.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/beads-loop.sh "Source — CLI/src/beads-loop.sh"
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/.claude/design.yaml "Source — the design model"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop.sh "Source — CLI/src/beads-loop.sh"
     }
 
     agentMap = noteDoc "The AGENT map — the only label→worker binding" {
@@ -154,9 +207,9 @@ leadAgentName="lead"   # the one worker no key of this map reaches
 
 | Name | What it is | Examples |
 |---|---|---|
-| **category** | a display hint in `bd list`; names a plan-task template | `backend-logic`, `frontend-ux`, `unit-tests`, `feature-test`, `epic-e2e-test`, `review` |
+| **category** | a column of plan-task's own node-type table. Nothing ever writes one to beads — no `--category` is passed anywhere in this plugin | `backend-logic`, `frontend-ux`, `unit-tests` — the three plan-task node types, and nothing above a task carries one |
 | **label** | written with `bd create -l`; a ticket may carry any number, but **exactly one** must be a key of this map | the seven keys above, bar none |
-| **agent** | a real file in `agents/` | `engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`, `review`, `lead` |
+| **agent** | a real file in `.claude/agents/` | `engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`, `review`, `lead` |
 
 The keys **are** the closed label set: `isLabel` requires membership here *and* in the allowed set.
 Zero or two matches on a claim is the tower's bug, not the loop's — it never guesses a specialist.
@@ -167,7 +220,7 @@ labelled with its category matches nothing. There is no merge label at either ti
 feature or an epic, each branch is merged by the **lead agent** standing on the gate above it, and the
 lead agent is reached by the gate dispatch, not by a key of this map.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/beads-loop.sh#L20-L30 "Source — beads-loop.sh lines 20–30"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop.sh#L19-L29 "Source — beads-loop.sh lines 19–29"
     }
 
     spawnEnv = knobPanel "SF_* — the environment the spawn carries" {
@@ -191,12 +244,12 @@ and what to say about it. Without them the worker just stops and its ticket sits
 into a session. The dispatcher leaves it unset, so its own lines also go to the terminal.
 
 **The tenth argument, `kind`, is not an environment variable.** `spawnWorker` takes it as `${10:-task}` and
-writes it into the dispatch context file beside the other eight — `ticket branch pr_target agent label tower
+writes it into the dispatch context file beside the other seven — `ticket branch pr_target agent label tower
 done_file kind` — and the Stop hook reads it back as `SF_WORK_KIND="${claimKind:-${kind:-task}}"`, off the
 claims line first and the context file only as a fallback. It is the only thing that tells the hook it is
 finishing a **gate** rather than a task.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/beads-loop.sh#L525-L545 "Source — beads-loop.sh lines 525–545"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop.sh#L608-L626 "Source — beads-loop.sh lines 608–626"
     }
 
     claim = cliTool "bd ready --claim — the hand that takes one ticket" {
@@ -224,7 +277,7 @@ title, description, notes — the loop never reads.
 loop moves it to `in_progress` itself with `bd update <gate> --status in_progress --if-status open`, which is
 step 1 of the tick and the only claim in the system made by status.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/beads-loop.sh "Source — CLI/src/beads-loop.sh"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop.sh "Source — CLI/src/beads-loop.sh"
     }
 
   }  // machine
@@ -256,7 +309,7 @@ names the ticket, label, agent, branch, target, repo and session, and the same k
 CLAIMS   2026-11-04T09:12:03\trun=2026-11-04_09-12-01 repo=/home/dev/record-box ticket=back-end label=backend-logic agent=engineer branch=feature/add-record target=epic/record-box session=287d3c4c worktree=/home/dev/record-box/.claude/worktrees/feature+add-record reason=dispatched
 ```
 """
-    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/loop-log.sh "Source — CLI/src/loop-log.sh"
+    link https://github.com/Londelo/spider-factory/blob/main/CLI/src/loop-log.sh "Source — CLI/src/loop-log.sh"
 
     fClaims = logFile "claims" {
       summary "Every ticket taken, and every one put back."
@@ -340,9 +393,9 @@ hook refuses to land anything without it.
   }
 
   stopHook = hook "worker-stop.sh — the Stop hook, fail-closed" {
-    summary "The closer: commit, push, the branch's pull request, close — and it refuses sixteen ways first."
+    summary "The closer: commit, push, the branch's pull request, close — and it refuses eighteen ways first."
     description """
-**What it is:** the closer. Registered in `hooks/hooks.json` on the `Stop` event with `timeout: 300`, so it
+**What it is:** the closer. Registered in `.claude/hooks/hooks.json` on the `Stop` event with `timeout: 300`, so it
 fires in **every session of every project** the plugin is enabled in — `SF_TICKET` is what tells a dispatched
 worker apart from everything else, and a session the loop did not spawn leaves on the first line.
 
@@ -351,7 +404,8 @@ worker says it is done → `sf commit` onto its feature's branch → push → th
 write the PR url onto the ticket's pr metadata → close it
 ```
 
-It refuses **sixteen** ways, each one `exit 0` with the ticket untouched, in the order the code checks them —
+It refuses **eighteen** ways, each one `logTo errors` then `exit 0` with the ticket untouched, in the order the
+code checks them —
 they are walked one by one in the second walkthrough. The gate of the whole design is `not-declared-done`:
 no marker, no commit, no push, no PR, no close.
 
@@ -378,7 +432,7 @@ the gate with the url, closes the **gate** as its claimant, writes `closes url=�
 context file and exits. **It never opens a new PR on the gate path** — the lead agent merged the branch
 through the forge, and a second PR off a merged branch is a lie about work nobody did.
 """
-    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/hooks/worker-stop.sh "Source — hooks/worker-stop.sh"
+    link https://github.com/Londelo/spider-factory/blob/main/.claude/hooks/worker-stop.sh "Source — .claude/hooks/worker-stop.sh"
   }
 
   failHook = hook "worker-fail.sh — the StopFailure hook" {
@@ -403,8 +457,36 @@ inference, typically an `API Error:` line from the proxy). The reason is written
 a ticket parked in failure with nothing said about why is worse than one left `in_progress`. Every step is
 *attempted, never forced*: one that fails leaves the ticket exactly where it was and logs why.
 """
-    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/hooks/worker-fail.sh "Source — hooks/worker-fail.sh"
-    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/hooks/hooks.json "Source — hooks/hooks.json (Stop 300 s, StopFailure 60 s)"
+    link https://github.com/Londelo/spider-factory/blob/main/.claude/hooks/worker-fail.sh "Source — .claude/hooks/worker-fail.sh"
+    link https://github.com/Londelo/spider-factory/blob/main/.claude/hooks/hooks.json "Source — .claude/hooks/hooks.json (Stop 300 s, StopFailure 60 s)"
+  }
+
+  overseerAgent = worker "overseer — the reader, never the hand" {
+    summary "`sf overseer`: reads this directory's tower and its run logs and reports back to you, foreground. `sf` is denied to it outright."
+    description """
+**What it is:** `.claude/agents/overseer.md`, run in the **foreground** by `sf overseer` →
+`CLI/src/overseer-agent.sh`, which execs your `SF_AGENT_COMMAND` with the `overseer` agent and
+`--disallowedTools 'Bash(sf:*)'`. Foreground is the whole difference from a worker: a worker is spawned `--bg`
+with nobody watching and reports through the log; the overseer talks back to you, and anything you type after
+the command goes to it as the prompt.
+
+**It reads three things and mutates nothing:** the beads database of the directory it was started in, the run
+logs under `SF_LOG_ROOT`, and git. It knows how a tower got where it is — what each plan agent writes, tier by
+tier, what a gate is, what should be running next — which is what lets it tell a real fault from a tier simply
+waiting on a human.
+
+| Guard | What it stops |
+|---|---|
+| `sf` denied at the command level | `sf commit`, `sf loop`, `sf plan:*` — while `bd`, `git` and every other read still run |
+| no `Write`, `Edit` or `Agent` tools in its own file | writing a file, or spawning a worker of its own |
+| `requireBeadsProject`, then the first word of `SF_AGENT_COMMAND` on `PATH` | running it outside a tower, or with an agent command that does not exist |
+
+**Where the fix is a mutation, it hands you the command to run.** That is the design and not a limitation:
+claim, unclaim, close, commit and push belong to the loop and its hooks, and a reader that could do them
+itself would be a second loop nobody dispatched.
+"""
+    link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/overseer.md "Source — .claude/agents/overseer.md"
+    link https://github.com/Londelo/spider-factory/blob/main/CLI/src/overseer-agent.sh "Source — CLI/src/overseer-agent.sh"
   }
 
   beads = beadsStore "beads DB (bd) — the tower" {
@@ -440,8 +522,7 @@ leaves it claimed on purpose. Every id comes out of `CLI/src/create-beads/create
 **accepts it silently and then refuses it**, so a broken gate and a working one look identical. Check
 `bd types` before you trust one.
 """
-    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/skills/bead-initialize/SKILL.md "Source — the bead-initialize skill"
-    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/.claude/design.yaml "Source — the design model"
+    link https://github.com/Londelo/spider-factory/blob/main/.claude/skills/bead-initialize/SKILL.md "Source — the bead-initialize skill"
   }
 
   forge = forge "origin — GitHub or GitLab" {
@@ -457,7 +538,7 @@ actually publishes, because only GitHub serves `refs/pull/` and only GitLab serv
 Where all three are ambiguous the hook refuses to guess and logs `forge-unknown` — a wrong guess pushes
 a branch to the wrong forge.
 """
-    link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/CLI/src/forge.sh "Source — CLI/src/forge.sh"
+    link https://github.com/Londelo/spider-factory/blob/main/CLI/src/forge.sh "Source — CLI/src/forge.sh"
   }
 
   toolbelt = layer "The commands the loop shells out to" {
@@ -622,7 +703,7 @@ nothing at all, and the lead commits only what it had to resolve where the targe
 **Label `backend-logic` → `engineer`.** Business logic, endpoints, hooks, types, error factories.
 Never writes tests, JSX or CSS. Skills: `bead-read` and the four standards; the worker contract lives in the agent file itself.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/engineer.md "Source — agents/engineer.md"
+      link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/engineer.md "Source — .claude/agents/engineer.md"
     }
     testerUnit = worker "tester-unit" {
       summary "Micro tier: one back-end function alone — every branch, boundary and error it throws."
@@ -631,7 +712,7 @@ Never writes tests, JSX or CSS. Skills: `bead-read` and the four standards; the 
 boundary, empty/null, every error it throws. Never a component: the UI is proved by the composition tier.
 Waits on the back-end ticket it tests. Skill: `framework-jest`.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/tester-unit.md "Source — agents/tester-unit.md"
+      link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/tester-unit.md "Source — .claude/agents/tester-unit.md"
     }
     frontend = worker "frontend" {
       summary "Components, layout and styling, last in the line against functions already proved."
@@ -639,7 +720,7 @@ Waits on the back-end ticket it tests. Skill: `framework-jest`.
 **Label `frontend-ui` → `frontend`.** Components, layout, styling, the shared component system. Last in the
 line, built against functions already proved. Its landing is what unblocks `feature-test`.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/frontend.md "Source — agents/frontend.md"
+      link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/frontend.md "Source — .claude/agents/frontend.md"
     }
     testerFeature = worker "tester-feature" {
       summary "Composition tier: one feature's pieces proved wired, its errors and successes surfacing."
@@ -648,7 +729,7 @@ line, built against functions already proved. Its landing is what unblocks `feat
 errors and successes surface. Never re-runs the micro tier's edge matrix, never walks cross-feature journeys.
 Skill: `framework-playwright`.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/tester-feature.md "Source — agents/tester-feature.md"
+      link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/tester-feature.md "Source — .claude/agents/tester-feature.md"
     }
     testerE2e = worker "tester-e2e" {
       summary "Broad tier: whole user journeys across features in a real browser on the real stack."
@@ -657,7 +738,7 @@ Skill: `framework-playwright`.
 cross-feature state handoffs, session continuity, one success and one failure journey per feature. The least
 verbose tier. Skill: `framework-playwright`.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/tester-e2e.md "Source — agents/tester-e2e.md"
+      link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/tester-e2e.md "Source — .claude/agents/tester-e2e.md"
     }
     reviewAgent = worker "review" {
       summary "Three questions from first principles, answered as comments on the pull request."
@@ -669,7 +750,7 @@ instrumented code, posts findings as PR comments. Files no tickets; the trace lo
 Nothing is preloaded — `bead-read`, the standards and `pr-comments` load on demand at the step
 that uses them.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/review.md "Source — agents/review.md"
+      link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/review.md "Source — .claude/agents/review.md"
     }
     leadAgent = worker "lead" {
       summary "The one worker no label reaches: stands on a gate, proves the tier, merges the branch through the forge."
@@ -695,7 +776,7 @@ commits the resolution with `sf commit` and pushes, so the PR carries it and the
 code and no tests; never closes, reopens, unclaims or reclaims a ticket — `bd close` would end the hook before
 it ever ran.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/lead.md "Source — agents/lead.md"
+      link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/lead.md "Source — .claude/agents/lead.md"
     }
   }
 
@@ -730,7 +811,7 @@ The epic's own pull request aims at `main` — that is derived, not written, and
 that reaches `main`. Then three edges: the suite blocks the gate, the review blocks the gate, the review waits
 on the suite. Builds the tower and does no work in it.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/plan-epic.md "Source — agents/plan-epic.md"
+      link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/plan-epic.md "Source — .claude/agents/plan-epic.md"
     }
     planFeature = planner "plan-feature" {
       summary "An epic into complete user-facing flows, each with its own branch, suite and review."
@@ -747,7 +828,7 @@ the suite and the review each blocking the gate, the review waiting on the suite
 blocking the epic's `epic-e2e-test`, which is what holds the epic tier off the frontier until every feature has
 merged.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/plan-feature.md "Source — agents/plan-feature.md"
+      link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/plan-feature.md "Source — .claude/agents/plan-feature.md"
     }
     planTask = planner "plan-task" {
       summary "One feature into its tasks, chained one to the next, every one blocking the feature's gate."
@@ -763,7 +844,7 @@ in one linked line, never a fan, and the tail hands to the `feature-test` ticket
 feature in the prompt: `ERROR reason=no-parent-feature`. Every ticket verified with a `bd show --json` round
 trip, its `dependencies` among the fields checked.
 """
-      link https://github.com/Londelo/high_magic/blob/main/plugins/spider-factory/agents/plan-task.md "Source — agents/plan-task.md"
+      link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/plan-task.md "Source — .claude/agents/plan-task.md"
     }
   }
 
@@ -1196,6 +1277,27 @@ parked gate is no longer `open`, so it drops out of the ready-gate list and wait
 
     stopAlarms = layer "raised by the Stop hook — fail-closed, in code order" {
       summary "Everything the Stop hook refuses, in code order: fail-closed, ticket untouched."
+      claimMalformedHook = alarm "ERROR reason=claim-malformed" {
+        #staysClaimed
+        summary "The session's claims line carries no ticket or no run, so the hook cannot tell what it stands for."
+        description """
+The hook finds this session's line in the run's `claims` file and reads its `key=value` fields off it. A line
+with no `ticket=` or no `run=` is unreadable — no ticket, no run directory, no done marker — so the hook stops
+with the ticket still `in_progress`. It is the first refusal in the file, and only a session the loop did
+dispatch can reach it: a session with **no** claims line exits quietly one line earlier, which is how every
+session the loop never started leaves.
+"""
+      }
+      noContextHook = alarm "ERROR reason=no-context worktree=<dir>" {
+        #staysClaimed
+        summary "A worker stopped in a loop worktree with no dispatch context file and no branch or target to fall back on."
+        description """
+The claims line names the worktree; the dispatch context file beside it names `branch`, `pr_target` and `kind`.
+This fires when that file cannot be read **and** the claims line carries no `branch=` or no `target=` — with
+either one the hook carries on off the claims line alone. Nothing landed, nothing was committed, and the ticket
+stays claimed.
+"""
+      }
       missingToolHook = alarm "ERROR reason=missing-tool tool=<t>" {
         #staysClaimed
         summary "bd, jq, git or sf is missing; checked before anything else the hook does."
@@ -1207,10 +1309,11 @@ through it, and the CLI is installed before any worker ever runs.
       }
       noWorktreeHook = alarm "ERROR reason=no-worktree" {
         #staysClaimed
-        summary "The hook was given no working directory, and it will not guess one."
+        summary "The claims line names no worktree that exists, and the hook will not guess one off the hook input's cwd."
         description """
-The hook's stdin carried no `.cwd`, or that directory does not exist. The hook will not guess the worktree from
-its own directory: guessing here means committing whatever is in some other project's tree.
+The worktree comes only from the `worktree=` field of this session's claims line. If that is empty or the
+directory is not there, the hook refuses — it will not take the hook input's own `.cwd` instead. Guessing here
+means committing whatever happens to sit in some other project's tree.
 """
       }
       ticketNotInWork = alarm "ERROR reason=ticket-not-in-work state=<s>" {

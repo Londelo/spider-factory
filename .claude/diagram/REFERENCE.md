@@ -20,14 +20,29 @@ memory, from an earlier version of the diagram, from a commit message, or from w
 the code says one thing and the diagram says another, **the diagram is wrong** — including when you wrote
 it yesterday.
 
-The files the diagrams describe: `CLI/bin/sf`, `CLI/src/beads-loop.sh`, `CLI/src/loop-log.sh`, `CLI/src/forge.sh`,
-`CLI/install-cli.sh`, `hooks/worker-stop.sh`, `hooks/worker-fail.sh`, `hooks/hooks.json`, `agents/*`,
-`skills/*`.
+The files the diagrams describe: `CLI/bin/sf`, `CLI/src/beads-loop.sh`, `CLI/src/plan-agent.sh`,
+`CLI/src/overseer-agent.sh`, `CLI/src/commit.sh`, `CLI/src/loop-log.sh`, `CLI/src/forge.sh`,
+`CLI/src/user-env.sh`, `CLI/src/clone-webs.sh`, `CLI/src/create-beads/*`, `CLI/install-cli.sh`,
+`CLI/spider-factory.example.env`, `webs/webs.example.yml`, `.claude/hooks/worker-stop.sh`,
+`.claude/hooks/worker-fail.sh`, `.claude/hooks/hooks.json`, `.claude/agents/*`, `.claude/skills/*`.
 
-**These diagrams are the translated source of truth.** The code is the only real one; this is the
-account a human reads when they are not in the code, which makes it the thing people quote and the thing
-that must not drift. `.claude/CLAUDE.md` is a pointer and a vocabulary list — it holds no fact that lives
-here, so a fact you change, you change here and nowhere else.
+**These diagrams are tier 3 of three.** The code is the only real source of truth; above it sit two documents
+that point down here:
+
+| Tier | File | Reader | Depth |
+|---|---|---|---|
+| 1 · the snapshot | `README.md` (repo root) | a human passing through | the idea, the setup, the webs, the CLI, the workflow — brief, and it owns no fact nobody else owns |
+| 2 · the reference | `.claude/CLAUDE.md` | an agent doing the work | the vocabulary, the moving parts, the rules that break the system — detailed, not exhaustive, and it points here |
+| 3 · the account | `diagram/` (here) | a human who is not in the code | the most detailed thing outside the code — the thing people quote, and the thing that must not drift |
+
+A fact lives at the deepest tier that owns it and nowhere else; a shallower tier points down rather than
+repeating it. So a fact you change here, you change here first, and then you check the two tiers above it
+did not keep an old copy.
+
+**These files are updated by a spawned agent, before every commit.** Nothing commits until all three tiers
+match the code — see `.claude/CLAUDE.md` §Documentation. If you are that agent: read the code, never your
+memory of it; do the whole set — `README.md`, `.claude/CLAUDE.md`, and these diagrams — in one pass; rebuild
+`dist/`; and report which file, which node or step, and which line of code you read to get it right.
 
 ## The four things, checked every time
 
@@ -82,7 +97,7 @@ exists (validate fails).
 ## Prove it, in this order
 
 ```bash
-cd .claude/likec4
+cd .claude/diagram
 npx --offline likec4@1.60.0 validate .        # must end: ✓ Valid (3 files)
 npx --offline likec4@1.60.0 build --output-single-file --use-hash-history -o dist .
 chromium --headless=new --disable-gpu --no-sandbox --hide-scrollbars --window-size=1600,1200 \

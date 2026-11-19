@@ -3,8 +3,8 @@
 An agent factory for the web.
 
 You plan a tower of tickets top-down. One command turns that tower into background workers — each ticket
-claimed, built on its own branch, committed, pushed, and put up as a pull request — while you stay out of
-the way and close the gates when a tier is proved.
+claimed, built on the branch its own id names, committed, pushed, and put up as a pull request — while you
+stay out of the way and close the gates when a tier is proved.
 
 ## The idea in one breath
 
@@ -44,9 +44,10 @@ Say "initialize beads" there, or use the `bead-initialize` skill — it installs
 registers the `gate` type and `failed-agent` status the tower needs.
 
 **3 · Every setting lives in `CLI/spider-factory.env`** — copied down from
-`CLI/spider-factory.example.env` on install and never touched again. Workers at once, tick length, log
-root, which labels may dispatch, whether the lead agent closes gates, which command runs an agent. Edit
-that file; something you export yourself still wins for one run.
+`CLI/spider-factory.example.env` on install and never touched again. Workers at once, tick length, how many
+tickets end a run, log root, which labels may dispatch, whether the lead agent closes gates, which command
+runs an agent, and which plugin the agents ship in. Edit that file; something you export yourself still wins
+for one run.
 
 ## Webs
 
@@ -75,6 +76,7 @@ needs a git repo.
 
 ```bash
 sf                     # open an agent session at the factory root
+sf --help              # all six, explained
 sf plan:epic a record box for my diary entries
 sf plan:feature SF-12
 sf plan:task SF-31
@@ -90,7 +92,8 @@ sf commit save a diary entry   # stage everything, commit as agent:branch:messag
    review, phased by dependency. `sf plan:task` lays one feature's chain: logic, its unit tests, its UI.
    Every id is minted by `CLI/src/create-beads/` — a hand-typed id reaches no gate.
 2. **Run the loop.** `sf loop` claims what is ready, derives the branch and the PR target off the ticket's
-   own id, builds the worktree, and spawns the worker inside it. It prints one line per tick.
+   own id, builds the worktree, and spawns the worker inside it. Every line it logs prints to your screen
+   as it goes.
 3. **Workers commit as they go** with `sf commit`, and declare themselves done with a marker file. No worker
    ever closes its own ticket — the Stop hook commits, pushes, opens the PR and closes it. No marker, no
    commit.

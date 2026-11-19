@@ -31,8 +31,9 @@ prints the exact `export PATH=` line your shell profile is missing.
 
 **Its second write:** `CLI/default.env` copied to `CLI/spider-factory.env`, the run's parameters at their
 defaults — yours to edit by hand. The installer touches that file only when it does not exist; delete
-it to get the defaults back. `sf` itself is six commands: `loop`, `plan:epic`, `plan:feature`,
-`plan:task`, `overseer`, `commit`.
+it to get the defaults back. `sf` with nothing after it opens an agent session through `SF_AGENT_COMMAND`,
+always from the factory root — you stay put if you are already inside it. `sf --help` prints the six
+commands: `loop`, `plan:epic`, `plan:feature`, `plan:task`, `overseer`, `commit`.
 
 **Nothing here runs the loop.** The skill's whole job is to make `sf loop` reachable.
 """

@@ -27,7 +27,8 @@ spider-factory/
 │                                   #   setup-cli, pr-comments, standards-{coding,naming,errors,file-organization},
 │                                   #   framework-{jest,playwright}
 ├── CLI/                            # the `sf` package — bash, no node
-│   ├── bin/sf                      # six commands: loop, plan:epic, plan:feature, plan:task, overseer, commit
+│   ├── bin/sf                      # bare `sf` = an agent session at the factory root; six commands:
+│                                   #   loop, plan:epic, plan:feature, plan:task, overseer, commit
 │   ├── default.env                 # what you get when you set nothing, copied to CLI/spider-factory.env on install
 │   ├── install-cli.sh              # puts a real launcher on PATH and CLI/spider-factory.env down the first time
 │   ├── uninstall-cli.sh            # removes that launcher, and only that launcher

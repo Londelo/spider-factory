@@ -20,6 +20,9 @@ usage() {
     cat <<'USAGE'
 sf — spider-factory CLI
 
+  sf               open an agent session through SF_AGENT_COMMAND, always from the
+                   factory root — you stay put if you are already inside it
+  sf --help        this text
   sf loop          run the dispatcher over the tower in the current directory
   sf plan:epic     run the epic planner
   sf plan:feature  run the feature planner
@@ -117,6 +120,20 @@ dispatchOverseerAgent() {
     exec bash "$watcher" "$@"
 }
 
+openFactorySession() {
+    local root
+    root="$(cd "$here/../.." && pwd)"
+    source "$here/../src/user-env.sh"
+    loadSpiderFactoryEnv
+    (
+        case "$PWD/" in
+            "$root"/*) ;;
+            *) cd "$root" || exit 1 ;;
+        esac
+        exec ${SF_AGENT_COMMAND:-claude} "$@"
+    )
+}
+
 unknownCommand() {
     echo "sf: unknown command '$1' — there are six: 'sf loop', 'sf plan:epic', 'sf plan:feature', 'sf plan:task', 'sf overseer', 'sf commit'. Try 'sf --help'." >&2
     exit 1
@@ -128,9 +145,12 @@ runRequestedCommand() {
         dispatchPlanAgent "${planKindOf["$requested"]}" "${@:2}"
     fi
     case "$requested" in
-        ""|-h|--help|help)
+        -h|--help|help)
             usage
             exit 0
+            ;;
+        ""|-*)
+            openFactorySession "$@"
             ;;
         loop)
             dispatchOverCurrentTower

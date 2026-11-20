@@ -5,7 +5,7 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$here/console.sh"
+source "$here/../utils/console.sh"
 nameTheSpeaker commit
 
 agentName="${SF_AGENT:-manual}"

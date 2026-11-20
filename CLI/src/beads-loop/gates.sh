@@ -18,21 +18,21 @@ dispatchOneGate() {
     gateBranch="$branch"
     gatePrTarget="$prTarget"
     moveGateTo "$gateId" in_progress open || {
-        logTo errors "reason=gate-claim-lost gate=$gateId msg=\"$msgGateClaimLost\""
+        writeLog errors "reason=gate-claim-lost gate=$gateId msg=\"$msgGateClaimLost\""
         return 1
     }
-    boClearIdentity
-    boIdent ticket "$gateId"
-    boIdent agent "$leadAgentName"
-    boIdent label "gate:$tier"
-    boIdent branch "$gateBranch"
-    boIdent target "$gatePrTarget"
+    clearLogFields
+    setLogField ticket "$gateId"
+    setLogField agent "$leadAgentName"
+    setLogField label "gate:$tier"
+    setLogField branch "$gateBranch"
+    setLogField target "$gatePrTarget"
     if ! ensureWorktree "$gateBranch" "$gatePrTarget" || [[ -z "$worktreePath" ]]; then
         moveGateTo "$gateId" open in_progress
-        logTo errors "reason=worktree-failed step=gate gate=$gateId msg=\"$(formatMessage "$msgGateWorktreeCouldNotBeMadeTemplate" "$gateBranch" "$gatePrTarget")\""
+        writeLog errors "reason=worktree-failed step=gate gate=$gateId msg=\"$(formatMessage "$msgGateWorktreeCouldNotBeMadeTemplate" "$gateBranch" "$gatePrTarget")\""
         return 1
     fi
-    boIdent worktree "$worktreePath"
+    setLogField worktree "$worktreePath"
     doneFile="$(doneFileFor "$gateId")"
     spawnFile="$(spawnFileFor "$gateId")"
     contextFile="$(contextFileFor "$gateBranch")"
@@ -40,12 +40,12 @@ dispatchOneGate() {
     if ! spawnWorker "$worktreePath" "$gateId" "$leadAgentName" "$gateBranch" "$gatePrTarget" \
             "gate:$tier" "$doneFile" "$spawnFile" "$contextFile" gate; then
         moveGateTo "$gateId" open in_progress
-        logTo errors "reason=worker-not-dispatched gate=$gateId msg=\"$(lastLineOf "$spawnFile")\""
+        writeLog errors "reason=worker-not-dispatched gate=$gateId msg=\"$(lastLineOf "$spawnFile")\""
         return 1
     fi
-    boIdent session "$(sessionFromSpawn "$spawnFile")"
+    setLogField session "$(getSpawnedAgent "$spawnFile")"
     claimedThisRun=$((claimedThisRun + 1))
-    logTo claims "reason=dispatched kind=gate gate=$gateId tier=$tier"
+    writeLog claims "reason=dispatched kind=gate gate=$gateId tier=$tier"
 }
 
 dispatchReadyGates() {
@@ -55,7 +55,7 @@ dispatchReadyGates() {
         [[ -n "$gateId" ]] || continue
         tier="$(gateTierOf "$gateId")"
         if [[ -z "$tier" ]]; then
-            logTo errors "reason=gate-unworkable gate=$gateId msg=\"$msgGateIdIsNoGateOfAnyTower\""
+            writeLog errors "reason=gate-unworkable gate=$gateId msg=\"$msgGateIdIsNoGateOfAnyTower\""
             continue
         fi
         gateTierIsSwitchedOn "$tier" || continue

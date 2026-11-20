@@ -13,19 +13,19 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SF_LOG_QUIET=1
+export SF_LOG_QUIET=1
 source "$here/../CLI/src/user-env.sh"
 loadSpiderFactoryEnv
-source "$here/../CLI/src/loop-log.sh"
+export SF_LOG_FIELDS="$(mktemp "${TMPDIR:-/tmp}/sf-log-fields-$$-XXXXXX")"
 source "$here/../CLI/src/forge.sh"
 
 claimsRoot="${SF_LOG_ROOT:-$HOME/.spider-factory/logs}"
 logDir="${SF_LOG_DIR:-$claimsRoot}"
 mkdir -p "$logDir" 2>/dev/null || true
-boSeedIdentity "$logDir" "${SF_PROJECT_DIR:-$PWD}"
+sf log seed "$logDir" "${SF_PROJECT_DIR:-$PWD}"
 
 alarmAndExit() {
-    logTo errors "$1"
+    sf log write errors "$1"
     exit 0
 }
 
@@ -90,7 +90,7 @@ adoptDispatchContext() {
     worktreeDir="$claimWorktree"
     contextFile="$(contextFileForWorktree "$claimWorktree")"
     if [[ ! -r "$contextFile" ]] && { [[ -z "$claimBranch" ]] || [[ -z "$claimTarget" ]]; }; then
-        boIdent worktree "$claimWorktree"
+        sf log field worktree "$claimWorktree"
         alarmAndExit "reason=no-context worktree=$(basename "$claimWorktree") msg=\"a worker stopped in a loop worktree with no dispatch context; nothing landed and the ticket stays claimed\""
     fi
     [[ -r "$contextFile" ]] && source "$contextFile"
@@ -113,16 +113,16 @@ prTarget="${SF_PR_TARGET:-}"
 towerDir="${SF_PROJECT_DIR:-$PWD}"
 logDir="${SF_LOG_DIR:-${SF_LOG_ROOT:-$HOME/.spider-factory/logs}}"
 mkdir -p "$logDir" 2>/dev/null || true
-boSeedIdentity "$logDir" "$towerDir"
+sf log seed "$logDir" "$towerDir"
 
 oneLine() { tr '\n' ' ' | tr -d '"\\' | sed 's/  */ /g' | cut -c1-160; }
 
-declareRunIdentity() {
-    boIdent ticket "$ticket"
-    boIdent branch "$branch"
-    boIdent target "$prTarget"
-    boIdent agent "${SF_AGENT:-}"
-    boIdent label "${SF_LABEL:-}"
+setLogFields() {
+    sf log field ticket "$ticket"
+    sf log field branch "$branch"
+    sf log field target "$prTarget"
+    sf log field agent "${SF_AGENT:-}"
+    sf log field label "${SF_LABEL:-}"
 }
 
 requireTools() {
@@ -138,8 +138,8 @@ readHookInput() {
     [[ -n "$worktreeDir" && -d "$worktreeDir" ]] ||
         alarmAndExit "reason=no-worktree msg=\"the dispatched claims line for this session names no worktree that exists, so the worktree the work sits in is unknown; the hook will not guess it from the hook input's cwd\""
     sessionId="$(jq -r '.session_id // empty' <<<"$hookInput" 2>/dev/null)"
-    boIdent worktree "$worktreeDir"
-    boIdent session "$sessionId"
+    sf log field worktree "$worktreeDir"
+    sf log field session "$sessionId"
 }
 
 ticketState() {
@@ -262,7 +262,7 @@ closeTicketAsItsClaimant() {
         --reason "worker session $(oneLine <<<"$sessionId") finished; PR $prUrl" >/dev/null 2>&1
 }
 
-declareRunIdentity
+setLogFields
 requireTools
 readHookInput
 requireTicketStillInWork
@@ -285,7 +285,7 @@ if [[ "${SF_WORK_KIND:-task}" == gate ]]; then
         alarmAndExit "reason=pr-not-found forge=$forge msg=\"the lead agent stopped on a gate whose branch has no pull request at all, so there was nothing for it to merge and the gate stays claimed\""
     annotateTicketWithThePr || alarmAndExit "reason=ticket-not-annotated pr=$prUrl"
     closeTicketAsItsClaimant || alarmAndExit "reason=close-failed pr=$prUrl"
-    logTo closes "url=$prUrl gate=true"
+    sf log write closes "url=$prUrl gate=true"
     rm -f "$(contextFileForWorktree "$worktreeDir")"
     exit 0
 fi
@@ -301,6 +301,6 @@ prUrl="$(prUrlAlreadyOnBranch)"
 annotateTicketWithThePr || alarmAndExit "reason=ticket-not-annotated pr=$prUrl"
 closeTicketAsItsClaimant || alarmAndExit "reason=close-failed pr=$prUrl"
 
-logTo closes "url=$prUrl"
+sf log write closes "url=$prUrl"
 rm -f "$(contextFileForWorktree "$worktreeDir")"
 exit 0

@@ -10,7 +10,7 @@
 # stdout stays empty, so a failed run can never feed a half id into a plan agent's command line.
 set -uo pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../console.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../utils/console.sh"
 nameTheSpeaker create-task
 
 usage() {

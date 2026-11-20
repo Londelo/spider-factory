@@ -3,7 +3,7 @@
 # Your CLI/spider-factory.env survives: those are your edits by then. Delete it yourself for a clean slate.
 set -euo pipefail
 
-source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/src/console.sh"
+source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/utils/console.sh"
 nameTheSpeaker sf
 
 launcher="$HOME/.local/bin/sf"

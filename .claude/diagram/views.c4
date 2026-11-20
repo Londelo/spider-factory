@@ -223,11 +223,11 @@ If nothing is missing, it says so and gets out of the way.
 """
     }
 
-    human -> machine.sfCli "sf · or one of its six commands" {
+    human -> machine.sfCli "sf · or one of its seven commands" {
       title "Everything the machine can do goes through one command"
       notes """
-Six commands, each one an engine file beside it — the six are listed on the node itself. Bare `sf` opens a
-session at the factory root, and a word that is not one of the six is refused by name rather than guessed at.
+Seven commands, each one an engine file beside it — the seven are listed on the node itself. Bare `sf` opens a
+session at the factory root, and a word that is not one of the seven is refused by name rather than guessed at.
 Before any engine runs it checks that the engine file is there; for `loop` it also checks this folder answers
 a ticket list.
 """
@@ -731,7 +731,8 @@ closed nothing.
       notes """
 The files are created empty before anything happens, so a missing file and an empty file look alike and
 neither can hide a silent failure. The folder is named for when the run started, and every line of every file
-has one shape, built by one function that the loop and both hooks share.
+has one shape, built by one function the CLI owns alone: the loop sources it, and everything else — both
+hooks included — gets its line from `sf log` and never sees the shape.
 """
       navigateTo theLoop
     }

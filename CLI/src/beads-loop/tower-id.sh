@@ -101,22 +101,22 @@ resolveTicketBranches() {
 claimBelongsToATower() {
     local why
     if resolveTicketBranches "$ticketId"; then
-        boIdent branch "$branch"
-        boIdent target "$prTarget"
+        setLogField branch "$branch"
+        setLogField target "$prTarget"
         return 0
     fi
     why="$branchResolveFailure"
     case "$why" in
         malformed)
-            logTo errors "reason=no-epic-gate ticket=$ticketId msg=\"$msgNoEpicGateMalformed\"" ;;
+            writeLog errors "reason=no-epic-gate ticket=$ticketId msg=\"$msgNoEpicGateMalformed\"" ;;
         task-not-below-a-gate)
-            logTo errors "reason=no-epic-gate ticket=$ticketId step=not-below-a-gate msg=\"$msgTaskNotBelowAGate\"" ;;
+            writeLog errors "reason=no-epic-gate ticket=$ticketId step=not-below-a-gate msg=\"$msgTaskNotBelowAGate\"" ;;
         not-a-gate)
-            logTo errors "reason=no-epic-gate ticket=$ticketId gate=$(epicGateOf "$ticketId") msg=\"$msgEpicGateRowIsNotAGate\"" ;;
+            writeLog errors "reason=no-epic-gate ticket=$ticketId gate=$(epicGateOf "$ticketId") msg=\"$msgEpicGateRowIsNotAGate\"" ;;
         owner-carries-no-branch)
-            logTo errors "reason=gate-unworkable ticket=$ticketId msg=\"$msgOwnerCarriesNoBranch\"" ;;
+            writeLog errors "reason=gate-unworkable ticket=$ticketId msg=\"$msgOwnerCarriesNoBranch\"" ;;
         *)
-            logTo errors "reason=gate-unworkable ticket=$ticketId gate=$gateId msg=\"$msgEpicCarriesNoBranch\"" ;;
+            writeLog errors "reason=gate-unworkable ticket=$ticketId gate=$gateId msg=\"$msgEpicCarriesNoBranch\"" ;;
     esac
     return 1
 }

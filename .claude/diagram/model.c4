@@ -3,8 +3,8 @@ model {
   // ═════════════════════════════════════════════════════════════════════════════
   // THE MACHINE — one command in, background workers out.
   // Every value here was read off CLI/bin/sf, CLI/src/beads-loop/ (index.sh and the nine beside it),
-  // CLI/src/console.sh, CLI/src/loop-log.sh,
-  // CLI/src/forge.sh, CLI/src/user-env.sh, CLI/src/clone-webs.sh, CLI/spider-factory.example.env,
+  // CLI/utils/console.sh, CLI/utils/logging.sh, CLI/src/log.sh,
+  // CLI/src/forge.sh, CLI/src/user-env.sh, scripts/clone-webs.sh, CLI/spider-factory.example.env,
   // .claude/hooks/worker-stop.sh, .claude/hooks/worker-fail.sh, .claude/hooks/hooks.json.
   // The cast only: the story is told by the four walkthroughs in views.c4.
   // Rules for editing these files: ./REFERENCE.md — the code is the only source of truth.
@@ -13,8 +13,8 @@ model {
   machine = layer "The machine — one command in, background workers out" {
     summary "One command in, background workers out: the command, the setup skill, the webs cloner, the checks, the parameters, the dispatcher, the claim."
 
-    sfCli = cliTool "sf — the one command, and its six" {
-      summary "The whole CLI: one bash file, six commands, each one an engine beside it in CLI/src/. Anything unknown is refused by name."
+    sfCli = cliTool "sf — the one command, and its seven" {
+      summary "The whole CLI: one bash file, seven commands, each one an engine beside it in CLI/src/. Anything unknown is refused by name."
       description """
 **What it is:** `CLI/bin/sf` — one bash file, no node. The installer puts a launcher for it at
 `~/.local/bin/sf`. Every command is an arm of one `case` block, and nothing else is reachable.
@@ -22,11 +22,12 @@ model {
 | You type | What runs |
 |---|---|
 | `sf` | an agent session through `SF_AGENT_COMMAND` (default `claude`), **always from the factory root** — already inside it, you stay put; anything you type after it goes to that session |
-| `sf --help` / `-h` / `help` | the usage block: the six commands, the prompt forms, and where every setting lives |
+| `sf --help` / `-h` / `help` | the usage block: the seven commands, the prompt forms, and where every setting lives |
 | `sf loop` | `CLI/src/beads-loop/index.sh`, foreground — the dispatcher over the tower in the current directory |
 | `sf plan:epic` / `sf plan:feature` / `sf plan:task` | `CLI/src/plan-agent.sh` with that kind, and everything you typed after the command handed to it as the prompt |
 | `sf overseer` | `CLI/src/overseer-agent.sh`, foreground — the reader, `sf` denied to it |
 | `sf commit <line>` | `CLI/src/commit.sh` — the only thing that commits, anywhere |
+| `sf log <verb>` | `CLI/src/log.sh` — the logging door, four verbs: `seed <log-dir> <repo>` · `field <key> <value>` · `clear` · `write <tag> [detail…]`. Anything outside `CLI/src/` that wants a line comes through here |
 
 **Two checks, and where each one lives.** `requireEngine` runs before every command: the engine file is
 actually there, or the message names the missing path and says re-run `CLI/install-cli.sh`.
@@ -34,8 +35,9 @@ actually there, or the message names the missing path and says re-run `CLI/insta
 and the watcher each run their own inside their engine, and `commit` needs only a git repo.
 
 **What is not a command.** Anything starting with `-` is not a command at all — it goes to the bare session as
-arguments. Anything else unknown is refused **by name**, with the six listed and `Try 'sf --help'` under it,
-exit 1. There is no webs command: the cloner beside this one is an npm script, not a `sf` one.
+arguments. Anything else unknown is refused **by name**, with the seven listed and `Try 'sf --help'` under it,
+exit 1 — and `sf log` refuses a verb that is not one of its four the same way. There is no webs command: the
+cloner beside this one is an npm script, not a `sf` one.
 """
       link https://github.com/Londelo/spider-factory/blob/main/CLI/bin/sf "Source — CLI/bin/sf"
     }
@@ -61,7 +63,7 @@ prints the exact `export PATH=` line your shell profile is missing.
 
 **Its second write:** `CLI/spider-factory.example.env` copied to `CLI/spider-factory.env`, the run's
 parameters at their defaults — yours to edit by hand. The installer touches that file only when it does
-not exist; delete it to get the defaults back. The six commands themselves belong to the node above.
+not exist; delete it to get the defaults back. The seven commands themselves belong to the node above.
 
 **Nothing here runs the loop.** The skill's whole job is to make `sf loop` reachable.
 """
@@ -72,7 +74,7 @@ not exist; delete it to get the defaults back. The six commands themselves belon
     websCloner = cliTool "npm run webs:clone — the webs the factory builds" {
       summary "Clone every repo url in `webs/webs.yml` into `webs/` beside it. Never pulls, never resets, never deletes; `sf` has no webs command."
       description """
-**What it is:** `CLI/src/clone-webs.sh`, run by `npm run webs:clone` and by nothing else — `sf` has no webs
+**What it is:** `scripts/clone-webs.sh`, run by `npm run webs:clone` and by nothing else — `sf` has no webs
 command, and the installer never touches it. Every web the workers build is a clone sitting in `webs/`.
 
 | Fact | Where it comes from |
@@ -91,7 +93,7 @@ no folder. An existing directory is left exactly as it is — **never pulls, nev
 One summary line closes the run, `webs: N cloned, M skipped, K failed into <webs/>`; a list with nothing in it
 says so out loud instead of cloning nothing quietly. The run exits non-zero only when something failed.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/clone-webs.sh "Source — CLI/src/clone-webs.sh"
+      link https://github.com/Londelo/spider-factory/blob/main/scripts/clone-webs.sh "Source — scripts/clone-webs.sh"
       link https://github.com/Londelo/spider-factory/blob/main/webs/webs.example.yml "Source — webs/webs.example.yml"
     }
 
@@ -101,7 +103,7 @@ says so out loud instead of cloning nothing quietly. The run exits non-zero only
 In the order the code runs them — the bootstrap at the bottom of `CLI/src/beads-loop/index.sh`, which calls
 them one after another; checks 2–6 live in `preflight.sh` beside it, checks 1 and 7 in `config.sh`. Six of the seven
 end the run through `die` — `beads-loop: <what is wrong>` on stderr, exit 1 — and no tick ever happens; a run that
-cannot report on itself is not a run. `die` is not theirs: it lives in `CLI/src/console.sh`, the one file in the CLI
+cannot report on itself is not a run. `die` is not theirs: it lives in `CLI/utils/console.sh`, the one file in the CLI
 that writes to a terminal — every engine, `bin/sf` and both installers source it and call `nameTheSpeaker <name>`
 once, so every line each one says comes out `<name>: <line>`. Check 2 refuses through `reportToolNotOnPath` and
 check 6 through `reportNoBeadsDatabase`; that second sentence is the one `sf`, `plan-agent.sh` and
@@ -124,7 +126,7 @@ there — so a broken install names itself instead of failing deep in a tick.
 """
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L143-L157 "Source — beads-loop/index.sh lines 143–157, the bootstrap that runs them in order"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/preflight.sh#L5-L43 "Source — beads-loop/preflight.sh lines 5–43, checks 2–6"
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/console.sh "Source — CLI/src/console.sh, die and the four reused refusals"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/console.sh "Source — CLI/utils/console.sh, die and the four reused refusals"
     }
 
     knobs = knobPanel "The run's parameters (env, read once at startup)" {
@@ -170,10 +172,10 @@ message, so no call site carries a sentence · `tower-id.sh` the id grammar and 
 and its PR · `beads.sh` every beads read that is not a claim · `claim.sh` the frontier, the guards a claim must
 pass, the waiting line · `worker.sh` the prompt, the spawn, the dispatch · `gates.sh` the gate side of the tick.
 Every function named below lives in one of these. **What the run says to the terminal is nobody's business
-here:** that is `CLI/src/console.sh`, sourced from `../` beside `loop-log.sh` and `forge.sh`, which `index.sh`
-names `beads-loop` — the startup announcement and the closing summary are its `announceRunLogDirectory` and
-`reportStopped`, and every other word a run says is a log line first, which `logTo` also echoes while the
-loop runs.
+here:** that is `CLI/utils/console.sh`, sourced from `../utils/` beside `logging.sh` (`forge.sh` stays beside
+`index.sh` in `CLI/src/`), which `index.sh` names `beads-loop` — the startup announcement and the closing
+summary are its `announceRunLogDirectory` and `reportStopped`, and every other word a run says is a log line
+first, which `writeLog` also echoes while the loop runs.
 
 One tick, in the order the code runs it (`tick()`, `index.sh`):
 
@@ -187,7 +189,7 @@ One tick, in the order the code runs it (`tick()`, `index.sh`):
 | 6 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
 | 7 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
 | 8 | spawn | `$SF_AGENT_COMMAND --bg --agent <plugin>:<agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
-| 9 | one log line, move on | `logTo claims \"reason=dispatched\"` | — |
+| 9 | one log line, move on | `writeLog claims \"reason=dispatched\"` | — |
 
 **One pair of hands per branch is the tower's job, not the loop's.** Every ticket below a feature gate sits on
 that gate's one branch in a single linked line of `blocks` edges, so only one of them is ever ready and only one
@@ -207,7 +209,7 @@ ready list until its lead agent dies.
 | **claim it** | `bd update <gate> --status in_progress --if-status open` | `gate-claim-lost`, no lead agent spawned |
 | make the branch's folder | `ensureWorktree gateBranch gatePrTarget` | `worktree-failed step=gate`, and the gate is put back `open` |
 | spawn the **lead agent** | `--agent <plugin>:lead`, label on the line is `gate:<tier>` | `worker-not-dispatched gate=…`, the gate put back `open` |
-| one log line | `logTo claims \"reason=dispatched kind=gate gate=… tier=…\"` | — |
+| one log line | `writeLog claims \"reason=dispatched kind=gate gate=… tier=…\"` | — |
 
 **What it never does:** it never polls a worker, never reads worker output, never merges, never ends
 itself, never closes a ticket, and never derives an agent name from a label. It also runs **no
@@ -216,7 +218,7 @@ claims back is the supervisor's job, not the loop's.
 """
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh "Source — CLI/src/beads-loop/index.sh, the tick and the run"
       link https://github.com/Londelo/spider-factory/tree/main/CLI/src/beads-loop "Source — the whole CLI/src/beads-loop/ directory, the ten files"
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/console.sh "Source — CLI/src/console.sh, the run's terminal lines"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/console.sh "Source — CLI/utils/console.sh, the run's terminal lines"
     }
 
     agentMap = noteDoc "The AGENT map — the only label→worker binding" {
@@ -273,7 +275,7 @@ and what to say about it. Without them the worker just stops and its ticket sits
 | `SF_LOG_DIR` | this run's log dir | both hooks: alarms land in `$SF_LOG_DIR/errors` |
 | `SF_DONE_FILE` | `$SF_LOG_DIR/done-<ticket with / to +>` | the worker touches it; the Stop hook is fail-closed on it |
 
-`SF_LOG_QUIET=1` is set by the hooks before they source the line format: a hook must never print
+`SF_LOG_QUIET=1` is exported by both hooks before their first `sf log` call: a hook must never print
 into a session. The dispatcher leaves it unset, so its own lines also go to the terminal.
 
 **The tenth argument, `kind`, is not an environment variable.** `spawnWorker` takes it as `${10:-task}` and
@@ -325,8 +327,12 @@ same and neither hides a silent failure — `closes` and `failures` are written 
 long after the run ended. Two more appear only when something writes them (`bd-stderr`, from the claim,
 and `claude-stderr`, from the capacity count), and one pair per worker (`spawn-<ticket>`, `done-<ticket>`).
 
-**One line format, sourced by the engine and by both hooks** (`CLI/src/loop-log.sh`), or the files cannot be
-read against each other:
+**One line format, and one owner of it** (`CLI/utils/logging.sh`), or the files cannot be read against each
+other. The engine sources that file, and so does `CLI/src/log.sh` — nothing outside `CLI/src/` sources it.
+Everything else that wants a line, both hooks included, asks `sf log` for one and never sees the shape (the
+four verbs are on the `sf` node). A field set by one `sf` process has to be on the line the next one writes,
+so the fields live in the file `SF_LOG_FIELDS` names: each hook exports that to its own scratch file, and
+unset it is scratch under the run's log directory keyed by `SF_TICKET`.
 
 ```
 <TAG padded to 8> <ISO time>\trun=… repo=… ticket=… label=… agent=… branch=… target=… session=… worktree=… <detail>
@@ -343,7 +349,8 @@ names the ticket, label, agent, branch, target, repo and session, and the same k
 CLAIMS   2026-11-04T09:12:03\trun=2026-11-04_09-12-01 repo=/home/dev/record-box ticket=back-end label=backend-logic agent=engineer branch=feature/add-record target=epic/record-box session=287d3c4c worktree=/home/dev/record-box/.claude/worktrees/feature+add-record reason=dispatched
 ```
 """
-    link https://github.com/Londelo/spider-factory/blob/main/CLI/src/loop-log.sh "Source — CLI/src/loop-log.sh"
+    link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/logging.sh "Source — CLI/utils/logging.sh, the one definition of a line"
+    link https://github.com/Londelo/spider-factory/blob/main/CLI/src/log.sh "Source — CLI/src/log.sh, the `sf log` door"
 
     fClaims = logFile "claims" {
       summary "Every ticket taken, and the epic branch the first time it is published."
@@ -413,7 +420,7 @@ Stderr of the last `$SF_AGENT_COMMAND agents --json` capacity count.
       summary "That one worker's raw spawn output, which holds its session id."
       description """
 That one worker's raw spawn output, which holds its session id (`backgrounded · 287d3c4c`), read back by
-`sessionFromSpawn`. It used to be one shared `last-spawn` that every spawn overwrote, so the id survived
+`getSpawnedAgent`. It used to be one shared `last-spawn` that every spawn overwrote, so the id survived
 only for the run's final worker — the one thing a human needs to attach to, read, or stop.
 """
     }
@@ -439,7 +446,7 @@ worker says it is done → `sf commit` onto its feature's branch → push → th
 write the PR url onto the ticket's pr metadata → close it
 ```
 
-It refuses **eighteen** ways, each one `logTo errors` then `exit 0` with the ticket untouched, in the order the
+It refuses **eighteen** ways, each one `sf log write errors` then `exit 0` with the ticket untouched, in the order the
 code checks them —
 they are walked one by one in the second walkthrough. The gate of the whole design is `not-declared-done`:
 no marker, no commit, no push, no PR, no close.
@@ -482,7 +489,7 @@ it. This hook takes the ticket somewhere a human will see it, with the reason at
 bd update \"$ticket\" --append-notes \"Worker session <id> failed: <kind>
 Last message: <last assistant message>\"
 bd update \"$ticket\" --status failed-agent
-logTo failures \"from=<state> kind=<kind> msg=\"…\"\"
+sf log write failures \"from=<state> kind=<kind> msg=\"…\"\"
 ```
 
 The reason is **never polled, parsed out of a log, or asked of the model**: the harness fires this hook itself

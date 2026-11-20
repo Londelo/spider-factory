@@ -96,29 +96,29 @@ ensureEpicGatePr() {
 
     gateBranch="$(readFieldOf "$gateId" branch)"
     if [[ -z "$gateBranch" ]]; then
-        logTo errors "reason=epic-pr-failed step=gate-branch gate=$gateId msg=\"$msgEpicPrNoGateBranch\""
+        writeLog errors "reason=epic-pr-failed step=gate-branch gate=$gateId msg=\"$msgEpicPrNoGateBranch\""
         return 1
     fi
     forge="$(detectForge "$towerDir")"
     if [[ -z "$forge" ]]; then
-        logTo errors "reason=epic-pr-failed step=forge gate=$gateId gateBranch=$gateBranch remote=\"$remoteUrl\""
+        writeLog errors "reason=epic-pr-failed step=forge gate=$gateId gateBranch=$gateBranch remote=\"$remoteUrl\""
         return 1
     fi
     forgeTool="$(forgeToolFor "$forge")"
     if ! command -v "$forgeTool" >/dev/null 2>&1; then
-        logTo errors "reason=epic-pr-failed step=missing-tool tool=$forgeTool forge=$forge gate=$gateId"
+        writeLog errors "reason=epic-pr-failed step=missing-tool tool=$forgeTool forge=$forge gate=$gateId"
         return 1
     fi
 
     start="$(startingCommitFor "origin/main" "main" "HEAD")" || {
-        logTo errors "reason=epic-pr-failed step=push gate=$gateId gateBranch=$gateBranch msg=\"$msgEpicBranchUnpublished\""
+        writeLog errors "reason=epic-pr-failed step=push gate=$gateId gateBranch=$gateBranch msg=\"$msgEpicBranchUnpublished\""
         return 1
     }
     if ! ensureBranchAheadOfTarget "$gateBranch" "$start"; then
         if [[ "$branchSeedFailure" == commit-tree-failed ]]; then
-            logTo errors "reason=epic-pr-failed step=seed gate=$gateId gateBranch=$gateBranch msg=\"$msgEpicBranchSeedUnattributable\""
+            writeLog errors "reason=epic-pr-failed step=seed gate=$gateId gateBranch=$gateBranch msg=\"$msgEpicBranchSeedUnattributable\""
         else
-            logTo errors "reason=epic-pr-failed step=push gate=$gateId gateBranch=$gateBranch msg=\"$msgEpicBranchUnpublished\""
+            writeLog errors "reason=epic-pr-failed step=push gate=$gateId gateBranch=$gateBranch msg=\"$msgEpicBranchUnpublished\""
         fi
         return 1
     fi
@@ -143,13 +143,13 @@ ensureEpicGatePr() {
         prUrl="$(grep -oE 'https?://[^[:space:]]+' <<<"$prBody" | grep -E '/(pull|merge_requests)/[0-9]+' | tail -1)"
     fi
     if ! [[ "$prUrl" =~ ^https?://[^[:space:]]+$ ]]; then
-        logTo errors "reason=epic-pr-failed step=pr gate=$gateId gateBranch=$gateBranch forge=$forge msg=\"$(tr '\n' ' ' <<<"${prBody-$prUrl}" | cut -c1-160)\""
+        writeLog errors "reason=epic-pr-failed step=pr gate=$gateId gateBranch=$gateBranch forge=$forge msg=\"$(tr '\n' ' ' <<<"${prBody-$prUrl}" | cut -c1-160)\""
         return 1
     fi
     if ! bd -C "$towerDir" update "$gateId" --set-metadata "pr=$prUrl" >/dev/null 2>&1; then
-        logTo errors "reason=epic-pr-failed step=annotate gate=$gateId pr=$prUrl"
+        writeLog errors "reason=epic-pr-failed step=annotate gate=$gateId pr=$prUrl"
         return 1
     fi
-    logTo claims "gate=$gateId reason=epic-published gateBranch=$gateBranch pr=$prUrl"
+    writeLog claims "gate=$gateId reason=epic-published gateBranch=$gateBranch pr=$prUrl"
     return 0
 }

@@ -45,31 +45,35 @@ spider-factory/
 │                                   #   setup-cli, pr-comments, standards-{coding,naming,errors,file-organization},
 │                                   #   framework-{jest,playwright}
 ├── CLI/                            # the `sf` package — bash, no node
-│   ├── bin/sf                      # bare `sf` = an agent session at the factory root; six commands:
-│                                   #   loop, plan:epic, plan:feature, plan:task, overseer, commit
+│   ├── bin/sf                      # bare `sf` = an agent session at the factory root; seven commands:
+│                                   #   loop, plan:epic, plan:feature, plan:task, overseer, commit, log
 │   ├── spider-factory.example.env  # what you get when you set nothing, copied to CLI/spider-factory.env on install
 │   ├── install-cli.sh              # puts a real launcher on PATH and CLI/spider-factory.env down the first time
 │   ├── uninstall-cli.sh            # removes that launcher, and only that launcher
-│   └── src/                        # the engines bin/sf runs
+│   ├── utils/                      # the shared bash — a file two or more commands source, never run on its own
+│   │   ├── console.sh              # the only file in CLI/ that writes to a terminal: `nameTheSpeaker` once per
+│   │   │                           #   script, then `say` / `tell` / `plain` / `die`, and the four reused refusals
+│   │   └── logging.sh              # the one definition of a log line: nine fixed keys, `-` for the unknown
+│   └── src/                        # the commands bin/sf runs, and the concern files under each one.
+│       │                           #   Nothing here is shared: if two of them want the same bash, it moves to utils/
 │       ├── beads-loop/             # the dispatcher engine — ten files, one a concern, `index.sh` the one `sf loop`
 │       │                           #   runs: it holds the knobs, the `AGENT` map, the order the other nine are
 │       │                           #   sourced in, the tick, the loop, and the startup checks in order
 │       ├── plan-agent.sh           # the planner engine — one plan agent, foreground
 │       ├── overseer-agent.sh       # the reader engine — the overseer agent, foreground, `sf` denied to it
 │       ├── commit.sh               # the only thing that commits, anywhere
-│       ├── console.sh              # the only file in CLI/ that writes to a terminal: `nameTheSpeaker` once per
-│       │                           #   script, then `say` / `tell` / `plain` / `die`, and the four reused refusals
-│       ├── loop-log.sh             # one log-line definition, sourced by the engine and both hooks
+│       ├── log.sh                  # `sf log` — the logging door for everything outside CLI/src/: seed, field, clear, write
 │       ├── forge.sh                # GitHub vs GitLab, and which tool names the right CLI
 │       ├── user-env.sh             # the loader for CLI/spider-factory.env
-│       ├── clone-webs.sh           # the cloner — `npm run webs:clone`, reads webs/webs.yml, clones each repo into webs/
 │       └── create-beads/           # create-gate.sh + create-task.sh, the only two things that mint an id
 ├── webs/                           # every web the workers build — the directory is in the repo, nothing inside it is
 │   ├── .gitkeep                    # the one tracked file, so webs/ exists in a fresh checkout
 │   ├── webs.example.yml            # the shipped empty list, tracked — clone-webs.sh copies it to webs.yml only when that is missing
 │   └── webs.yml                    # your repo urls, gitignored — the list clone-webs.sh actually reads
 ├── .claude/hooks/                  # hooks.json, worker-stop.sh (fail-closed), worker-fail.sh (parks a dead worker)
-├── scripts/tower-walk.sh           # experiment harness — builds a tower and walks the frontier by hand
+├── scripts/                        # what npm runs, outside the `sf` command set
+│   ├── clone-webs.sh               # the cloner — `npm run webs:clone`, reads webs/webs.yml, clones each repo into webs/
+│   └── tower-walk.sh               # experiment harness — builds a tower and walks the frontier by hand
 └── .claude/shared/plan-tasks/      # the templates plan-task fills: engineer, frontend, tester-unit
 ```
 
@@ -133,10 +137,11 @@ the *branch*, not the ticket.
 | `.claude/hooks/worker-stop.sh` | **fail-closed on `$SF_DONE_FILE`**: no marker → no commit, no push, no PR, no close. Then it closes the *task*; on a gate claim (`kind=gate`) it commits and pushes, finds that branch's PR at any state, and closes the **gate** without ever opening a new PR |
 | `.claude/hooks/worker-fail.sh` | the StopFailure hook: parks a dead worker's ticket in `failed-agent` with the reason, and commits nothing |
 | `CLI/src/commit.sh` | **the only way anything commits in this plugin** — `sf commit` = `git add -A`, one commit subject `agent:branch:message`, `git push -u origin <branch>` |
-| `CLI/src/console.sh` | **the only file in `CLI/` that writes to a terminal** — sourced by every engine, by `bin/sf`, and by both installers; nothing else there runs `echo` or `printf` at a screen. `nameTheSpeaker <name>` once per script, and every line it says comes out `<name>: <line>` (`sf`, `beads-loop`, `plan-agent`, `overseer`, `commit`, `webs`, `create-gate`, `create-task`); `say` → stdout, `tell` → stderr, `plain` → stdout unprefixed (the key=value event lines), `die` = `tell` then exit 1. The four reused refusals — no beads database, a file missing from the install, a tool not on `PATH`, the agent command not on `PATH` — are each worded here and nowhere else. A run's log lines are **not** here: those are `loop-log.sh`'s, and a `printf` whose stdout a caller captures with `$( )` is that caller's return value, not output |
-| `CLI/src/loop-log.sh` | the one line format, sourced by the engine and both hooks: nine fixed keys, `-` for the unknown |
+| `CLI/utils/console.sh` | **the only file in `CLI/` that writes to a terminal** — sourced by every engine, by `bin/sf`, and by both installers; nothing else there runs `echo` or `printf` at a screen. `nameTheSpeaker <name>` once per script, and every line it says comes out `<name>: <line>` (`sf`, `beads-loop`, `plan-agent`, `overseer`, `commit`, `log`, `webs`, `create-gate`, `create-task`); `say` → stdout, `tell` → stderr, `plain` → stdout unprefixed (the key=value event lines), `die` = `tell` then exit 1. The four reused refusals — no beads database, a file missing from the install, a tool not on `PATH`, the agent command not on `PATH` — are each worded here and nowhere else. A run's log lines are **not** here: those are `logging.sh`'s, and a `printf` whose stdout a caller captures with `$( )` is that caller's return value, not output |
+| `CLI/utils/logging.sh` | the one definition of a log line — nine fixed keys, `-` for the unknown, the tag naming the file under `$logDir` the line appends to. Sourced by the engine and by `log.sh`, and by **nothing outside `CLI/src/`** |
+| `CLI/src/log.sh` | `sf log` — the logging door for everything outside `CLI/src/`, the two worker hooks included: `seed <log-dir> <repo>`, `field <key> <value>`, `clear`, `write <tag> [detail...]`. A caller that sets fields more than once names its own `$SF_LOG_FIELDS` file, because fields have to survive between one `sf` process and the next; `SF_LOG_QUIET=1` keeps a line out of stdout |
 | `CLI/src/user-env.sh` + `CLI/spider-factory.env` | every knob; `spider-factory.example.env` is copied there on install and never touched again |
-| `CLI/src/clone-webs.sh` + `webs/webs.yml` | the webs the factory builds, and nothing to do with `sf` or the installer — one repo url a line, cloned into `webs/`; `webs/webs.example.yml` is the tracked template that engine copies to `webs/webs.yml` and nothing else ever writes that file |
+| `scripts/clone-webs.sh` + `webs/webs.yml` | the webs the factory builds, and nothing to do with `sf` or the installer — one repo url a line, cloned into `webs/`; `webs/webs.example.yml` is the tracked template that engine copies to `webs/webs.yml` and nothing else ever writes that file |
 | `webs/` | in the repo by `.gitkeep` alone — `webs/*` is ignored, so the directory ships and the clones inside it never do |
 | `agents/*.md` | the worker's own contract — the lease, never closing its own ticket, `sf commit` as it goes, the done marker last |
 

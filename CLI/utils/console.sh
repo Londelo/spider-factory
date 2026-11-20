@@ -4,7 +4,7 @@
 #   nameTheSpeaker <name> once at the top of a script and every line it says comes out "<name>: <line>".
 #   say and tell take a whole sentence; plain takes one exactly as written, for the key=value event lines
 #   that carry no speaker. die is tell and then exit 1.
-#   A run's log lines are not here — those are logTo's, in loop-log.sh.
+#   A run's log lines are not here — those are writeLog's, in CLI/utils/logging.sh.
 
 sfConsoleName=""
 

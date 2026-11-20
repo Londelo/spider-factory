@@ -14,6 +14,7 @@ set -uo pipefail
 
 loopDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 engineDir="$(dirname "$loopDir")"
+utilsDir="$(dirname "$engineDir")/utils"
 source "$engineDir/user-env.sh"
 loadSpiderFactoryEnv
 
@@ -51,8 +52,8 @@ waitingLineCadence=0
 tickCount=0
 claimedThisRun=0
 
-source "$engineDir/console.sh"
-source "$engineDir/loop-log.sh"
+source "$utilsDir/console.sh"
+source "$utilsDir/logging.sh"
 source "$engineDir/forge.sh"
 source "$loopDir/logs.sh"
 source "$loopDir/config.sh"
@@ -88,14 +89,14 @@ tick() {
     
     dispatchReadyGates
 
-    boClearIdentity
+    clearLogFields
     atDispatchCapacity && return
     claimAndDispatchOneTicket
 }
 
 logRunTallyForTicketLimit() {
-    boClearIdentity
-    logTo results "ticks=$tickCount claimed=$claimedThisRun done=$(numberOfTicketsDoneThisRun) note=\"$(formatMessage "$msgHitTicketLimitTemplate" "$maximumTicketsDone")\""
+    clearLogFields
+    writeLog results "ticks=$tickCount claimed=$claimedThisRun done=$(numberOfTicketsDoneThisRun) note=\"$(formatMessage "$msgHitTicketLimitTemplate" "$maximumTicketsDone")\""
 }
 
 runLoop() {
@@ -111,8 +112,8 @@ runLoop() {
 }
 
 onInterrupt() {
-    boClearIdentity
-    logTo results "ticks=$tickCount claimed=$claimedThisRun done=$(numberOfTicketsDoneThisRun)"
+    clearLogFields
+    writeLog results "ticks=$tickCount claimed=$claimedThisRun done=$(numberOfTicketsDoneThisRun)"
     reportStopped
     exit 0
 }
@@ -128,7 +129,7 @@ requireUsablePollInterval
 requireBeadsProject
 createRunLogDirectory
 resolveTowerPaths
-boSeedIdentity "$logDir" "$towerDir"
+seedStartingLogFields "$logDir" "$towerDir"
 configureWaitingLineCadence
 installInterruptTrap
 announceRunLogDirectory

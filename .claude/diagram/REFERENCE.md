@@ -23,12 +23,18 @@ it yesterday.
 The files the diagrams describe: `CLI/bin/sf`, `CLI/src/beads-loop/` (`index.sh` plus the nine files beside it —
 the engine is a directory now, and a link into it must name the file that actually holds the code),
 `CLI/src/plan-agent.sh`,
-`CLI/src/overseer-agent.sh`, `CLI/src/commit.sh`, `CLI/src/console.sh` (every word any of them says to a
-terminal, and the four reused refusals), `CLI/src/loop-log.sh`, `CLI/src/forge.sh`,
-`CLI/src/user-env.sh`, `CLI/src/clone-webs.sh`, `CLI/src/create-beads/*`, `CLI/install-cli.sh`,
+`CLI/src/overseer-agent.sh`, `CLI/src/commit.sh`, `CLI/src/log.sh` (the `sf log` door — the only way anything
+outside `CLI/src/` writes a log line), `CLI/utils/console.sh` (every word any of them says to a
+terminal, and the four reused refusals), `CLI/utils/logging.sh` (the one definition of a log line), `CLI/src/forge.sh`,
+`CLI/src/user-env.sh`, `scripts/clone-webs.sh`, `CLI/src/create-beads/*`, `CLI/install-cli.sh`,
 `CLI/uninstall-cli.sh`,
 `CLI/spider-factory.example.env`, `webs/webs.example.yml`, `.claude/hooks/worker-stop.sh`,
 `.claude/hooks/worker-fail.sh`, `.claude/hooks/hooks.json`, `.claude/agents/*`, `.claude/skills/*`.
+
+The layout behind that list: `CLI/src/` holds what `bin/sf` runs plus the concern files under each command,
+`CLI/utils/` the bash more than one command sources (`console.sh`, `logging.sh`), and `scripts/` what npm runs.
+A file that moves breaks every link and every path that named it — grep the whole `.claude/diagram/` directory
+for the old path, not just the node you came to fix.
 
 **These diagrams are tier 3 of three.** The code is the only real source of truth; above it sit two documents
 that point down here:

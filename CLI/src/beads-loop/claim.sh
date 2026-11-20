@@ -8,7 +8,7 @@ waiting() {
     local lastTick="${lastTickForWaitingReason["$waitingReason"]-$(( -waitingLineCadence ))}"
     (( tickCount - lastTick < waitingLineCadence )) && return 0
     lastTickForWaitingReason["$waitingReason"]=$tickCount
-    logTo waiting "reason=$waitingReason working=$(numberOfBusyWorkers) next=$(nameOfNextReadyTicket)${extraFields:+ $extraFields}"
+    writeLog waiting "reason=$waitingReason working=$(numberOfBusyWorkers) next=$(nameOfNextReadyTicket)${extraFields:+ $extraFields}"
 }
 
 atDispatchCapacity() {
@@ -28,7 +28,7 @@ readClaimFromFrontier() {
     claimExitCode=0
     claimJson="$(bd ready --claim --json 2>"$logDir/bd-stderr")" || claimExitCode=$?
     (( claimExitCode == 0 )) && return 0
-    logTo errors "reason=bd-failure exit=$claimExitCode msg=\"$(lastLineOf "$logDir/bd-stderr")\""
+    writeLog errors "reason=bd-failure exit=$claimExitCode msg=\"$(lastLineOf "$logDir/bd-stderr")\""
     return 1
 }
 
@@ -36,9 +36,9 @@ frontierHeldNoTicket() { [[ -z "$claimJson" || "$claimJson" == "[]" ]]; }
 
 readTicketIdentityFromClaim() {
     ticketId="$(jq -r '.[0].id // empty' <<< "$claimJson" 2>/dev/null)"
-    boIdent ticket "$ticketId"
+    setLogField ticket "$ticketId"
     [[ -n "$ticketId" ]] && return 0
-    logTo errors "reason=bd-failure exit=0 msg=\"$(formatMessage "$msgClaimReturnedNoIdTemplate" "$(tr -d '\n' <<< "$claimJson" | head -c 60)")\""
+    writeLog errors "reason=bd-failure exit=0 msg=\"$(formatMessage "$msgClaimReturnedNoIdTemplate" "$(tr -d '\n' <<< "$claimJson" | head -c 60)")\""
     return 1
 }
 
@@ -53,10 +53,10 @@ claimCarriesExactlyOneDispatchLabel() {
         isLabel "$ticketLabel" && matchedLabels+=("$ticketLabel")
     done
     if (( ${#matchedLabels[@]} == 1 )); then
-        boIdent label "${matchedLabels[0]}"
+        setLogField label "${matchedLabels[0]}"
         return 0
     fi
-    logTo errors "reason=label-ambiguous matched=\"${matchedLabels[*]-}\" labels=\"${ticketLabels[*]-}\""
+    writeLog errors "reason=label-ambiguous matched=\"${matchedLabels[*]-}\" labels=\"${ticketLabels[*]-}\""
     return 1
 }
 

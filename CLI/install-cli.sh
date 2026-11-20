@@ -7,7 +7,7 @@
 # touches CLI/spider-factory.env once it exists: those are your edits by then. Delete it to get the defaults back.
 set -euo pipefail
 
-source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/src/console.sh"
+source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/utils/console.sh"
 nameTheSpeaker sf
 
 locateLauncherPaths() {

@@ -75,41 +75,41 @@ dispatchWorker() {
     local ticketId="$1" agentName="$2" branch="$3" prTarget="$4" label="$5"
     local worktreePath worktreeAside worktreeFailure doneFile spawnFile contextFile
 
-    boIdent agent "$agentName"
+    setLogField agent "$agentName"
 
     if ! ensureWorktree "$branch" "$prTarget" || [[ -z "$worktreePath" ]]; then
-        boIdent worktree "$(worktreePathFor "$branch")"
+        setLogField worktree "$(worktreePathFor "$branch")"
         case "$worktreeFailure" in
             unpushed-commits)
-                logTo errors "reason=branch-has-unpushed-commits msg=\"$(formatMessage "$msgBranchHasUnpushedCommitsTemplate" "$branch")\""
+                writeLog errors "reason=branch-has-unpushed-commits msg=\"$(formatMessage "$msgBranchHasUnpushedCommitsTemplate" "$branch")\""
                 ;;
             no-start)
-                logTo errors "reason=worktree-failed step=no-start msg=\"$(formatMessage "$msgNoStartingCommitTemplate" "$branch" "$prTarget")\""
+                writeLog errors "reason=worktree-failed step=no-start msg=\"$(formatMessage "$msgNoStartingCommitTemplate" "$branch" "$prTarget")\""
                 ;;
             folder-immovable)
-                logTo errors "reason=worktree-failed step=stray-folder msg=\"$(formatMessage "$msgStrayFolderImmovableTemplate" "$worktreePath")\""
+                writeLog errors "reason=worktree-failed step=stray-folder msg=\"$(formatMessage "$msgStrayFolderImmovableTemplate" "$worktreePath")\""
                 ;;
             *)
-                logTo errors "reason=worktree-failed msg=\"$(formatMessage "$msgWorktreeCouldNotBeMadeTemplate" "$branch" "$prTarget")\""
+                writeLog errors "reason=worktree-failed msg=\"$(formatMessage "$msgWorktreeCouldNotBeMadeTemplate" "$branch" "$prTarget")\""
                 ;;
         esac
         return 1
     fi
-    boIdent worktree "$worktreePath"
+    setLogField worktree "$worktreePath"
     [[ -n "$worktreeAside" ]] &&
-        logTo errors "reason=worktree-folder-moved-aside msg=\"$(formatMessage "$msgWorktreeFolderMovedAsideTemplate" "${worktreeAside##*/}")\""
+        writeLog errors "reason=worktree-folder-moved-aside msg=\"$(formatMessage "$msgWorktreeFolderMovedAsideTemplate" "${worktreeAside##*/}")\""
 
     doneFile="$(doneFileFor "$ticketId")"
     spawnFile="$(spawnFileFor "$ticketId")"
     contextFile="$(contextFileFor "$branch")"
     rm -f "$doneFile"
     if ! spawnWorker "$worktreePath" "$ticketId" "$agentName" "$branch" "$prTarget" "$label" "$doneFile" "$spawnFile" "$contextFile"; then
-        logTo errors "reason=worker-not-dispatched msg=\"$(lastLineOf "$spawnFile")\""
+        writeLog errors "reason=worker-not-dispatched msg=\"$(lastLineOf "$spawnFile")\""
         releaseClaim "$ticketId"
         return 1
     fi
 
-    boIdent session "$(sessionFromSpawn "$spawnFile")"
+    setLogField session "$(getSpawnedAgent "$spawnFile")"
     claimedThisRun=$((claimedThisRun + 1))
-    logTo claims "reason=dispatched"
+    writeLog claims "reason=dispatched"
 }

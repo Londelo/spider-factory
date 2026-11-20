@@ -81,19 +81,24 @@ the shipped one back.
 
 ## The CLI
 
-Six commands. The loop, the three planners and the watcher run from inside a tower project; `sf commit` only
+Seven commands. The loop, the three planners and the watcher run from inside a tower project; `sf commit` only
 needs a git repo.
 
 ```bash
 sf                     # open an agent session at the factory root
-sf --help              # all six, explained
+sf --help              # all seven, explained
 sf plan:epic a record box for my diary entries
 sf plan:feature SF-12
 sf plan:task SF-31
 sf loop                # dispatch the tower in the current directory — Ctrl-C stops dispatching
 sf overseer            # read the tower and report on it — reads only, writes nothing
 sf commit save a diary entry   # stage everything, commit as agent:branch:message, push
+sf log write claims reason=dispatched   # one line in the run's own format
 ```
+
+`sf log` is the logging door: the four verbs `seed <log-dir> <repo>`, `field <key> <value>`, `clear`,
+`write <tag> [detail...]`. The shape of a log line belongs to the CLI alone, so a hook or a script of your own
+says what happened through it instead of formatting one itself.
 
 ## The workflow
 

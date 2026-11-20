@@ -74,7 +74,7 @@ claimAndDispatchOneTicket() {
         return
     fi
     readTicketIdentityFromClaim || return
-    readClaimFields
+    readClaimLabels
     claimCarriesExactlyOneDispatchLabel || return
     claimBelongsToATower || return
     ensureEpicGatePr "$gateId" || {
@@ -86,7 +86,7 @@ claimAndDispatchOneTicket() {
 
 tick() {
     local claimJson claimExitCode ticketId ticketLabels matchedLabels branch prTarget gateId
-    
+
     dispatchReadyGates
 
     clearLogFields

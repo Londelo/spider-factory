@@ -42,7 +42,7 @@ readTicketIdentityFromClaim() {
     return 1
 }
 
-readClaimFields() {
+readClaimLabels() {
     mapfile -t ticketLabels < <(jq -r '.[0].labels // [] | .[]' <<< "$claimJson" 2>/dev/null)
 }
 

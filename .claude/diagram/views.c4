@@ -849,7 +849,7 @@ many tickets it claimed is the number that says whether the run did anything at 
 |---|---|
 | Is the loop alive? | the newest folder; `results` only exists if the run ended |
 | Is it failing? | `errors` — empty means nothing is failing |
-| Why nothing claimed? | `waiting` — the reason, and how many workers are live |
+| Why nothing claimed? | `waiting` — the reason, and how many workers are busy |
 | Did this ticket ship? | `claims`, then `closes`, then its `spawn-<ticket>` |
 | Why did this worker die? | `failures`, then `done-<ticket>` — no marker means it never said it was done |
 | Why won't my gate dispatch? | nothing at all is the tier's own switch being off; otherwise `waiting` for `gate_unworkable gate=<id> step=<why>`, then `errors` for `gate-claim-lost` and `worktree-failed step=gate` — all three name the gate, not a ticket |
@@ -1280,8 +1280,9 @@ queue. Nothing here brings it back — the missing line in `failures` beside a p
     machine.dispatcher -> waiting.maxParallel "WAITING … reason=max_parallel in_progress=4" {
       title "Four workers running, so this tick claims nothing"
       notes """
-The count is taken fresh from the live sessions every tick — never from a counter the loop keeps — so a session
-that died quietly cannot hold a slot forever.
+The count is taken fresh from the live session listing every tick — never from a counter the loop keeps — and it
+counts only the sessions still reporting themselves busy, so neither a session that died quietly nor one that
+finished and now sits idle can hold a slot.
 """
     }
 

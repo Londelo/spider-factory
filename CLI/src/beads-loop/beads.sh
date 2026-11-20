@@ -14,6 +14,7 @@ numberOfBusyWorkers() {
     $agentCommand agents --json 2>"$logDir/claude-stderr" \
         | jq --arg root "$worktreesRoot" --arg tower "$towerDir" \
           '[ .[] | select(.kind == "background")
+                 | select(.status == "busy")
                  | select((.cwd // "") | startswith($root) or . == $tower) ] | length' 2>/dev/null
 }
 

@@ -146,7 +146,7 @@ to be installed, so it and the engines are kept in step by hand.
 | `SF_AGENT_PLUGIN` | `spider-factory` | the plugin the agents ship in: every spawn names one as `<plugin>:<agent>`, and a bare name does not resolve to a plugin agent |
 | `SF_AGENT_FEATURE_GATES` | `0` | does the **lead agent** close a feature gate for you. `0` = a human closes it; `1` = the loop dispatches the lead agent at a ready feature gate. Anything else and the run refuses to start |
 | `SF_AGENT_EPIC_GATES` | `0` | the same switch for the epic gate alone — one flag per tier, because a feature gate and the epic gate are different amounts of trust |
-| `SF_MAX_PARALLEL` | `4` | workers spawned at once; the cap is recounted from `$SF_AGENT_COMMAND agents --json` every tick |
+| `SF_MAX_PARALLEL` | `4` | workers running at once; the count is recounted from `$SF_AGENT_COMMAND agents --json` every tick, and a session counts only while it reports itself `busy` — a finished worker holds no slot |
 | `SF_POLL_S` | `3` | seconds between ticks; **must divide 60** or the run refuses to start, because the idle rate limit is `60 / SF_POLL_S` ticks |
 | `SF_MAX_TICKETS` | `0` | stop once N tickets have closed this run — counted off the run's `closes` file, so the loop keeps ticking while it waits; 0 = endless |
 | `SF_LOG_ROOT` | `~/.spider-factory/logs` | parent of the one timestamped dir this run writes |
@@ -183,7 +183,7 @@ One tick, in the order the code runs it (`tick()`, `index.sh`):
 | # | Step | Reads | On failure |
 |---|---|---|---|
 | 1 | **dispatch any ready gate its tier flag opens** — `dispatchReadyGates`, before a single ticket is claimed. Returns at once when neither `SF_AGENT_FEATURE_GATES` nor `SF_AGENT_EPIC_GATES` is `1` | `bd list --include-gates --ready --type gate --limit 0 --json` → `.id`; the tier is `gateTierOf`, never a key | see the gate rows below |
-| 2 | capacity check — once per tick, before the claim, and the tick ends there when it fails | `$SF_AGENT_COMMAND agents --json`, background sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled`, and the tick ends |
+| 2 | capacity check — once per tick, before the claim, and the tick ends there when it fails | `$SF_AGENT_COMMAND agents --json`, background sessions reporting `status: busy` whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled`, and the tick ends |
 | 3 | **claim** — one claim a tick, and once it has been read the tick is over | `bd ready --claim --json` — atomic: assignee + `in_progress` + a 5-minute lease | `bd-failure`; an empty answer is a waiting line, not an error |
 | 4 | match labels against the `AGENT` map — **exactly one** may match | `.[0].labels` | `label-ambiguous`, left claimed |
 | 5 | derive the branch and the PR target off the **id** | `resolveTicketBranches <id>` — `splitTowerId` reads `<repo>-<kind>-<uuid>-<hierarchy>` off the right; the uuid names the tower, the kind word swapped to `feature` with the hierarchy cut at the last dot is the feature gate whose `branch` the work lands on, the kind word swapped to `epic` at hierarchy `0` the epic gate whose `branch` is `prTarget`; `prTarget` is `main` when the owner is the epic gate itself. Nothing is walked and no key on the ticket is read | `no-epic-gate ticket=…` (id does not read the grammar · `step=not-below-a-gate` · `gate=<the epic it names>`), `gate-unworkable ticket=…` (`owner-carries-no-branch` · `epic-carries-no-branch`), left claimed |
@@ -645,7 +645,11 @@ pointing it at your own build moves all of them. Three uses:
   the worker spawn, run with `cd` **inside** the branch's worktree, and deliberately **no `-w`** —
   `claude --worktree` only ever *creates* one, and this branch already owns its own.
 - `$SF_AGENT_COMMAND agents --json` — the capacity count, recounted fresh every tick: background
-  sessions whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower.
+  sessions reporting `status: busy` whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower.
+  All three tests are load-bearing. A finished `--bg` session is never removed from this listing — it stays
+  `kind: background` and only its status drops to `idle` — so without the status test a worker that finished
+  would hold a slot for the rest of the run. Nothing here ever stops a session: a finished worker is left
+  running on purpose, so it stays readable in the agent listing.
 - `$SF_AGENT_COMMAND --agent <planner> \"<prompt>\"` — the three plan agents, foreground, through
   `CLI/src/plan-agent.sh`, which is what `sf plan:epic`, `sf plan:feature` and `sf plan:task` run.
 
@@ -1578,8 +1582,9 @@ tier behind it simply waits. An alarm would fire every tick forever; this is a l
       #idle
       summary "The cap is reached and tickets are in progress, so this tick claims nothing."
       description """
-`SF_MAX_PARALLEL` background sessions are already alive and N tickets are in progress — the workers are working,
-so the tick simply does not claim.
+`SF_MAX_PARALLEL` of this tower's background sessions report themselves busy and N tickets are in progress — the
+workers are working, so the tick simply does not claim. A session that has finished reports idle and is not one of
+them, so it never contributes to reaching the cap.
 """
     }
     maxParallelStalled = waitingLine "reason=max_parallel_stalled in_progress=0" {

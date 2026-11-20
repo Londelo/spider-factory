@@ -18,8 +18,6 @@ utilsDir="$(dirname "$engineDir")/utils"
 source "$engineDir/user-env.sh"
 loadSpiderFactoryEnv
 
-agentPluginName="${SF_AGENT_PLUGIN:-spider-factory}"
-
 declare -A AGENT=(
     [backend-logic]=engineer
     [frontend-ui]=frontend

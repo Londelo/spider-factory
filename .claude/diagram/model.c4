@@ -5,7 +5,7 @@ model {
   // Every value here was read off CLI/bin/sf, CLI/src/beads-loop/ (index.sh and the nine beside it),
   // CLI/utils/console.sh, CLI/utils/logging.sh, CLI/src/log.sh,
   // CLI/src/forge.sh, CLI/src/user-env.sh, scripts/clone-webs.sh, CLI/spider-factory.example.env,
-  // .claude/hooks/worker-stop.sh, .claude/hooks/worker-fail.sh, .claude/hooks/hooks.json.
+  // .claude/hooks/worker-stop.sh, .claude/hooks/worker-fail.sh.
   // The cast only: the story is told by the four walkthroughs in views.c4.
   // Rules for editing these files: ./REFERENCE.md — the code is the only source of truth.
   // ═════════════════════════════════════════════════════════════════════════════
@@ -65,13 +65,15 @@ cloner beside this one is an npm script, not a `sf` one.
 |---|---|
 | 1 · detect | `git rev-parse --show-toplevel`, `bd where`, `command -v sf && sf help` — the repo, whether tickets live here yet, whether `sf` is on the path |
 | 2 · report and branch | reads back the three answers **before** offering anything; no repo → stop and name the folder to `cd` into; no ticket database → hand off to `bead-initialize`; no CLI → step 3; all present → nothing to do, run `sf loop` |
-| 3 · install | runs the plugin's `CLI/install-cli.sh`, located through `claude plugin details spider-factory --json` — only after you confirm: it never blind-runs anything |
-| 4 · uninstall | either or both, each confirmed: `rm -f ~/.local/bin/sf` leaves the plugin files put; `rm -rf .beads` deletes the tower and is confirmed against the repo path first |
+| 3 · install | runs `bash CLI/install-cli.sh` from the repo root — only after you confirm: it never blind-runs anything |
+| 4 · uninstall | either or both, each confirmed: `rm -f ~/.local/bin/sf` leaves the repo files put; `rm -rf .beads` deletes the tower and is confirmed against the repo path first |
 
 **What the installer writes:** one real file at `~/.local/bin/sf` (`CLI/bin/sf`'s launcher), never a
-symlink, which finds the plugin folder and execs the real `CLI/bin/sf`. A real file is deliberate: it
-outlives an uninstalled plugin and names its own problem — the missing-plugin message prints the `rm`
-that clears it and the two ways to get it back. If `~/.local/bin` is not on your path, the installer
+symlink, which execs the real `CLI/bin/sf` at the repo path baked into it (`# Repo: <path>` in its own
+header). A real file is deliberate: it outlives the repo being moved or deleted and names its own
+problem — the missing-repo warning ("the spider-factory repo is gone from: `<path>`") prints the `rm`
+that clears it and the two ways to get it back: remove the launcher, or clone the repo again and run its
+`CLI/install-cli.sh` again. If `~/.local/bin` is not on your path, the installer
 prints the exact `export PATH=` line your shell profile is missing.
 
 **Its second write:** `CLI/spider-factory.example.env` copied to `CLI/spider-factory.env`, the run's
@@ -95,7 +97,7 @@ command, and the installer never touches it. Every web the workers build is a cl
 | the list | `webs/webs.yml` — one repo url a line under `repos:`, each line starting with a dash; a `#` comments a line out, and quotes around a url are stripped |
 | its first copy | copied from the tracked `webs/webs.example.yml` **only when it is missing** — nothing else ever writes that file, not the installer and not `sf`; delete it and the next run writes the shipped one back |
 | where a clone lands | `webs/<last segment of the url, .git stripped>` |
-| what is in the plugin | `webs/.gitkeep` and `webs.example.yml` alone — `webs/*` is gitignored, so a clone belongs to the machine and never to the plugin |
+| what is in the repo | `webs/.gitkeep` and `webs.example.yml` alone — `webs/*` is gitignored, so a clone belongs to the machine and never to the repo |
 
 **One line per url, then it moves on.** `cloned name=… url=…`; `skipped name=… reason=already-cloned` when a
 `.git` is already there, or `reason=not-a-clone` when something else is; `failed name=… reason=git-clone`.
@@ -156,7 +158,6 @@ to be installed, so it and the engines are kept in step by hand.
 | Knob | Default | What it does |
 |---|---|---|
 | `SF_AGENT_COMMAND` | `claude` | the command that runs an agent — the worker spawn, the worker count, and the three planners all go through it; split on spaces, so it may carry its own arguments |
-| `SF_AGENT_PLUGIN` | `spider-factory` | the plugin the agents ship in: every spawn names one as `<plugin>:<agent>`, and a bare name does not resolve to a plugin agent |
 | `SF_AGENT_FEATURE_GATES` | `0` | does the **lead agent** close a feature gate for you. `0` = a human closes it; `1` = the loop dispatches the lead agent at a ready feature gate. Anything else and the run refuses to start |
 | `SF_AGENT_EPIC_GATES` | `0` | the same switch for the epic gate alone — one flag per tier, because a feature gate and the epic gate are different amounts of trust |
 | `SF_MAX_PARALLEL` | `4` | workers running at once; the count is recounted from `$SF_AGENT_COMMAND agents --json` every tick, and a session counts only while it reports itself `busy` — a finished worker holds no slot |
@@ -202,7 +203,7 @@ One tick, in the order the code runs it (`tick()`, `index.sh`):
 | 5 | derive the branch and the PR target off the **id** | `resolveTicketBranches <id>` — `splitTowerId` reads `<repo>-<kind>-<uuid>-<hierarchy>` off the right; the uuid names the tower, the kind word swapped to `feature` with the hierarchy cut at the last dot is the feature gate whose `branch` the work lands on, the kind word swapped to `epic` at hierarchy `0` the epic gate whose `branch` is `prTarget`; `prTarget` is `main` when the owner is the epic gate itself. Nothing is walked and no key on the ticket is read | `no-epic-gate ticket=…` (id does not read the grammar · `step=not-below-a-gate` · `gate=<the epic it names>`), `gate-unworkable ticket=…` (`owner-carries-no-branch` · `epic-carries-no-branch`), left claimed |
 | 6 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
 | 7 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
-| 8 | spawn | `$SF_AGENT_COMMAND --bg --agent <plugin>:<agent> --permission-mode bypassPermissions`, cwd **inside** the worktree | `worker-not-dispatched`, `bd unclaim` |
+| 8 | spawn | `$SF_AGENT_COMMAND --bg --agent <agent> --permission-mode bypassPermissions` — the bare agent name, a project-level agent in `.claude/agents/` | `worker-not-dispatched`, `bd unclaim` |
 | 9 | one log line, move on | `writeLog claims \"reason=dispatched\"` | — |
 
 **One pair of hands per branch is the tower's job, not the loop's.** Every ticket below a feature gate sits on
@@ -222,7 +223,7 @@ ready list until its lead agent dies.
 | derive the gate's branch and target | `resolveTicketBranches <gate>` — the gate's own `branch`, and the epic gate's `branch` (or `main`) as the target | waiting `gate_unworkable gate=… step=…` |
 | **claim it** | `bd update <gate> --status in_progress --if-status open` | `gate-claim-lost`, no lead agent spawned |
 | make the branch's folder | `ensureWorktree gateBranch gatePrTarget` | `worktree-failed step=gate`, and the gate is put back `open` |
-| spawn the **lead agent** | `--agent <plugin>:lead`, label on the line is `gate:<tier>` | `worker-not-dispatched gate=…`, the gate put back `open` |
+| spawn the **lead agent** | `--agent lead`, the bare name; label on the line is `gate:<tier>` | `worker-not-dispatched gate=…`, the gate put back `open` |
 | one log line | `writeLog claims \"reason=dispatched kind=gate gate=… tier=…\"` | — |
 
 **What it never does:** it never polls a worker, never reads worker output, never merges, never ends
@@ -256,7 +257,7 @@ leadAgentName="lead"
 
 | Name | What it is | Examples |
 |---|---|---|
-| **category** | a column of plan-task's own node-type table. Nothing ever writes one to beads — no `--category` is passed anywhere in this plugin | `backend-logic`, `frontend-ux`, `unit-tests` — the three plan-task node types, and nothing above a task carries one |
+| **category** | a column of plan-task's own node-type table. Nothing ever writes one to beads — no `--category` is passed anywhere in this repo | `backend-logic`, `frontend-ux`, `unit-tests` — the three plan-task node types, and nothing above a task carries one |
 | **label** | written with `bd create -l`; a ticket may carry any number, but **exactly one** must be a key of this map | the seven keys above, bar none |
 | **agent** | a real file in `.claude/agents/` | `engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`, `review`, `lead` |
 
@@ -318,7 +319,7 @@ same statement, stamps an assignee, moves it to `in_progress`, and starts a **fi
 | atomic | a bare `bd ready` is a peek, not a take — two loops reading with it would both work the same ticket |
 | one ticket per call | and the tick makes exactly **one** of them: read the claim, dispatch or refuse, and the tick is over — there is no second claim waiting behind it |
 | an **empty** answer is not an error | that is a waiting line: `frontier_empty` if nothing is waiting elsewhere, `tower_stalled waiting=N` if work exists behind a blocker |
-| the lease is the only watchdog | a lapsed lease parks the ticket `in_progress` and off the frontier — nothing in this plugin runs `bd reclaim`, so sweeping claims back is a human's act |
+| the lease is the only watchdog | a lapsed lease parks the ticket `in_progress` and off the frontier — nothing in this repo runs `bd reclaim`, so sweeping claims back is a human's act |
 | `bd unclaim` puts a claim back | `releaseClaim` is one line, called from **two** places: the epic branch and its PR could not be published · the spawn died. Everything else that refuses — a mislabelled ticket, an id that reaches no gate, a worktree that could not be made — leaves the claim where it is, on purpose |
 
 A claim is a JSON object, and **two** fields decide everything downstream: `.id` (which two gates it sits
@@ -465,10 +466,12 @@ hook refuses to land anything without it.
   }
 
   stopHook = hook "worker-stop.sh — the Stop hook, fail-closed" {
-    summary "The closer: commit, push, the branch's pull request, close — and it refuses eighteen ways first."
+    summary "The closer, unregistered today: commit, push, the branch's pull request, close — and it refuses eighteen ways first."
     description """
-**What it is:** the closer. Registered in `.claude/hooks/hooks.json` on the `Stop` event with `timeout: 300`, so it
-fires in **every session of every project** the plugin is enabled in — what tells a dispatched worker apart from
+**What it is:** the closer — a script that exists but nothing runs yet. It sits at `.claude/hooks/worker-stop.sh`
+and implements the whole finish below, but **nothing registers it**: the old `.claude/hooks/hooks.json` has been
+deleted, project hooks load only from a `.claude/settings.json`, and no `Stop` registration exists anywhere in
+the repo — until one is added, this script never fires. What *would* tell a dispatched worker apart from
 everything else is the `claims` line that names this session id: a session with no dispatched claims line leaves
 at once, silently, and writes nothing anywhere. Never the cwd — the hook input's `.cwd` is not evidence of
 anything, because `claude --bg` pools the worker into a process that took neither the spawn's environment nor
@@ -513,10 +516,12 @@ through the forge, and a second PR off a merged branch is a lie about work nobod
   }
 
   failHook = hook "worker-fail.sh — the StopFailure hook" {
-    summary "What runs when a worker's session dies mid-turn: the reason onto the ticket, then park it."
+    summary "Unregistered like its sibling: what would run when a worker's session dies mid-turn — the reason onto the ticket, then park it."
     description """
-**What it is:** what happens when a worker's session dies on an API error mid-turn (`StopFailure`, `timeout: 60`).
-A dead worker stops heartbeating and its lease lapses — and nothing in this plugin runs `bd reclaim`, so an
+**What it is:** what would happen when a worker's session dies on an API error mid-turn. The script for the
+harness's `StopFailure` event, **unregistered exactly like the Stop hook**: `.claude/hooks/hooks.json` is gone,
+no `.claude/settings.json` registers it, so nothing fires it today.
+A dead worker stops heartbeating and its lease lapses — and nothing in this repo runs `bd reclaim`, so an
 unwatched lapse simply leaves the ticket parked `in_progress`, invisible to `bd ready`, until a person moves
 it. This hook takes the ticket somewhere a human will see it, with the reason attached, on purpose.
 
@@ -527,15 +532,15 @@ bd update \"$ticket\" --status failed-agent
 sf log write failures \"from=<state> kind=<kind> msg=\"…\"\"
 ```
 
-The reason is **never polled, parsed out of a log, or asked of the model**: the harness fires this hook itself
-and hands the text on stdin — `.error` is its coarse label for the kind of death (often just `unknown`),
+The reason is **never polled, parsed out of a log, or asked of the model**: the script is written for the
+harness's own `StopFailure` event, which hands the text on stdin — `.error` is its coarse label for the kind of
+death (often just `unknown`),
 `.last_assistant_message` is the last thing the session produced, which is where the real text is (for local
 inference, typically an `API Error:` line from the proxy). The reason is written **before** the status changes:
 a ticket parked in failure with nothing said about why is worse than one left `in_progress`. Every step is
 *attempted, never forced*: one that fails leaves the ticket exactly where it was and logs why.
 """
     link https://github.com/Londelo/spider-factory/blob/main/.claude/hooks/worker-fail.sh "Source — .claude/hooks/worker-fail.sh"
-    link https://github.com/Londelo/spider-factory/blob/main/.claude/hooks/hooks.json "Source — .claude/hooks/hooks.json (Stop 300 s, StopFailure 60 s)"
   }
 
   overseerAgent = worker "overseer — the reader, never the hand" {
@@ -691,7 +696,7 @@ The loop owns the folders, because a worktree belongs to a **branch**, not to a 
   `git -C <tower> push --quiet origin <start>:refs/heads/<gateBranch>`, publishing an epic branch that has none.
 - **Nothing else here commits.** `git add -A`, `git commit -m \"agent:branch:message\"` and
   `git push -u origin <branch>` all live inside `sf commit` (`CLI/src/commit.sh`) — the only way anything
-  commits in this plugin. The agent is `SF_AGENT`, `manual` when a person typed it; the branch is
+  commits in this repo. The agent is `SF_AGENT`, `manual` when a person typed it; the branch is
   `git symbolic-ref --short HEAD`, and a detached HEAD is refused because a branch it cannot name is a
   subject it cannot write.
 """
@@ -1545,7 +1550,7 @@ failure with nothing said about why is worse than one left `in_progress`.
         description """
 `bd update --status failed-agent` refused, so the reason is on the ticket but its status is still `in_progress` —
 the shape that looks like a live worker and is a dead one. Nothing here will bring it back: no `bd reclaim` runs
-in this plugin, so it sits out of `bd ready` until a person moves it, and the missing `failures` line is the tell.
+in this repo, so it sits out of `bd ready` until a person moves it, and the missing `failures` line is the tell.
 
 **This alarm almost always means one thing: the database never registered the status.** `bd` accepts an unknown
 type and an unknown status silently and then refuses to set it, so `failed-agent` needs

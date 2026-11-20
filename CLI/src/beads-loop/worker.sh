@@ -67,7 +67,7 @@ spawnWorker() {
         && SF_TICKET="$ticketId" SF_BRANCH="$branch" SF_PR_TARGET="$prTarget" \
            SF_AGENT="$agentName" SF_LABEL="$label" \
            SF_PROJECT_DIR="$towerDir" SF_LOG_DIR="$logDir" SF_DONE_FILE="$doneFile" \
-           $agentCommand --bg --agent "$agentPluginName:$agentName" --permission-mode bypassPermissions \
+           $agentCommand --bg --agent "$agentName" --permission-mode bypassPermissions \
            "$(buildWorkerPrompt "$ticketId" "$branch" "$doneFile" "$agentName" "$prTarget")" ) >"$spawnFile" 2>&1
 }
 

@@ -29,7 +29,8 @@ terminal, and the four reused refusals), `CLI/utils/logging.sh` (the one definit
 `CLI/src/user-env.sh`, `scripts/clone-webs.sh`, `CLI/src/create-beads/*`, `CLI/install-cli.sh`,
 `CLI/uninstall-cli.sh`,
 `CLI/spider-factory.example.env`, `webs/webs.example.yml`, `.claude/hooks/worker-stop.sh`,
-`.claude/hooks/worker-fail.sh`, `.claude/hooks/hooks.json`, `.claude/agents/*`, `.claude/skills/*`.
+`.claude/hooks/worker-fail.sh` (both scripts exist; neither is registered — there is no hooks.json and no
+`.claude/settings.json`), `.claude/agents/*`, `.claude/skills/*`.
 
 The layout behind that list: `CLI/src/` holds what `bin/sf` runs plus the concern files under each command,
 `CLI/utils/` the bash more than one command sources (`console.sh`, `logging.sh`), and `scripts/` what npm runs.

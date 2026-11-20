@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# install-cli.sh — put `sf` on PATH as a real file at ~/.local/bin/sf, never a symlink, so it outlives an
-# uninstalled plugin and can name its own problem. No node, no package manager.
-#   bash "$(claude plugin details spider-factory --json | jq -r '.root')/CLI/install-cli.sh"
+# install-cli.sh — put `sf` on PATH as a real file at ~/.local/bin/sf, never a symlink, so it outlives the
+# repo it came from and can name its own problem. No node, no package manager.
+#   bash ~/CastleLondelo/spider-factory/CLI/install-cli.sh
 # It also puts the environment file at CLI/spider-factory.env, copied from CLI/spider-factory.example.env.
 # Re-running it overwrites the launcher, which is how you repoint it after a reinstall — but it never
 # touches CLI/spider-factory.env once it exists: those are your edits by then. Delete it to get the defaults back.
@@ -12,7 +12,7 @@ nameTheSpeaker sf
 
 locateLauncherPaths() {
     here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-    pluginRoot="$(cd "$here/.." && pwd)"
+    repoRoot="$(cd "$here/.." && pwd)"
     binDir="$HOME/.local/bin"
     launcher="$binDir/sf"
     envFile="$here/spider-factory.env"
@@ -24,17 +24,17 @@ writeLauncher() {
     cat > "$launcher" <<EOF
 #!/usr/bin/env bash
 # sf launcher — written by spider-factory's CLI/install-cli.sh. Do not edit; re-run that.
-# Plugin: $pluginRoot
+# Repo: $repoRoot
 set -uo pipefail
-plugin="$pluginRoot"
-if [[ ! -f "\$plugin/CLI/bin/sf" ]]; then
-    printf 'sf: the spider-factory plugin is gone from:\\n      %s\\n' "\$plugin" >&2
-    printf '    The plugin was uninstalled, moved, or updated — nothing else on your system changed.\\n' >&2
+repo="$repoRoot"
+if [[ ! -f "\$repo/CLI/bin/sf" ]]; then
+    printf 'sf: the spider-factory repo is gone from:\\n      %s\\n' "\$repo" >&2
+    printf '    The repo was moved, renamed, or deleted — nothing else on your system changed.\\n' >&2
     printf '    remove this launcher:  rm -f "%s"\\n' "$launcher" >&2
-    printf '    get it back:           reinstall the plugin, then run its CLI/install-cli.sh again\\n' >&2
+    printf '    get it back:           clone the repo again, then run its CLI/install-cli.sh again\\n' >&2
     exit 1
 fi
-exec bash "\$plugin/CLI/bin/sf" "\$@"
+exec bash "\$repo/CLI/bin/sf" "\$@"
 EOF
     chmod +x "$launcher"
 }
@@ -58,7 +58,7 @@ warnWhenBinDirMissingFromPath() {
 }
 
 announceInstallation() {
-    plain "installed: $launcher -> $pluginRoot/CLI/bin/sf"
+    plain "installed: $launcher -> $repoRoot/CLI/bin/sf"
     plain "env:       $envFile ($envFileState) — edit it by hand, the CLI reads it on every run"
 }
 

@@ -14,7 +14,6 @@ loadSpiderFactoryEnv
 nameTheSpeaker overseer
 
 agentCommand="${SF_AGENT_COMMAND:-claude}"
-agentPluginName="${SF_AGENT_PLUGIN:-spider-factory}"
 
 usage() {
     cat <<'USAGE'
@@ -52,7 +51,7 @@ runOverseer() {
     requireBeadsProject
     requireAgentCommand
     tell "reading $PWD through '$agentCommand'"
-    exec $agentCommand --agent "$agentPluginName:overseer" --disallowedTools 'Bash(sf:*)' "$@"
+    exec $agentCommand --agent overseer --disallowedTools 'Bash(sf:*)' "$@"
 }
 
 case "${1:-}" in

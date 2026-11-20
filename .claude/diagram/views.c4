@@ -217,7 +217,7 @@ gates wait for a person. The database is all the loop ever reads.
 There is no install command to remember. Say "setup spider-factory" and the skill looks at three things:
 are you in a repo, do tickets live here yet, is the command reachable.
 If only the CLI is missing, it asks you once, then runs the installer: one real file on your path, which
-finds the plugin and runs the engine in the foreground, and — the first time only — the one settings file
+finds the repo and runs the engine in the foreground, and — the first time only — the one settings file
 the parameters node names, which is yours to edit after that.
 If nothing is missing, it says so and gets out of the way.
 """
@@ -401,8 +401,9 @@ Closing is somebody else's job.
       title "The worker's last act is to say it is finished"
       notes """
 The loop deleted the marker before this session started, so only this session could have made it.
-If the marker exists, the hook runs. If it does not, the hook commits nothing, pushes nothing, opens nothing and
-closes nothing.
+If the marker exists, the hook runs — what it does when it fires is the next three arrows. Whether anything
+registers either hook script today is on the hook nodes themselves.
+If it does not, the hook commits nothing, pushes nothing, opens nothing and closes nothing.
 """
     }
 
@@ -1246,8 +1247,9 @@ worker's real session id; when that id is stale, this is where it surfaces.
     toolbelt.claudeCli -> failHook "StopFailure — the reason arrives on input" {
       title "A worker session dies instead of finishing"
       notes """
-The harness itself fires this hook and hands over what failed and the worker's last message — which for a local
-model is where the real error text is. The reason goes on the ticket *before* its status changes. It is the same
+This script is written for the harness's own `StopFailure` event, which hands over what failed and the worker's
+last message — which for a local model is where the real error text is; nothing registers the script today, and
+the hook node owns that fact. The reason goes on the ticket *before* its status changes. It is the same
 hook for a lead agent: a gate whose lead agent died is parked here too, in `failed-agent`, and a parked gate is no
 longer open — so it stops coming up ready and waits for a person, like any other dead worker's ticket.
 """

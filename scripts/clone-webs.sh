@@ -3,14 +3,14 @@
 #   npm run webs:clone      (or: bash scripts/clone-webs.sh)
 # The list is yours, and this engine is the only thing that writes it — copied from the tracked
 # webs/webs.example.yml, and only when it is missing. webs/ is in the repo by its .gitkeep alone: a clone
-# that lands there belongs to the machine, not the plugin, and the CLI has nothing to do with any of it.
+# that lands there belongs to the machine, not the repo, and the CLI has nothing to do with any of it.
 set -uo pipefail
 
 here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 source "$here/../CLI/utils/console.sh"
 nameTheSpeaker webs
-pluginRoot="$(cd "$here/.." && pwd)"
-websDir="$pluginRoot/webs"
+repoRoot="$(cd "$here/.." && pwd)"
+websDir="$repoRoot/webs"
 listFile="$websDir/webs.yml"
 exampleListFile="$websDir/webs.example.yml"
 

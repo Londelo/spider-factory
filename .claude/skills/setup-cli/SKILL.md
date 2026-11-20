@@ -42,12 +42,12 @@ re-implement it here — hand off to that skill and come back.
 
 ## Step 3 — Install the CLI
 
-The CLI lives inside the plugin; its installer writes a small REAL file at `~/.local/bin/sf` that execs
-the plugin's `CLI/bin/sf` (no node, no symlink — a real file survives an uninstalled plugin and can name
-its own problem). Run the installer:
+The CLI lives inside this repo; its installer writes a small REAL file at `~/.local/bin/sf` that execs
+the repo's `CLI/bin/sf` (no node, no symlink — a real file survives the repo moving and can name its own
+problem). Run the installer from the repo root:
 
 ```bash
-bash "$(claude plugin details spider-factory --json | jq -r '.root')/CLI/install-cli.sh"
+bash CLI/install-cli.sh
 ```
 
 That writes `~/.local/bin/sf`, and — only the first time — `CLI/spider-factory.env`, a copy of
@@ -59,13 +59,13 @@ warning, tell the user to add that `export PATH=...` line to their shell profile
 
 ## Step 4 — Uninstall (either or both — confirm each)
 
-**Uninstall the CLI** — remove only the launcher, the plugin files stay put:
+**Uninstall the CLI** — remove only the launcher, the repo files stay put:
 ```bash
 rm -f "$HOME/.local/bin/sf"
 ```
 
-**If the plugin was uninstalled instead** — the launcher is still on PATH and `sf` prints a warning naming
-the plugin path it can no longer find, plus the two ways out: remove the launcher, or reinstall the plugin
+**If the repo was moved or deleted instead** — the launcher is still on PATH and `sf` prints a warning naming
+the repo path it can no longer find, plus the two ways out: remove the launcher, or clone the repo back
 and run its `CLI/install-cli.sh` again. If they report that message, ask which they want — the reinstall is
 Step 3, the removal is the `rm` above. Either way nothing else on the machine needs cleaning, except
 `CLI/spider-factory.env` if they want it gone too — that one is their own edits, so never remove it unasked.
@@ -84,7 +84,7 @@ reverse (`brew uninstall beads` / `npm rm -g @beads/bd`).
 | Need | Do |
 |---|---|
 | init beads / install `bd` / hooks | **`bead-initialize` skill** (defer to it) |
-| install the CLI | `bash "$(claude plugin details spider-factory --json \| jq -r '.root')/CLI/install-cli.sh"` |
+| install the CLI | `bash CLI/install-cli.sh`, from the repo root |
 | uninstall the CLI | `rm -f ~/.local/bin/sf` |
 | uninstall beads (repo) | `rm -rf .beads` (destructive — confirm path) |
 | run the dispatcher | `sf loop` (foreground — Ctrl-C stops it) |

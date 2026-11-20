@@ -36,8 +36,9 @@ spawns, and a mis-labelled ticket silently gets the wrong depth — so labels ar
 
 ## Setup
 
-**1 · Install the plugin and the CLI.** The plugin ships the agents and skills to Claude Code; the CLI is a
-separate thing on your PATH. From a clone of this repo:
+**1 · Install the CLI.** The agents and skills are ordinary project-level files in this repo's `.claude/` —
+Claude Code picks them up when you work in here, and every one is spawned by its bare name. The CLI is a
+separate thing: a launcher on your PATH. From a clone of this repo:
 
 ```bash
 npm run cli:install      # writes ~/.local/bin/sf and CLI/spider-factory.env
@@ -56,9 +57,8 @@ post-checkout. Your repo is touched, not just its database.
 
 **3 · Every setting lives in `CLI/spider-factory.env`** — copied down from
 `CLI/spider-factory.example.env` on install and never touched again. Workers at once, tick length, how many
-tickets end a run, log root, which labels may dispatch, whether the lead agent closes gates, which command
-runs an agent, and which plugin the agents ship in. Edit that file; something you export yourself still wins
-for one run.
+tickets end a run, log root, which labels may dispatch, whether the lead agent closes gates, and which
+command runs an agent. Edit that file; something you export yourself still wins for one run.
 
 ## Webs
 
@@ -113,8 +113,9 @@ once and every line after carries them.
    own id, builds the worktree, and spawns the worker inside it. Every line it logs prints to your screen
    as it goes.
 3. **Workers commit as they go** with `sf commit`, and declare themselves done with a marker file. No worker
-   ever closes its own ticket — the Stop hook commits, pushes, opens the PR and closes it. No marker, no
-   commit.
+   ever closes its own ticket — finishing it is the job of the two scripts in `.claude/hooks/`: commit, push,
+   open the PR, close. No marker, nothing lands. **Those two scripts are not registered with anything
+   today** — what that means for a run is `.claude/CLAUDE.md`'s to say.
 4. **You close the gates** when a tier is proved, then run the loop again for the next tier. `sf overseer`
    tells you what is stuck and why, and hands you the command when the fix is a mutation.
 

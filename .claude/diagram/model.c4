@@ -14,25 +14,37 @@ model {
     summary "One command in, background workers out: the command, the setup skill, the webs cloner, the checks, the parameters, the dispatcher, the claim."
 
     sfCli = cliTool "sf — the one command, and its seven" {
-      summary "The whole CLI: one bash file, seven commands, each one an engine beside it in CLI/src/. Anything unknown is refused by name."
+      summary "The whole CLI: one bash file, seven commands, each one an engine beside it in CLI/src/. Every one but bare `sf` runs only from inside the factory."
       description """
 **What it is:** `CLI/bin/sf` — one bash file, no node. The installer puts a launcher for it at
 `~/.local/bin/sf`. Every command is an arm of one `case` block, and nothing else is reachable.
 
 | You type | What runs |
 |---|---|
-| `sf` | an agent session through `SF_AGENT_COMMAND` (default `claude`), **always from the factory root** — already inside it, you stay put; anything you type after it goes to that session |
-| `sf --help` / `-h` / `help` | the usage block: the seven commands, the prompt forms, and where every setting lives |
+| `sf` | an agent session through `SF_AGENT_COMMAND` (default `claude`), **from anywhere, always at the factory root** — already inside it, you stay put; anything you type after it goes to that session |
+| `sf --help` / `-h` / `help` | the usage block, from anywhere: the seven commands, the prompt forms, and where every setting lives |
 | `sf loop` | `CLI/src/beads-loop/index.sh`, foreground — the dispatcher over the tower in the current directory |
 | `sf plan:epic` / `sf plan:feature` / `sf plan:task` | `CLI/src/plan-agent.sh` with that kind, and everything you typed after the command handed to it as the prompt |
 | `sf overseer` | `CLI/src/overseer-agent.sh`, foreground — the reader, `sf` denied to it |
 | `sf commit <line>` | `CLI/src/commit.sh` — the only thing that commits, anywhere |
 | `sf log write <tag> [detail…]` | `CLI/src/log.sh` — the logging door, and its **one** verb. Anything outside `CLI/src/` that wants a line comes through here; the nine fields on it come from the caller's own environment (they are listed on the run-log node) |
 
-**Two checks, and where each one lives.** `requireEngine` runs before every command: the engine file is
-actually there, or the message names the missing path and says re-run `CLI/install-cli.sh`.
+**Three checks, and where each one lives.** `requireInsideFactory` is the first line of all five command
+dispatchers, so it is the first thing every one of the seven does: it matches `$PWD/` against
+`<factory root>/*`, the root being `CLI/bin/sf`'s own folder's parent — the root itself, or anything nested
+under it at any depth, passes; anything else dies naming the root and telling you to `cd` into it, and says
+bare `sf` opens a session from anywhere. Bare `sf` and `sf --help` never meet it — bare `sf` answers from
+wherever you are and `cd`s to that root itself. `requireEngine` runs next, before every command: the engine
+file is actually there, or the message names the missing path and says re-run `CLI/install-cli.sh`.
 `requireBeadsProject` — a beads database reachable from here — `sf` runs only for `loop`; the three planners
 and the watcher each run their own inside their engine, and `commit` needs only a git repo.
+
+**Who else stands at that door.** Every `sf` call a worker or a hook makes is a command and so carries the
+same requirement: the two hooks' `sf log write`, the worker's `sf commit` as it goes, and the Stop hook's.
+They all have it — the loop will only run a tower from inside the factory, and the worker, the hook and the
+tower all sit under that same root, the worktree being `<tower>/.claude/worktrees/…`. A person's own session
+outside the factory never trips it either: both hooks leave at once when no claims line names their session,
+before either reaches the CLI.
 
 **What is not a command.** Anything starting with `-` is not a command at all — it goes to the bare session as
 arguments. Anything else unknown is refused **by name**, with the seven listed and `Try 'sf --help'` under it,
@@ -122,7 +134,8 @@ Checks 3–5 pass their own sentence to `die` directly.
 | 6 | `requireBeadsProject` — `bd list --limit 1 --json` must answer an **array** | `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the environment does not save a wrong directory |
 | 7 | `createRunLogDirectory` — `mkdir -p` the run's dir, then seed `claims errors waiting results closes failures` | fatal on purpose: a run that cannot write its logs cannot raise an alarm |
 
-`sf` itself runs check 6 and one before it — `requireEngine`, that `../src/beads-loop/index.sh` is actually
+`sf` itself runs check 6 and two before it — `requireInsideFactory`, that the directory it was typed in is
+the factory root or anything under it, and `requireEngine`, that `../src/beads-loop/index.sh` is actually
 there — so a broken install names itself instead of failing deep in a tick.
 """
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L123-L136 "Source — beads-loop/index.sh lines 123–136, the bootstrap that runs them in order"
@@ -363,7 +376,7 @@ names the ticket, label, agent, branch, target, repo and session, and the same k
 `exit=`, a `msg=` — is passed as **detail**; the key set is closed, or the joining stops working.
 
 ```
-CLAIMS   2026-11-04T09:12:03\trun=2026-11-04_09-12-01 repo=/home/dev/record-box ticket=back-end label=backend-logic agent=engineer branch=feature/add-record target=epic/record-box session=287d3c4c worktree=/home/dev/record-box/.claude/worktrees/feature+add-record reason=dispatched
+CLAIMS   2026-11-04T09:12:03\trun=2026-11-04_09-12-01 repo=/home/dev/spider-factory/webs/record-box ticket=back-end label=backend-logic agent=engineer branch=feature/add-record target=epic/record-box session=287d3c4c worktree=/home/dev/spider-factory/webs/record-box/.claude/worktrees/feature+add-record reason=dispatched
 ```
 """
     link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/logging.sh "Source — CLI/utils/logging.sh, the one definition of a line"
@@ -478,7 +491,9 @@ commit is the same shape as all the others. `git diff --cached --quiet` proving 
 what `reason=commit-failed` means. The hook then pushes for itself: cheap when the branch is current, and it
 is the hook's own guarantee that the branch is on the forge before a PR is opened off it — which is why
 `reason=push-failed` is a separate alarm from `reason=commit-failed`. `sf` is in `requireTools` for this
-reason; `reason=missing-tool tool=sf` is the alarm when the CLI is not installed.
+reason; `reason=missing-tool tool=sf` is the alarm when the CLI is not installed. Both of those calls are made
+inside the tower's own folders, and the loop only ever runs a tower from inside the factory, so the check on the
+`sf` node is met.
 
 **One branch, one pull request, forever:** the branch's first task creates the PR, and every later task finds
 it by `gh pr list --head <branch> --base <target> --state open` and reuses it — which is why the branch, not

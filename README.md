@@ -47,7 +47,8 @@ npm run cli:uninstall    # removes that launcher, and only that launcher
 Or skip the ceremony and say "setup spider-factory" to your AI agent — the `setup-cli` skill checks the
 repo, the ticket database and the CLI, then installs on your say-so.
 
-**2 · Initialize beads in the project you want to build.** The tower lives in the target repo, not here.
+**2 · Initialize beads in the project you want to build.** The tower lives in the target repo, not here — and the
+target has to sit inside the factory for any command but bare `sf` to reach it, which is what `webs/` is for.
 Say "initialize beads" there, or use the `bead-initialize` skill — it installs `bd`, runs `bd init`,
 registers the `gate` type and `failed-agent` status the tower needs, writes a SessionStart hook and a beads
 section into that repo's `CLAUDE.md`, and puts four git hooks in it: pre-commit, post-merge, pre-push,
@@ -81,8 +82,9 @@ the shipped one back.
 
 ## The CLI
 
-Seven commands. The loop, the three planners and the watcher run from inside a tower project; `sf commit` only
-needs a git repo.
+Seven commands. Every one but bare `sf` runs only from inside this repo — anywhere under it, at any depth. On
+top of that, the loop, the three planners and the watcher run from inside a tower project; `sf commit` only needs
+a git repo.
 
 ```bash
 sf                     # open an agent session at the factory root

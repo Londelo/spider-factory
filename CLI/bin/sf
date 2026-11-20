@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # sf — the spider-factory CLI. Seven commands, all foreground, each one an engine beside it in CLI/src/.
+#   Every command but bare `sf` refuses to run from outside the factory; bare `sf` goes anywhere.
 #   sf loop          the dispatcher, ../beads-loop/index.sh; Ctrl-C stops dispatching.
 #   sf plan:epic     the planner, ../plan-agent.sh, epic kind
 #   sf plan:feature  the planner, ../plan-agent.sh, feature kind
@@ -86,13 +87,16 @@ Every setting — SF_AGENT_COMMAND, SF_MAX_PARALLEL, SF_POLL_S, SF_MAX_TICKETS, 
 SF_ALLOWED_LABELS — lives in CLI/spider-factory.env, which the installer wrote there with its
 defaults. Edit that file; something you export yourself still wins for one run.
 
-The loop, the three planners and the watcher run from inside a tower project (one with a
-beads DB). `sf commit` only needs a git repo.
+Every command but bare `sf` runs only from inside the spider factory — anywhere under it, at
+any depth. Bare `sf` opens a session from wherever you are. On top of that the loop, the three
+planners and the watcher run from inside a tower project (one with a beads DB), and `sf commit`
+only needs a git repo.
 USAGE
 }
 
 locateEngines() {
     here="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+    factoryRoot="$(cd "$here/../.." && pwd)"
     dispatcher="$here/../src/beads-loop/index.sh"
     planner="$here/../src/plan-agent.sh"
     watcher="$here/../src/overseer-agent.sh"
@@ -108,7 +112,15 @@ requireBeadsProject() {
     bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 || reportNoBeadsDatabase
 }
 
+requireInsideFactory() {
+    case "$PWD/" in
+        "$factoryRoot"/*) return 0 ;;
+    esac
+    die "that command runs only from inside the spider factory at $factoryRoot — cd into it, or anywhere under it, and run it again; bare 'sf' opens a session from anywhere"
+}
+
 dispatchOverCurrentTower() {
+    requireInsideFactory
     requireEngine "$dispatcher"
     requireBeadsProject
     say "dispatching $PWD — Ctrl-C to stop."
@@ -119,21 +131,25 @@ dispatchOverCurrentTower() {
 dispatchPlanAgent() {
     local kind="$1"
     shift
+    requireInsideFactory
     requireEngine "$planner"
     exec bash "$planner" "$kind" "$@"
 }
 
 dispatchCommitter() {
+    requireInsideFactory
     requireEngine "$committer"
     exec bash "$committer" "$@"
 }
 
 dispatchOverseerAgent() {
+    requireInsideFactory
     requireEngine "$watcher"
     exec bash "$watcher" "$@"
 }
 
 dispatchLogger() {
+    requireInsideFactory
     requireEngine "$logger"
     exec bash "$logger" "$@"
 }

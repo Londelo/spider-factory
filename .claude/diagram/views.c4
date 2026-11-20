@@ -227,9 +227,10 @@ If nothing is missing, it says so and gets out of the way.
       title "Everything the machine can do goes through one command"
       notes """
 Seven commands, each one an engine file beside it — the seven are listed on the node itself. Bare `sf` opens a
-session at the factory root, and a word that is not one of the seven is refused by name rather than guessed at.
-Before any engine runs it checks that the engine file is there; for `loop` it also checks this folder answers
-a ticket list.
+session at the factory root and is the only arm that answers from anywhere: every other one first refuses
+unless you are standing in the factory or anything nested under it, and names the root it wants. A word that is
+not one of the seven is refused by name rather than guessed at. Before any engine runs it checks that the engine
+file is there; for `loop` it also checks this folder answers a ticket list.
 """
     }
 

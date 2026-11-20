@@ -363,9 +363,11 @@ you can still attach to it, read it, or stop it later.
     machine.dispatcher -> machine.spawnEnv "pass it which ticket this is" {
       title "Hand the worker its settings before it starts"
       notes """
-Eight settings go in with the session, and both the worker and the hook that finishes its work read them back.
-If the session starts without them, the worker stops itself and its ticket sits in progress — the hook cannot
-finish work it cannot identify.
+Eight settings go in with the session: which ticket, which branch, which target, which worker and label, where
+the tower is, where the run's log is, where the done marker goes. The hook that finishes the work does not read
+them from here — it rebuilds every one from this session's claims line, because the background session is
+pooled and took neither this environment nor this folder. What the hook cannot rebuild it refuses, and the
+ticket stays claimed.
 The eight are listed on the node itself.
 """
     }
@@ -731,8 +733,10 @@ closed nothing.
       notes """
 The files are created empty before anything happens, so a missing file and an empty file look alike and
 neither can hide a silent failure. The folder is named for when the run started, and every line of every file
-has one shape, built by one function the CLI owns alone: the loop sources it, and everything else — both
-hooks included — gets its line from `sf log` and never sees the shape.
+has one shape, built by one function the CLI owns alone: the loop sources it and holds its own fields in
+memory, and everything else — both hooks included — gets its line from the one verb `sf log write` and never
+sees the shape. Where that door's nine fields come from — the caller's own exported environment, the hooks
+rebuilding theirs off this session's claims line — is on the log folder itself.
 """
       navigateTo theLoop
     }

@@ -96,9 +96,10 @@ sf commit save a diary entry   # stage everything, commit as agent:branch:messag
 sf log write claims reason=dispatched   # one line in the run's own format
 ```
 
-`sf log` is the logging door: the four verbs `seed <log-dir> <repo>`, `field <key> <value>`, `clear`,
-`write <tag> [detail...]`. The shape of a log line belongs to the CLI alone, so a hook or a script of your own
-says what happened through it instead of formatting one itself.
+`sf log` is the logging door and has one verb, `write <tag> [detail...]`. The shape of a log line belongs to
+the CLI alone, so a hook or a script of your own says what happened through it instead of formatting one
+itself; the line's nine fields come from your own environment — export `SF_TICKET`, `SF_BRANCH` and the rest
+once and every line after carries them.
 
 ## The workflow
 

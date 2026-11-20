@@ -27,7 +27,7 @@ model {
 | `sf plan:epic` / `sf plan:feature` / `sf plan:task` | `CLI/src/plan-agent.sh` with that kind, and everything you typed after the command handed to it as the prompt |
 | `sf overseer` | `CLI/src/overseer-agent.sh`, foreground — the reader, `sf` denied to it |
 | `sf commit <line>` | `CLI/src/commit.sh` — the only thing that commits, anywhere |
-| `sf log <verb>` | `CLI/src/log.sh` — the logging door, four verbs: `seed <log-dir> <repo>` · `field <key> <value>` · `clear` · `write <tag> [detail…]`. Anything outside `CLI/src/` that wants a line comes through here |
+| `sf log write <tag> [detail…]` | `CLI/src/log.sh` — the logging door, and its **one** verb. Anything outside `CLI/src/` that wants a line comes through here; the nine fields on it come from the caller's own environment (they are listed on the run-log node) |
 
 **Two checks, and where each one lives.** `requireEngine` runs before every command: the engine file is
 actually there, or the message names the missing path and says re-run `CLI/install-cli.sh`.
@@ -36,7 +36,8 @@ and the watcher each run their own inside their engine, and `commit` needs only 
 
 **What is not a command.** Anything starting with `-` is not a command at all — it goes to the bare session as
 arguments. Anything else unknown is refused **by name**, with the seven listed and `Try 'sf --help'` under it,
-exit 1 — and `sf log` refuses a verb that is not one of its four the same way. There is no webs command: the
+exit 1 — and `sf log` refuses anything but its one verb the same way, naming it and saying `there is one:
+'sf log write <tag> [detail...]'`. There is no webs command: the
 cloner beside this one is an npm script, not a `sf` one.
 """
       link https://github.com/Londelo/spider-factory/blob/main/CLI/bin/sf "Source — CLI/bin/sf"
@@ -124,7 +125,7 @@ Checks 3–5 pass their own sentence to `die` directly.
 `sf` itself runs check 6 and one before it — `requireEngine`, that `../src/beads-loop/index.sh` is actually
 there — so a broken install names itself instead of failing deep in a tick.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L143-L157 "Source — beads-loop/index.sh lines 143–157, the bootstrap that runs them in order"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L123-L136 "Source — beads-loop/index.sh lines 123–136, the bootstrap that runs them in order"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/preflight.sh#L5-L43 "Source — beads-loop/preflight.sh lines 5–43, checks 2–6"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/console.sh "Source — CLI/utils/console.sh, die and the four reused refusals"
     }
@@ -255,18 +256,23 @@ labelled with its category matches nothing. There is no merge label at either ti
 feature or an epic, each branch is merged by the **lead agent** standing on the gate above it, and the
 lead agent is reached by the gate dispatch, not by a key of this map.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L22-L32 "Source — beads-loop/index.sh lines 22–32, the AGENT map and the lead agent's name"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L23-L33 "Source — beads-loop/index.sh lines 23–33, the AGENT map and the lead agent's name"
     }
 
     spawnEnv = knobPanel "SF_* — the environment the spawn carries" {
-      summary "The eight SF_ variables the spawn carries, which tell both hooks what to finish."
+      summary "The eight SF_ variables set on the worker's spawn line — the values both hooks need to finish its ticket."
       description """
-Set on the `$SF_AGENT_COMMAND --bg` line and nothing else: this is how the hooks know which ticket to finish
-and what to say about it. Without them the worker just stops and its ticket sits `in_progress`.
+Set on the `$SF_AGENT_COMMAND --bg` line and nothing else; they are the values the finish needs, and the same
+eight names the log line carries. **The hooks do not read them from here.** `claude --bg` hands the worker a
+pooled process that inherited neither this environment nor its working directory, so each hook rebuilds every
+one of them from the dispatched claims line — the context file only as a fallback — and exports them into its
+own process before it calls anything (the run-log node owns that mechanism). What a hook cannot rebuild, it
+refuses: no ticket or no run is `reason=claim-malformed`, no branch `reason=no-branch`, no target
+`reason=no-pr-target`, and the ticket stays claimed.
 
 | Var | Value | Who reads it |
 |---|---|---|
-| `SF_TICKET` | `the back-end ticket` | both hooks — and it is the **only** test that tells a dispatched worker from any other session in any other project |
+| `SF_TICKET` | `the back-end ticket` | both hooks — what the close, the commit and every alarm are about. It is **not** the test that picks a dispatched session out of all the others: that is this session's `claims` line |
 | `SF_BRANCH` | `feature/add-record` | Stop hook: commit here, push here, refuse if `git branch --show-current` disagrees |
 | `SF_PR_TARGET` | `epic/record-box`, or `main` at the epic tier | Stop hook: the target of this branch's PR — derived off the ticket's id by the loop, carried through the claims line as `target=` |
 | `SF_AGENT` | `engineer`, or `lead` on a gate dispatch | both hooks, so an alarm names who was doing the work |
@@ -328,11 +334,22 @@ long after the run ended. Two more appear only when something writes them (`bd-s
 and `claude-stderr`, from the capacity count), and one pair per worker (`spawn-<ticket>`, `done-<ticket>`).
 
 **One line format, and one owner of it** (`CLI/utils/logging.sh`), or the files cannot be read against each
-other. The engine sources that file, and so does `CLI/src/log.sh` — nothing outside `CLI/src/` sources it.
-Everything else that wants a line, both hooks included, asks `sf log` for one and never sees the shape (the
-four verbs are on the `sf` node). A field set by one `sf` process has to be on the line the next one writes,
-so the fields live in the file `SF_LOG_FIELDS` names: each hook exports that to its own scratch file, and
-unset it is scratch under the run's log directory keyed by `SF_TICKET`.
+other. **Two paths reach that one shape.** The engine sources that file itself and keeps its nine fields in
+memory for the whole run, setting them as the tick goes. Everything else — both hooks included — never sources
+it and never sees the shape: it calls `sf log write <tag> [detail…]` (the one verb is on the `sf` node), and
+`CLI/src/log.sh` sources the same file on its behalf. Nothing outside `CLI/src/` sources it at all.
+
+For a caller going through the door, **the fields are its own environment** — one variable per key:
+`SF_LOG_RUN` (falling back to the name of the log directory), `SF_PROJECT_DIR`, `SF_TICKET`, `SF_LABEL`,
+`SF_AGENT`, `SF_BRANCH`, `SF_PR_TARGET`, `SF_SESSION`, `SF_WORKTREE`. Export them once in your own process and
+every line after carries them; one you never set comes out `-`. Nothing carries from one `sf` process to the
+next — two shells are two environments — so a caller sets them where it sets everything else: both hooks export
+them off the dispatched claims line they just matched to this session, with the dispatch context file as the
+fallback for what a thin line omits — they cannot inherit them from the worker, because `claude --bg` runs the
+worker in a pooled process that took neither the spawn's environment nor its working directory. The loop does
+set most of the same names on the `--bg` line itself (the eight on the spawn node) — see that node for what
+they are for. The directory the lines land in is `SF_LOG_DIR`, falling back to `SF_LOG_ROOT` and then the
+default.
 
 ```
 <TAG padded to 8> <ISO time>\trun=… repo=… ticket=… label=… agent=… branch=… target=… session=… worktree=… <detail>
@@ -438,8 +455,11 @@ hook refuses to land anything without it.
     summary "The closer: commit, push, the branch's pull request, close — and it refuses eighteen ways first."
     description """
 **What it is:** the closer. Registered in `.claude/hooks/hooks.json` on the `Stop` event with `timeout: 300`, so it
-fires in **every session of every project** the plugin is enabled in — `SF_TICKET` is what tells a dispatched
-worker apart from everything else, and a session the loop did not spawn leaves on the first line.
+fires in **every session of every project** the plugin is enabled in — what tells a dispatched worker apart from
+everything else is the `claims` line that names this session id: a session with no dispatched claims line leaves
+at once, silently, and writes nothing anywhere. Never the cwd — the hook input's `.cwd` is not evidence of
+anything, because `claude --bg` pools the worker into a process that took neither the spawn's environment nor
+its directory.
 
 ```
 worker says it is done → `sf commit` onto its feature's branch → push → the branch's PR →
@@ -1330,10 +1350,10 @@ stays claimed.
       }
       missingToolHook = alarm "ERROR reason=missing-tool tool=<t>" {
         #staysClaimed
-        summary "bd, jq, git or sf is missing; checked before anything else the hook does."
+        summary "bd, jq, git or sf is missing; checked before any of the hook's own work, once the session is known."
         description """
-`bd`, `jq`, `git` or `sf` missing — checked before anything else the hook does, but after the `SF_TICKET`
-guard, so a session the loop never spawned still exits on line one. `sf` is there because the hook commits
+`bd`, `jq`, `git` or `sf` missing — checked before any of the work, but after the claims line has been matched,
+so a session the loop never spawned still exits on line one. `sf` is there because the hook commits
 through it, and the CLI is installed before any worker ever runs.
 """
       }

@@ -15,12 +15,8 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export SF_LOG_QUIET=1
 source "$here/../CLI/src/user-env.sh"
 loadSpiderFactoryEnv
-export SF_LOG_FIELDS="$(mktemp "${TMPDIR:-/tmp}/sf-log-fields-$$-XXXXXX")"
 
 claimsRoot="${SF_LOG_ROOT:-$HOME/.spider-factory/logs}"
-logDir="${SF_LOG_DIR:-$claimsRoot}"
-mkdir -p "$logDir" 2>/dev/null || true
-sf log seed "$logDir" "${SF_PROJECT_DIR:-$PWD}"
 
 alarmAndExit() {
     sf log write errors "$1"
@@ -81,10 +77,10 @@ adoptDispatchContext() {
         alarmAndExit "reason=claim-malformed msg=\"the dispatched claims line for this session carries no ticket or no run, so the hook cannot tell what it stands for\""
     fi
     worktreeDir="$claimWorktree"
+    export SF_WORKTREE="$claimWorktree"
     slug="$(basename "$claimWorktree")"
     contextFile="$claimsRoot/worker-context/$slug"
     if [[ ! -r "$contextFile" ]] && { [[ -z "$claimBranch" ]] || [[ -z "$claimTarget" ]]; }; then
-        sf log field worktree "$claimWorktree"
         alarmAndExit "reason=no-context worktree=$slug msg=\"a worker died in a loop worktree with no dispatch context; its ticket stays claimed and nobody parks it\""
     fi
     [[ -r "$contextFile" ]] && source "$contextFile"
@@ -101,25 +97,13 @@ adoptDispatchContext
 
 ticket="$SF_TICKET"
 towerDir="${SF_PROJECT_DIR:-$PWD}"
-logDir="${SF_LOG_DIR:-${SF_LOG_ROOT:-$HOME/.spider-factory/logs}}"
-mkdir -p "$logDir" 2>/dev/null || true
-sf log seed "$logDir" "$towerDir"
 
 oneLine() { tr '\n' ' ' | tr -d '"\\' | sed 's/  */ /g' | cut -c1-200; }
-
-setLogFields() {
-    sf log field ticket "$ticket"
-    sf log field agent "${SF_AGENT:-}"
-    sf log field label "${SF_LABEL:-}"
-    sf log field branch "${SF_BRANCH:-}"
-    sf log field target "${SF_PR_TARGET:-}"
-}
 
 readHookInput() {
     [[ -n "$hookInput" ]] || hookInput="$(cat)"
     sessionId="$(jq -r '.session_id // empty' <<<"$hookInput" 2>/dev/null)"
-    sf log field session "$sessionId"
-    sf log field worktree "$worktreeDir"
+    export SF_SESSION="$sessionId" SF_WORKTREE="$worktreeDir"
     failureKind="$(jq -r '.error // "unknown"' <<<"$hookInput" 2>/dev/null)"
     lastMessage="$(jq -r '.last_assistant_message // empty' <<<"$hookInput" 2>/dev/null)"
 }
@@ -146,7 +130,6 @@ parkTicketInFailure() {
     bd -C "$towerDir" update "$ticket" --status failed-agent >/dev/null 2>&1
 }
 
-setLogFields
 readHookInput
 requireTicketStillInWork
 appendTheFailureReason || alarmAndExit "reason=ticket-not-annotated kind=$failureKind"

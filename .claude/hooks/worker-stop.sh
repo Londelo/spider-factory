@@ -16,13 +16,9 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export SF_LOG_QUIET=1
 source "$here/../CLI/src/user-env.sh"
 loadSpiderFactoryEnv
-export SF_LOG_FIELDS="$(mktemp "${TMPDIR:-/tmp}/sf-log-fields-$$-XXXXXX")"
 source "$here/../CLI/src/forge.sh"
 
 claimsRoot="${SF_LOG_ROOT:-$HOME/.spider-factory/logs}"
-logDir="${SF_LOG_DIR:-$claimsRoot}"
-mkdir -p "$logDir" 2>/dev/null || true
-sf log seed "$logDir" "${SF_PROJECT_DIR:-$PWD}"
 
 alarmAndExit() {
     sf log write errors "$1"
@@ -88,9 +84,9 @@ adoptDispatchContext() {
         alarmAndExit "reason=claim-malformed msg=\"the dispatched claims line for this session carries no ticket or no run, so the hook cannot tell what it stands for\""
     fi
     worktreeDir="$claimWorktree"
+    export SF_WORKTREE="$claimWorktree"
     contextFile="$(contextFileForWorktree "$claimWorktree")"
     if [[ ! -r "$contextFile" ]] && { [[ -z "$claimBranch" ]] || [[ -z "$claimTarget" ]]; }; then
-        sf log field worktree "$claimWorktree"
         alarmAndExit "reason=no-context worktree=$(basename "$claimWorktree") msg=\"a worker stopped in a loop worktree with no dispatch context; nothing landed and the ticket stays claimed\""
     fi
     [[ -r "$contextFile" ]] && source "$contextFile"
@@ -111,19 +107,8 @@ ticket="$SF_TICKET"
 branch="${SF_BRANCH:-}"
 prTarget="${SF_PR_TARGET:-}"
 towerDir="${SF_PROJECT_DIR:-$PWD}"
-logDir="${SF_LOG_DIR:-${SF_LOG_ROOT:-$HOME/.spider-factory/logs}}"
-mkdir -p "$logDir" 2>/dev/null || true
-sf log seed "$logDir" "$towerDir"
 
 oneLine() { tr '\n' ' ' | tr -d '"\\' | sed 's/  */ /g' | cut -c1-160; }
-
-setLogFields() {
-    sf log field ticket "$ticket"
-    sf log field branch "$branch"
-    sf log field target "$prTarget"
-    sf log field agent "${SF_AGENT:-}"
-    sf log field label "${SF_LABEL:-}"
-}
 
 requireTools() {
     local requiredTool
@@ -138,8 +123,7 @@ readHookInput() {
     [[ -n "$worktreeDir" && -d "$worktreeDir" ]] ||
         alarmAndExit "reason=no-worktree msg=\"the dispatched claims line for this session names no worktree that exists, so the worktree the work sits in is unknown; the hook will not guess it from the hook input's cwd\""
     sessionId="$(jq -r '.session_id // empty' <<<"$hookInput" 2>/dev/null)"
-    sf log field worktree "$worktreeDir"
-    sf log field session "$sessionId"
+    export SF_WORKTREE="$worktreeDir" SF_SESSION="$sessionId"
 }
 
 ticketState() {
@@ -262,7 +246,6 @@ closeTicketAsItsClaimant() {
         --reason "worker session $(oneLine <<<"$sessionId") finished; PR $prUrl" >/dev/null 2>&1
 }
 
-setLogFields
 requireTools
 readHookInput
 requireTicketStillInWork

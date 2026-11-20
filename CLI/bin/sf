@@ -67,16 +67,14 @@ It commits, then pushes the branch to origin.
 hook or a script of your own, says what happened and the CLI writes it in the run's own format, into
 `<log-dir>/<tag>`:
 
-  sf log seed ~/.spider-factory/logs/2026-11-19_09-00-00 ~/my-tower
-  sf log field ticket SF-12
-  sf log field branch feat/record-box
+  export SF_TICKET=SF-12 SF_BRANCH=feat/record-box
   sf log write claims reason=dispatched
 
-`seed` starts a fresh set of fields for a run, `field` carries a value on every line after it, `clear`
-drops every field but run and repo, `write` emits the line. The fields have to survive between one `sf`
-and the next, so they live in the file `SF_LOG_FIELDS` names — a script that logs more than once sets that
-itself, once; unset, it is scratch under the log directory keyed by `SF_TICKET`. `SF_LOG_DIR` is where the
-lines go; `SF_LOG_QUIET=1` keeps them out of stdout and leaves them in the file.
+The line carries nine fields, each read from its own environment variable — `SF_LOG_RUN` (or the name of
+the log directory), `SF_PROJECT_DIR`, `SF_TICKET`, `SF_LABEL`, `SF_AGENT`, `SF_BRANCH`, `SF_PR_TARGET`,
+`SF_SESSION`, `SF_WORKTREE`. Export them once at the top of your own process and every line after that
+carries them; one you never set comes out `-`. `SF_LOG_DIR` is where the lines go; `SF_LOG_QUIET=1` keeps
+them out of stdout and leaves them in the file.
 
 SF_AGENT_COMMAND (claude) — the command that runs an agent. Point it at your own
 build and the three planners and the loop's workers all run through that instead;

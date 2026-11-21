@@ -826,16 +826,19 @@ this contract.
 argument the spawn passes after the flags, and it is short: the ticket id, a `FIRST:` line ordering the worker to
 read `bd show --json <ticket>` in full as its complete brief, one paragraph saying this folder is the worktree of
 a branch shared by every task of the feature so earlier commits may already be sitting there, and then exactly
-**two** numbered rules — keep the five-minute lease alive with `bd heartbeat <ticket>`, and never run `bd close`,
-because the Stop hook closes the ticket once you declare done and closing it by hand makes the hook walk past it.
-Those two are the whole overlap with the contract above. The stay-on-your-branch rule, the commit-as-you-go rule,
-the write-what-remains rule, the spawn-nothing rule, and the done marker itself appear **nowhere** in the brief,
-so the prompt is no safety net for any of them: the only thing anywhere that tells a worker to create
-`$SF_DONE_FILE` is its own agent file, and the Stop hook fails closed on that file. The lead agent's brief is
-word-for-word the same two rules — `buildWorkerPrompt` builds a lead variant of the branch rule into
-`$stayOnBranchRule` and never interpolates it into the string. **As committed this is also the one place the
-engine does not run at all:** the `printf` string that holds the brief is left unterminated, so `bash -n` on
-`worker.sh` fails at end of file, `index.sh` cannot source it, and no tick ever happens.
+**three** numbered rules — keep the five-minute lease alive with `bd heartbeat <ticket>`; never run `bd close`,
+because the Stop hook closes the ticket once you declare done and closing it by hand makes the hook walk past it;
+and stay on `${branch}`, in this folder — never create a branch, never check one out, never merge, never rebase,
+never a bare `git commit` or `git push`, and commit as your agent file tells you as you go, because whatever is
+still uncommitted when you stop becomes one last commit on the branch carrying your ticket's title. The numbers
+run **1, 2, 5**: the rules that were once 3 and 4 are gone and nothing renumbered what is left, so a reader
+counting down the brief finds no rule 3 and no rule 4. Rule 5 is the only part that differs by agent — for the
+**lead** it says this ticket is a GATE, that you verify the tier it stands for and then merge this branch's own
+pull request into its target with the forge's own command (`gh pr merge` / `glab mr merge`) and never a local
+`git merge` into the target — built as `$stayOnBranchRule` and interpolated into the one `printf`, which is
+closed and parses. What the brief still never says: the write-what-remains rule, any ban on spawning, and the
+done marker itself — so the prompt is no safety net for any of them, and the only thing anywhere that tells a
+worker to create `$SF_DONE_FILE` is its own agent file, which the Stop hook fails closed on.
 
 **The same file holds the hook registration.** Each of these seven agent files carries a `hooks:` block in its own
 YAML frontmatter binding `Stop` → `sf hook stop` (timeout 300) — that block, and nothing
@@ -901,11 +904,20 @@ verbose tier. Skill: `framework-playwright`.
 **Labels `feature-review` and `epic-review` → `review`.** Three questions from first principles: does the code
 do what its source of truth demands, do the tests prove it, is it simple and readable. Maps the system the
 change sits in (entry → exit, following imports), instruments it with trace logs, runs the tests against the
-instrumented code, posts findings as PR comments. Files no tickets, and commits or pushes nothing — the trace
-logs are edits to real files sitting in its own working tree, so it **strips them back out before it stops**,
-or the Stop hook would file them as one commit on the branch.
+instrumented code, posts findings as PR comments. Files no tickets, writes **no findings file**, and commits or
+pushes nothing — its findings live on the pull request and in its final message and nowhere else, and the trace
+logs are edits to real files sitting in its own working tree; `sf commit` runs `git add -A`, so anything left in
+the tree rides onto the branch it is judging, which is why it **strips them back out before it stops**.
 Nothing is preloaded — `bead-read`, the standards and `pr-comments` load on demand at the step
 that uses them.
+
+**Its branch is the folder it stands on; its base is read through `bd`.** The loop checked the branch out and put
+the session inside it, so `git branch --show-current` is the whole answer and the only thing it trusts — never
+`$SF_BRANCH`, which the pooled daemon froze at the run's first spawn and which can be another worker's branch
+entirely. It never reviews a branch against itself: it diffs against the **epic gate's** `branch` metadata, read
+off `<repo>-epic-<uuid>-0` with `bd show --json`, and against `main` when its own hierarchy starts at `0`.
+**An empty `git diff --stat` is a finding, never a pass** — either the base resolved wrong or the branch holds
+nothing; it says which, and stops rather than reviewing an empty diff.
 
 **Step 8 — one round of fixers, then it stops looking.** Once the findings are posted and the instrumentation
 stripped, review spawns **one fixer per finding, all in a single batch, one round only**, routing by **what the
@@ -930,6 +942,13 @@ Nothing in `CLI/` can tell which session created the marker, so the brief that r
 defence; the five fixer files keep their own `touch $SF_DONE_FILE` rule untouched, because outside review each
 of them is the session that owns its marker. Then review re-runs no step, reads no fixer's diff, spawns no
 second batch, and never fixes what a fixer left broken.
+
+**Then it closes out its own threads.** Once every spawn has reported, review takes each finding back to the
+thread it posted it in and resolves it — the ones whose fix landed, and only those — through the call
+`pr-comments` owns for each forge, never a verb it invents. A finding whose fixer came back wrong, or came back
+saying it was not a defect, stays **open**: an open thread is the human's signal that this one still needs a
+person. It never resolves a comment it did not post, never approves, never merges — approve and merge are the
+human's, and are what the `lead` agent and the person closing a gate do, not this worker.
 """
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/review.md "Source — .claude/agents/review.md"
     }

@@ -374,16 +374,19 @@ The eight are listed on the node itself.
     }
 
     toolbelt.claudeCli -> workers.engineer "the rules arrive with the brief" {
-      title "The worker's prompt is two rules and an order to read its ticket"
+      title "The worker's prompt is three rules and an order to read its ticket"
       notes """
 The whole prompt is short: the ticket id, an order to read that ticket back in full as its complete brief, a
-paragraph saying this folder is the worktree of a branch every task of the feature shares, and then exactly two
-numbered rules — keep the lease alive with a heartbeat, and never close your own ticket, because the hook below
-closes it once you say you are done.
-Everything else the worker must obey — the branch rule, committing as it goes, saying what is left, starting no
-other workers, and the done marker itself — is nowhere in this prompt. It lives only in the worker's own agent
-file, which the session loaded when it started. What the brief sends, line by line, is on the workers layer.
-The lead agent's brief is the same two rules word for word.
+paragraph saying this folder is the worktree of a branch every task of the feature shares, and then exactly three
+numbered rules — keep the lease alive with a heartbeat, never close your own ticket because the hook below closes
+it once you say you are done, and stay on this branch in this folder, committing as you go and leaving nothing
+for a bare `git commit` or `git push`. The numbers run 1, 2, 5: two rules were cut and nothing renumbered the
+rest.
+What is still nowhere in this prompt — saying what is left, starting no other workers, and the done marker
+itself — lives only in the worker's own agent file, which the session loaded when it started. What the brief
+sends, line by line, is on the workers layer.
+The lead agent's brief is the same three rules, its fifth rewritten for a gate: verify the tier, then merge this
+branch's own pull request through the forge.
 """
     }
 
@@ -551,7 +554,9 @@ The three questions it answers are on the node.
     workers.reviewAgent -> tower.featA.featureReviewA "the reviewer reviews the branch, findings on PR 2" {
       title "What it writes is what you read before closing"
       notes """
-Comments on the pull request — no tickets filed, nothing committed.
+Comments on the pull request, and its final message — no tickets filed, nothing committed, no findings file in
+the tree. Which branch it is standing on, what it diffs that branch against, and what it does with its own
+threads once the fixes land are all on its node.
 Closing it is the last close under this gate, and that is what makes the gate ready: you close it, or with its
 switch on, the lead agent does.
 """
@@ -565,6 +570,8 @@ One spawn per finding, one batch, one round only, routed by what the fix has to 
 own fixes with `sf commit`; review still commits nothing, re-runs nothing, and spawns no second batch. The four
 constraints every prompt ends with — the last being touch no done marker, because `$SF_DONE_FILE` is review's
 own and a fixer that touches it closes the review ticket mid-round — are on the node.
+Once every spawn has reported, review resolves the threads whose fixes landed and leaves open the ones whose
+fixer came back wrong or disputed the finding; an open thread is what still needs you.
 """
     }
 

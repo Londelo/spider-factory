@@ -34,7 +34,7 @@ Rules:
    (bd heartbeat $ticketId) and state your proof of work in your final message: what you did and the
    test evidence that proves it. The Stop hook closes $ticketId for you once you declare done; close it
    by hand and the hook walks past it — no commit, no push, no PR, your work never lands.
-
+$stayOnBranchRule"
 }
 
 doneFileFor() { printf '%s' "$logDir/done-${1//\//+}"; }

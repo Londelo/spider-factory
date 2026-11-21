@@ -294,7 +294,10 @@ group is why the loop has never run: the one recorded run on this machine claime
   and the only `tools:` list carrying `Agent` (`review.md:5`). Rule 4 is the last word the model hears, and
   `worker.sh:40` already proves the brief special-cases `lead` and nobody else.
 - **Fix:** exempt `review` from rule 4 the way rule 5 exempts `lead`.
-- **Notes:** I fixed this
+- **Notes:** I fixed this. Verified 2026-11-21: rule 4 is gone from the brief entirely, so nothing forbids
+  review to spawn. Closing it also exposed that the brief's `printf` string had been left unterminated when
+  rules 3 and 4 were cut — `bash -n` failed at EOF and `index.sh` could not source the file, so `sf loop`
+  could not start. The string is closed and rule 5 is interpolated again; rules 3 and 4 stay cut.
 
 ### 14. Review diffs against a branch its own file says its ticket does not carry
 

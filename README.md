@@ -58,7 +58,10 @@ post-checkout. Your repo is touched, not just its database.
 **3 · Every setting lives in `CLI/spider-factory.env`** — copied down from
 `CLI/spider-factory.example.env` on install and never touched again. Workers at once, tick length, how many
 tickets end a run, log root, which labels may dispatch, whether the lead agent closes gates, and which
-command runs an agent. Edit that file; something you export yourself still wins for one run.
+command runs an agent. Edit that file; something you export yourself still wins for one run. One name is
+not yours to set: `SF_AGENT_LAUNCH_COMMAND` is what the factory builds for itself out of `SF_AGENT_COMMAND`,
+and anything you write there is overwritten the moment the file is read —
+[`.claude/CLAUDE.md`](./.claude/CLAUDE.md) owns what it is for.
 
 ## Webs
 

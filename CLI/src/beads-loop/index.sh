@@ -44,6 +44,7 @@ pollSeconds=0
 maximumTicketsDone=0
 logRoot=""
 agentCommand=""
+agentLaunchCommand=""
 agentHandlesFeatureGates=0
 agentHandlesEpicGates=0
 waitingLineCadence=0

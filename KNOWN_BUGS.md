@@ -7,7 +7,8 @@ Work down it in any order. Edit freely: change `Status`, write under `Notes`, ad
 When an item is fixed, set `Status: fixed` and say what you did in `Notes` — don't delete the entry until
 the three doc tiers have been brought in line with the fix.
 
-**Status values:** `open` · `unverified` (real in the code, trigger not reproduced) · `blocked` · `wontfix` · `fixed`
+**Status values:** `open` · `unverified` (real in the code, trigger not reproduced) · `blocked` · `wontfix` · `fixed` ·
+`false positive` (the claim does not hold against the code; the entry stays as a record of why)
 
 Found by two audit passes on 2026-11-21, every finding re-checked by hand against the files before it was
 written down here.
@@ -21,19 +22,29 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 1. A worker cannot read its own ticket
 
-- **Status:** open
+- **Status:** false positive
 - **Where:** `CLI/src/beads-loop/worker.sh:66` spawns with cwd inside the worktree; `worker.sh:24` then
   commands `bd show`, `worker.sh:30` `bd heartbeat`, `worker.sh:37` `bd comment` from there.
-- **Proof:** `cd webs/kachalka/.claude/worktrees/feature+idle-save-timer && bd where` resolves to the
-  worktree's own `.beads`, and `bd status` → `Error: no beads database found`. `git -C webs/kachalka
-  ls-files .beads` → nine tracked files, so `git worktree add` checks a database-less skeleton into every
-  worktree and beads stops its walk there instead of reaching the tower's real database.
-- **Scope:** `kachalka` tracks `.beads` (9 files). `coins_that_stack`, `generative_art`, `FamilyTree` track
-  none and resolve correctly. It bites any tower that committed `.beads`, which `bd init` plus a normal
-  `git add .` does.
-- **Fix:** run `cd "$SF_PROJECT_DIR"` (or ground with `bd where`) before any `bd` call in the brief and in
-  each worker file, and have `bead-initialize` gitignore `.beads/config.yaml` and `metadata.json`.
-- **Notes:**
+- **Proof:** ~~`cd webs/kachalka/.claude/worktrees/feature+idle-save-timer && bd where` resolves to the
+  worktree's own `.beads`, and `bd status` → `Error: no beads database found`.~~ The commands ran and the
+  output was as quoted, but the worktree they ran in was a dead artifact — see Notes.
+- **Scope:** ~~`kachalka` tracks `.beads` (9 files).~~ The hollow checked-out `.beads` is not the cause; it is
+  present in a healthy worktree too and beads walks straight past it.
+- **Fix:** none needed. Beads resolves a worktree's database on its own — `bd worktree --help`: *"Worktrees
+  automatically share the same beads database as the main repository via git common directory discovery — no
+  manual redirect configuration needed."*
+- **Notes:** re-checked 2026-11-21 against `bd 1.3.0`. A fresh `git worktree add` of `kachalka` at the
+  factory's own path convention resolves correctly from inside the worktree: `bd where` →
+  `webs/kachalka/.beads`, database `.../embeddeddolt`; `bd status` → 63 issues; `bd show kachalka-phk` → the
+  full ticket; `bd worktree info` → `Main repo: .../webs/kachalka · Beads: local (no redirect)`. The original
+  proof ran in one of three worktrees left behind when `kachalka` moved from `projects/` to `webs/`: their
+  `.git` gitfiles still pointed at `~/CastleLondelo/projects/kachalka/.git/worktrees/…`, a deleted directory,
+  so `git -C` returned `fatal: gitfile does not point to a valid repository` and beads, finding no live
+  gitfile, fell back to the local `.beads` and reported no database. All three were `prunable`; they have
+  been deleted and `git worktree prune` run. The branches survived and are pushed.
+  **Residual, and not this item:** `ensureWorktree` reuses a worktree folder without checking that its
+  gitfile still resolves, so a tower relocated on disk hands its workers a folder no git command can read.
+  Nobody has filed that one yet.
 
 ### 2. Nested repos cannot see the factory's agents or skills
 
@@ -104,14 +115,14 @@ group is why the loop has never run: the one recorded run on this machine claime
 - **Fix:** `.claude/agents/…`.
 - **Notes:**
 
-### 8. `setup-cli` sends you to the installer from the wrong repo
+### 8. `setup-cli` sends you to the installer from the wrong repoomm
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `.claude/skills/setup-cli/SKILL.md:32-33` says cd into the project you mean, `:45` says "the
   CLI lives inside this repo", `:50` says `bash CLI/install-cli.sh`.
 - **Proof:** `CLI/` exists only in the factory checkout.
 - **Fix:** name the factory's absolute path to `CLI/install-cli.sh`.
-- **Notes:**
+- **Notes:** I deleted the skill
 
 ---
 
@@ -126,7 +137,7 @@ group is why the loop has never run: the one recorded run on this machine claime
   worker Stop dies before it commits, with no log line. The guard guards nothing either:
   `worker-stop.sh:191` already does its own `( cd "$worktreeDir" && sf commit … )`.
 - **Fix:** delete that one line.
-- **Notes:**
+- **Notes:** keep this functionality I only want webs to live in the spider-factory
 
 ### 10. A worker can be lost forever on an unparsed session id
 
@@ -179,7 +190,7 @@ group is why the loop has never run: the one recorded run on this machine claime
 - **Fix:** the overseer's check for a worker that died quietly is the only thing that finds one, and all it
   does is name the ticket and hand a person `bd update <ticket> --status failed-agent`. Worth re-testing
   `StopFailure` on every Claude upgrade.
-- **Notes:**
+- **Notes:** No at the moment Im accepting this risk
 
 ---
 
@@ -187,7 +198,7 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 13. The brief forbids the one thing review exists to do
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `CLI/src/beads-loop/worker.sh:39` rule 4 — *"Spawn nothing. Work nothing but $ticketId."* —
   goes to every worker including review.
 - **Proof:** `review.md:73` says "Spawn fixers, once, and file no tickets" and `:263` "one spawn per finding,
@@ -195,7 +206,7 @@ group is why the loop has never run: the one recorded run on this machine claime
   and the only `tools:` list carrying `Agent` (`review.md:5`). Rule 4 is the last word the model hears, and
   `worker.sh:40` already proves the brief special-cases `lead` and nobody else.
 - **Fix:** exempt `review` from rule 4 the way rule 5 exempts `lead`.
-- **Notes:**
+- **Notes:** I fixed this
 
 ### 14. Review diffs against a branch its own file says its ticket does not carry
 
@@ -206,7 +217,7 @@ group is why the loop has never run: the one recorded run on this machine claime
   resolves to nothing, so the command degenerates to `git diff ...HEAD` — the whole tree, not the branch —
   which is the exact failure the file itself calls "a review that voted".
 - **Fix:** use `$SF_BRANCH`.
-- **Notes:**
+- **Notes:** no this is a bad fix we know that envs do not update properly using a claude diamon
 
 ### 15. `sf commit` sweeps review's findings file onto the feature branch
 
@@ -216,7 +227,7 @@ group is why the loop has never run: the one recorded run on this machine claime
   `review.md:287` has each fixer run `sf commit` in that same worktree. Review's own rule is "They commit;
   you commit nothing" (`:289`), so it can never take the file back out.
 - **Fix:** have review write findings under a gitignored path.
-- **Notes:**
+- **Notes:** we should no longer be adding a review file at all. we post all our review findings to the PR, then spawn workr agents to fix then, then finally the review agent resolved the comment and stops
 
 ---
 
@@ -230,7 +241,7 @@ group is why the loop has never run: the one recorded run on this machine claime
   "web search for how similar products work". Both are mandatory-sounding and fail on first use, and the same
   file says "Never lean on training knowledge" — so the agent is left with no sanctioned research path.
 - **Fix:** add `TaskCreate`, `TaskUpdate`, `WebSearch` to `tools:`, or drop both instructions.
-- **Notes:**
+- **Notes:** add all the tools, plus WebFetch plus MCP
 
 ---
 
@@ -271,7 +282,7 @@ group is why the loop has never run: the one recorded run on this machine claime
 - **Proof:** grepping `failures` across `CLI/` returns that one line and nothing else; no `writeLog failures`
   exists anywhere. An overseer reads an empty one as "no failures" when it means "no such feature".
 - **Fix:** drop it from the seeded list.
-- **Notes:**
+- **Notes:** verify this again
 
 ### 21. `lead`'s conflict rule rests on a false git claim
 
@@ -325,7 +336,7 @@ group is why the loop has never run: the one recorded run on this machine claime
   `preflight.sh:24` `flagValue="${!flagName}"` in front of an unset variable — the loop-startup crash.
 - **Fix:** `tell` a one-line warning for any rejected `KEY=` line, and have `install-cli.sh` diff the live
   file against the example and report keys the example has and the live file lacks.
-- **Notes:**
+- **Notes:** we want all ENVs plus the sf ones
 
 ### 25. A missing `bd` binary is reported as a missing database
 

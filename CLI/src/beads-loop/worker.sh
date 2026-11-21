@@ -34,15 +34,7 @@ Rules:
    (bd heartbeat $ticketId) and state your proof of work in your final message: what you did and the
    test evidence that proves it. The Stop hook closes $ticketId for you once you declare done; close it
    by hand and the hook walks past it — no commit, no push, no PR, your work never lands.
-3. If the brief needs more work than you can finish: write a beads comment on $ticketId
-   describing exactly what remains (check bd comment --help). Never half-do and hide it.
-4. Spawn nothing. Work nothing but $ticketId. You and your ticket are one and the same.
-${stayOnBranchRule}
-6. Declare that you finished, and declare nothing else. As your VERY LAST action, and only when
-   the brief is genuinely complete and you would hand it to a human as it stands, run:
-   touch '$doneFile'
-   If you ran out of room, hit a blocker, or left something for the next worker, do not create
-   that file — the ticket then stays open and the tasks behind yours wait for you."
+
 }
 
 doneFileFor() { printf '%s' "$logDir/done-${1//\//+}"; }
@@ -67,7 +59,7 @@ spawnWorker() {
         && SF_TICKET="$ticketId" SF_BRANCH="$branch" SF_PR_TARGET="$prTarget" \
            SF_AGENT="$agentName" SF_LABEL="$label" \
            SF_PROJECT_DIR="$towerDir" SF_LOG_DIR="$logDir" SF_DONE_FILE="$doneFile" \
-           $agentCommand --bg --agent "$agentName" --permission-mode bypassPermissions \
+           $agentLaunchCommand --bg --agent "$agentName" --permission-mode bypassPermissions \
            "$(buildWorkerPrompt "$ticketId" "$branch" "$doneFile" "$agentName" "$prTarget")" ) >"$spawnFile" 2>&1
 }
 

@@ -12,6 +12,7 @@ loadSpiderFactoryEnv
 nameTheSpeaker plan-agent
 
 agentCommand="${SF_AGENT_COMMAND:-claude}"
+agentLaunchCommand="${SF_AGENT_LAUNCH_COMMAND}"
 
 declare -A planAgentOf=(
     [epic]=plan-epic
@@ -52,7 +53,7 @@ runPlanAgent() {
     requireBeadsProject
     requireAgentCommand
     tell "running the $agentName planner through '$agentCommand' in $PWD"
-    exec $agentCommand --agent "$agentName" "$@"
+    exec $agentLaunchCommand --agent "$agentName" "$@"
 }
 
 unknownPlanKind() {

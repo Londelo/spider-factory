@@ -157,9 +157,18 @@ value, and **exports only what is unset** — so a value you exported yourself s
 the engines' own `:-` defaults are the floor under it. `CLI/spider-factory.example.env` is documentation that happens
 to be installed, so it and the engines are kept in step by hand.
 
+**The one thing the loader writes whatever the file says is `SF_AGENT_LAUNCH_COMMAND`.** It is the last line of
+`loadSpiderFactoryEnv`, runs whether or not the env file exists, and overwrites anything already there: your
+`SF_AGENT_COMMAND` plus the flags this repo hardcodes into every agent spawn — today `--add-dir <factory root>`,
+the root derived from `user-env.sh`'s own `BASH_SOURCE`. Composed once there so no spawn site carries a flag of
+its own. It is **not a setting**: nothing reads it out of `CLI/spider-factory.env`, and hand-editing it buys
+nothing, because the next load replaces it. `SF_AGENT_COMMAND` stays the knob you edit. What the extra directory
+is for is on the agent-command node.
+
 | Knob | Default | What it does |
 |---|---|---|
-| `SF_AGENT_COMMAND` | `claude` | the command that runs an agent — the worker spawn, the worker count, and the three planners all go through it; split on spaces, so it may carry its own arguments |
+| `SF_AGENT_COMMAND` | `claude` | the command that runs an agent — **the knob you edit**, and the one `CLI/spider-factory.example.env` documents; split on spaces, so it may carry its own arguments. Read directly by the worker count and by the startup `PATH` check; every actual spawn goes through the launch command below |
+| `SF_AGENT_LAUNCH_COMMAND` | *(not a setting)* | `$SF_AGENT_COMMAND --add-dir <factory root>`, exported by `loadSpiderFactoryEnv` on every load and overwritten each time — what the worker spawn, the three planners and the overseer actually exec. Listed here because it is `SF_*` and because editing it does nothing |
 | `SF_AGENT_FEATURE_GATES` | `0` | does the **lead agent** close a feature gate for you. `0` = a human closes it; `1` = the loop dispatches the lead agent at a ready feature gate. Anything else and the run refuses to start |
 | `SF_AGENT_EPIC_GATES` | `0` | the same switch for the epic gate alone — one flag per tier, because a feature gate and the epic gate are different amounts of trust |
 | `SF_MAX_PARALLEL` | `4` | workers running at once; the count is recounted from `$SF_AGENT_COMMAND agents --json` every tick, and a session counts only while it reports itself `busy` — a finished worker holds no slot |
@@ -205,7 +214,7 @@ One tick, in the order the code runs it (`tick()`, `index.sh`):
 | 5 | derive the branch and the PR target off the **id** | `resolveTicketBranches <id>` — `splitTowerId` reads `<repo>-<kind>-<uuid>-<hierarchy>` off the right; the uuid names the tower, the kind word swapped to `feature` with the hierarchy cut at the last dot is the feature gate whose `branch` the work lands on, the kind word swapped to `epic` at hierarchy `0` the epic gate whose `branch` is `prTarget`; `prTarget` is `main` when the owner is the epic gate itself. Nothing is walked and no key on the ticket is read | `no-epic-gate ticket=…` (id does not read the grammar · `step=not-below-a-gate` · `gate=<the epic it names>`), `gate-unworkable ticket=…` (`owner-carries-no-branch` · `epic-carries-no-branch`), left claimed |
 | 6 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
 | 7 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
-| 8 | spawn | `$SF_AGENT_COMMAND --bg --agent <agent> --permission-mode bypassPermissions` — the bare agent name, a project-level agent in `.claude/agents/` | `worker-not-dispatched`, `bd unclaim` |
+| 8 | spawn | `$SF_AGENT_LAUNCH_COMMAND --bg --agent <agent> --permission-mode bypassPermissions` — your `SF_AGENT_COMMAND` plus the flags every spawn carries (`--add-dir <factory root>`), the bare agent name, a project-level agent in `.claude/agents/` | `worker-not-dispatched`, `bd unclaim` |
 | 9 | one log line, move on | `writeLog claims \"reason=dispatched\"` | — |
 
 **One pair of hands per branch is the tower's job, not the loop's.** Every ticket below a feature gate sits on
@@ -278,7 +287,7 @@ lead agent is reached by the gate dispatch, not by a key of this map.
     spawnEnv = knobPanel "SF_* — the environment the spawn carries" {
       summary "The eight SF_ variables set on the worker's spawn line — the values the Stop hook needs to finish its ticket."
       description """
-Set on the `$SF_AGENT_COMMAND --bg` line and nothing else; they are the values the finish needs, and the same
+Set on the `$SF_AGENT_LAUNCH_COMMAND --bg` line and nothing else; they are the values the finish needs, and the same
 eight names the log line carries. **The hook does not read them from here.** `claude --bg` hands the worker a
 pooled process that inherited neither this environment nor its working directory, so the hook rebuilds every
 one of them from the dispatched claims line — the context file only as a fallback — and exports them into its
@@ -540,8 +549,10 @@ through the forge, and a second PR off a merged branch is a lie about work nobod
     summary "`sf overseer`: reads this directory's tower and its run logs and reports back to you, foreground. `sf` is denied to it outright."
     description """
 **What it is:** `.claude/agents/overseer.md`, run in the **foreground** by `sf overseer` →
-`CLI/src/overseer-agent.sh`, which execs your `SF_AGENT_COMMAND` with the `overseer` agent and
-`--disallowedTools 'Bash(sf:*)'`. Foreground is the whole difference from a worker: a worker is spawned `--bg`
+`CLI/src/overseer-agent.sh`, which execs `$SF_AGENT_LAUNCH_COMMAND` — your `SF_AGENT_COMMAND` plus the flags every
+spawn carries, since it too stands in a tower and not in the factory — with the `overseer` agent and
+`--disallowedTools 'Bash(sf:*)'`. The `PATH` guard below still checks the plain `SF_AGENT_COMMAND`. Foreground is
+the whole difference from a worker: a worker is spawned `--bg`
 with nobody watching and reports through the log; the overseer talks back to you, and anything you type after
 the command goes to it as the prompt.
 
@@ -649,25 +660,42 @@ an unregistered type, it **accepts and hides it**, so a broken gate and a workin
     }
 
     claudeCli = cliTool "$SF_AGENT_COMMAND (claude) — the command every agent runs through" {
-      summary "The one command every agent runs through: the worker spawn, the worker count, and the three planners."
+      summary "The command every agent runs through, and the launch form composed off it for every spawn — which of the two a call uses is not interchangeable."
       description """
 `SF_AGENT_COMMAND`, default `claude` — the one command every agent in the system runs through, so
-pointing it at your own build moves all of them. Three uses:
+pointing it at your own build moves all of them. `loadSpiderFactoryEnv` composes a second name off it,
+`SF_AGENT_LAUNCH_COMMAND` = `$SF_AGENT_COMMAND --add-dir <factory root>`, and **which of the two a call uses is
+not interchangeable**: the three that *start a session* take the launch form, the two that ask the running one a
+question take the plain name.
 
-- `$SF_AGENT_COMMAND --bg --agent <agent> --permission-mode bypassPermissions \"<the six rules>\"` —
+- `$SF_AGENT_LAUNCH_COMMAND --bg --agent <agent> --permission-mode bypassPermissions \"<the six rules>\"` —
   the worker spawn, run with `cd` **inside** the branch's worktree, and deliberately **no `-w`** —
-  `claude --worktree` only ever *creates* one, and this branch already owns its own.
+  `claude --worktree` only ever *creates* one, and this branch already owns its own. The lead agent's gate spawn
+  is the same call with `--agent lead`.
+- `$SF_AGENT_LAUNCH_COMMAND --agent <planner> \"<prompt>\"` — the three plan agents, foreground, through
+  `CLI/src/plan-agent.sh`, which is what `sf plan:epic`, `sf plan:feature` and `sf plan:task` run.
+- `$SF_AGENT_LAUNCH_COMMAND --agent overseer --disallowedTools 'Bash(sf:*)'` — the reader, foreground, through
+  `CLI/src/overseer-agent.sh`.
 - `$SF_AGENT_COMMAND agents --json` — the capacity count, recounted fresh every tick: background
   sessions reporting `status: busy` whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower.
   All three tests are load-bearing. A finished `--bg` session is never removed from this listing — it stays
   `kind: background` and only its status drops to `idle` — so without the status test a worker that finished
   would hold a slot for the rest of the run. Nothing here ever stops a session: a finished worker is left
   running on purpose, so it stays readable in the agent listing.
-- `$SF_AGENT_COMMAND --agent <planner> \"<prompt>\"` — the three plan agents, foreground, through
-  `CLI/src/plan-agent.sh`, which is what `sf plan:epic`, `sf plan:feature` and `sf plan:task` run.
+- bare `sf` — `exec ${SF_AGENT_COMMAND:-claude}`, no `--add-dir`: that session `cd`s to the factory root itself,
+  so the agents and skills are already under its project root.
 
-It is split on spaces, so it may carry its own arguments, and its first word is what the startup check
-looks for on the PATH.
+**Why the launch form adds a directory.** A worker's cwd is a git worktree, and the planners and the overseer run
+inside a tower project — so in every one of those sessions the project root is the tower, never the factory, and
+Claude Code discovers `.claude/agents/` and `.claude/skills/` only from a session's own project roots. Without the
+added directory `--agent <name>` resolves to nothing and no skill loads: the spawn comes back failed as
+`worker-not-dispatched`, and a planner cannot run at all. `--add-dir` makes `spider-factory/` a **second project
+root for discovery only** — it is **not a sandbox and not a permission grant**; it changes nothing about where the
+session works or what it may touch. The root is derived from `CLI/src/user-env.sh`'s own location, so it always
+names the checkout the code is actually running from.
+
+`SF_AGENT_COMMAND` is split on spaces, so it may carry its own arguments, and its first word is what the startup
+check looks for on the PATH — that check and the capacity count are the two places the plain name is still used.
 
 Workers run `bypassPermissions` unattended, so this loop only ever belongs in a repo you fully trust.
 """
@@ -1323,7 +1351,9 @@ and the worker **is** spawned: nothing was deleted, and the kept folder is named
         #unclaimed
         summary "The spawn came back failed; the one alarm that puts the ticket straight back."
         description """
-`$SF_AGENT_COMMAND --bg` came back non-zero; the last line of that worker's `spawn-<ticket>` file is quoted in `msg=`.
+`$SF_AGENT_LAUNCH_COMMAND --bg` came back non-zero; the last line of that worker's `spawn-<ticket>` file is quoted
+in `msg=`. An agent name with no file behind it lands here, and so does a session that could not discover
+`.claude/agents/` at all — which is what the launch command's `--add-dir <factory root>` exists to prevent.
 `bd unclaim` — unlike every other tick alarm, this one puts the ticket **straight back**, because nothing was
 ever spawned to work it and the next tick may well succeed.
 

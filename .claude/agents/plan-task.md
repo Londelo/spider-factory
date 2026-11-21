@@ -78,12 +78,14 @@ id the loop refuses.
 
 | Label (its one dispatching label) | Category | Template | Description must carry | Acceptance criteria |
 |---|---|---|---|---|
-| `backend-logic` | `backend-logic` | `shared/plan-tasks/engineer.md` | inputs, outputs, return shapes, every edge case, the file it lives in, the existing code to follow | the function/component exists at the named path and behaves as specified, error cases included |
-| `frontend-ui` | `frontend-ux` | `shared/plan-tasks/frontend.md` | the whole component: props, state, events, styling, tokens, responsive variants, accessibility, its file path | it renders the specified states and follows the named component-system pattern |
-| `unit-tests` | `unit-tests` | `shared/plan-tasks/tester-unit.md` | the input matrix — one scenario per behaviour with concrete input→output pairs, the branches, the exact test file path. **Back-end functions only** — a component has no ticket on this tier | every named scenario passes under the runner |
+| `backend-logic` | `backend-logic` | `.claude/shared/plan-tasks/engineer.md` | inputs, outputs, return shapes, every edge case, the file it lives in, the existing code to follow | the function/component exists at the named path and behaves as specified, error cases included |
+| `frontend-ui` | `frontend-ux` | `.claude/shared/plan-tasks/frontend.md` | the whole component: props, state, events, styling, tokens, responsive variants, accessibility, its file path | it renders the specified states and follows the named component-system pattern |
+| `unit-tests` | `unit-tests` | `.claude/shared/plan-tasks/tester-unit.md` | the input matrix — one scenario per behaviour with concrete input→output pairs, the branches, the exact test file path. **Back-end functions only** — a component has no ticket on this tier | every named scenario passes under the runner |
 
 Read the matching template before you write each ticket: it is the section-by-section source of truth, and
-if your draft disagrees with it, the template wins.
+if your draft disagrees with it, the template wins. Those three files live under `.claude/shared/plan-tasks/`
+in the **factory checkout**, which is one of your working directories — your cwd is the tower, and no
+template is in it, so name each one by the checkout.
 
 `bead-create` §The label owns what a label is and the closed dispatchable set. What is yours is the table
 above: exactly one of `backend-logic`, `frontend-ui`, `unit-tests` per ticket, and on your micro tier that
@@ -214,7 +216,7 @@ tsconfig/eslint/test-runner configs, trace the data flow in and out.
 
 Scoping done — now make the rows. Load `Skill('bead-create')` now, at this step, and do what
 it says — every flag, the generator, and the read-back are all in there. The schema above says what goes into
-them; the template in `shared/plan-tasks/` says what goes into the brief.
+them; the template in `.claude/shared/plan-tasks/` in the factory checkout says what goes into the brief.
 
 Create them **in chain order**, one label from the three, none of them carrying any `--metadata`, each
 blocking the feature's gate and the task before it. A task the chain skipped will be claimed beside its

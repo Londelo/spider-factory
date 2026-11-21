@@ -130,13 +130,20 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 6. `plan-task` points at its templates under a path that isn't there
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `.claude/agents/plan-task.md:82-84` and `:218` name `shared/plan-tasks/<name>.md`.
 - **Proof:** the real location is `.claude/shared/plan-tasks/`, and the planner runs foreground with cwd in
   the **tower** (`plan-agent.sh:57`), where neither path exists. `:86` says "the template wins" — the file
   that wins is unreadable, so the draft wins by default.
-- **Fix:** `.claude/shared/plan-tasks/<name>.md`, and say it lives in the factory checkout, not the tower.
-- **Notes:**
+- **Fix:** ~~`.claude/shared/plan-tasks/<name>.md`, and say it lives in the factory checkout, not the tower.~~
+  all four pointers now read `.claude/shared/plan-tasks/<name>.md`, and the sentence under the table says the
+  three files live in the **factory checkout**, which is one of the planner's working directories, that its
+  cwd is the tower, and that no template is in it — so it names each one by the checkout.
+- **Notes:** fixed 2026-11-21. Same shape as item 5, same reason: the checkout reaches the session through
+  `--add-dir`, so the path is real to the planner even though it is nowhere near its cwd. Proved from inside
+  `webs/kachalka`: `shared/plan-tasks` → missing, `.claude/shared/plan-tasks` → missing, and only
+  `…/spider-factory/.claude/shared/plan-tasks` resolves, to `engineer.md frontend.md tester-unit.md`. The
+  `plan-agent.sh:57` above is the `exec` line, now `:56` after the `SF_AGENT_LAUNCH_COMMAND` edit.
 
 ### 7. Five dead `agents/*.md` pointers
 

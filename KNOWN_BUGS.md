@@ -240,17 +240,25 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 11. A fixer can complete review's ticket
 
-- **Status:** open
-- **Where:** `review.md:286-288` ends every fixer prompt with three constraints — fix this finding and
-  nothing beside it, `sf commit` it yourself, touch no ticket. None mentions the done marker.
+- **Status:** fixed
+- **Where:** `review.md:286-290` ended every fixer prompt with three constraints — fix this finding and
+  nothing beside it, `sf commit` it yourself, touch no ticket. None mentioned the done marker.
 - **Proof:** every fixer is an `engineer`/`frontend`/`tester-*`, and each of those files ends its own
-  contract with `touch $SF_DONE_FILE` as the very last action (`engineer.md:44-46`, `frontend.md:42-44`,
-  `tester-unit.md:61-64`, `tester-feature.md:60-63`, `tester-e2e.md:62-65`). A fixer runs inside review's
-  process, so `$SF_DONE_FILE` is review's own (`worker.sh:69`). The first fixer finishing marks review done;
-  if review then dies, the hook's fail-closed check passes and it commits, pushes and closes the review
-  ticket on a half-finished round.
-- **Fix:** add "touch no done marker" to the three constraints.
-- **Notes:**
+  contract with `touch $SF_DONE_FILE` as the very last action (`engineer.md:45`, `frontend.md:43`,
+  `tester-unit.md:62`, `tester-feature.md:61`, `tester-e2e.md:63`). A fixer is an `Agent` spawn from inside
+  review's own session — `review.md:5` carries the `Agent` tool — so it inherits review's environment, and
+  `$SF_DONE_FILE` in it is review's own (`worker.sh:61`, the only place that variable is ever set). The first
+  fixer finishing marked review done; if review then died, the hook's fail-closed check passed and it
+  committed, pushed and closed the review ticket on a half-finished round.
+- **Fix:** done — the constraints are now four. `review.md:286-290` adds **touch no done marker**, and
+  requires review to name the variable in the prompt and say why: it is review's own, inherited, and a fixer
+  that touches it declares the review complete while review is still waiting on its siblings.
+- **Notes:** the hazard is a contract collision, not a code path: nothing in `CLI/` can see which session
+  created the marker, so the only defence is the brief that reaches the fixer. The five fixer files keep
+  their own `touch $SF_DONE_FILE` rule untouched — outside review they are correct, and a worker of the loop
+  is the only session that owns its marker. Proved by grep, not by a run: `grep -n SF_DONE_FILE` across the
+  five fixer files, `review.md:5` for the `Agent` tool, and `grep -n SF_DONE_FILE CLI/src/beads-loop/worker.sh`
+  → the single export at `:61`. The board's own `worker.sh:69` citation was stale; it is `:61`.
 
 ### 12. Nothing detects a dead worker
 

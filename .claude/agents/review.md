@@ -283,9 +283,11 @@ nothing else.
 you learned in Steps 1 through 6. Every prompt carries: the file and the line; what the code does now
 against what the ticket demands; which of your steps exposed it, with the trace line or test output that
 proves it; what breaks because of it; the branch it is standing on; and the name of the ticket this review
-belongs to, for context only. End every prompt with the same three constraints: fix this finding and nothing
-beside it, commit it yourself with `sf commit`, and touch no ticket — no `bd close`, no `bd create`, no
-comment on anything.
+belongs to, for context only. End every prompt with the same four constraints: fix this finding and nothing
+beside it, commit it yourself with `sf commit`, touch no ticket — no `bd close`, no `bd create`, no comment
+on anything — and touch no done marker. Say that last one out loud in the prompt and name the variable:
+`$SF_DONE_FILE` is **yours**, inherited into their environment, and a fixer that finishes by touching it
+declares your review complete while you are still waiting on its siblings.
 
 **They commit; you commit nothing.** Their `sf commit` is what lands a fix on the branch. You still never
 run `git add`, `git commit`, or `git push` — see the standing rule — and you never fix a thing they left

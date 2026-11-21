@@ -48,30 +48,51 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 2. Nested repos cannot see the factory's agents or skills
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** every spawn site — the loop's workers, the three planners, the overseer, and bare `sf`.
 - **Proof:** `--debug` shows 12 skills loaded from the factory root, 0 from `webs/kachalka`, 0 from its
   worktree. Project `.claude/agents/` and `.claude/skills/` are found by walking up from cwd but stopping at
   the git repository root, and a nested clone is a hard boundary.
-- **Fix:** `--add-dir "$factoryRoot"` at the spawn sites. One change covers all four paths, keeps bare
-  agent names, and honours `hooks:` frontmatter. Ruled out: plugins (plugin agents are namespaced and
-  **ignore `hooks` frontmatter**, which is the entire Stop hook), `--agents` (inline JSON, loads no skills),
-  `permissions.additionalDirectories` (file access only, proven `additional: 0`). No settings key or
-  `CLAUDE_CODE_*` variable points at an agents/skills directory.
-- **Caveats:** agents from an added dir are not hot-reloaded; the added folder needs its own trust grant;
-  `strictPluginOnlyCustomization` in managed settings would silently break it.
-- **Notes:**
+- **Fix:** ~~`--add-dir "$factoryRoot"` at the spawn sites.~~ Done as `--add-dir`, but the flag is written
+  once instead of at every site: `CLI/src/user-env.sh` ends `loadSpiderFactoryEnv` by exporting a second
+  command variable, `SF_AGENT_LAUNCH_COMMAND` = the user's `SF_AGENT_COMMAND` plus `--add-dir <factory root>`,
+  the root derived from that file's own `BASH_SOURCE` so nothing is hardcoded to one machine. The worker
+  spawn (`worker.sh:62`), the planners (`plan-agent.sh:56`) and the overseer (`overseer-agent.sh:55`) exec
+  that one. `beads.sh:14` (`agents --json`) and `preflight.sh:7` (a `PATH` check of the first word) stay on
+  the plain `SF_AGENT_COMMAND` on purpose — `--add-dir` is variadic and would eat the `agents` positional.
+  Bare `sf` needs neither: it already opens at the factory root. Ruled out: plugins (plugin agents are
+  namespaced and **ignore `hooks` frontmatter**, which is the entire Stop hook), `--agents` (inline JSON,
+  loads no skills), `permissions.additionalDirectories` (file access only, proven `additional: 0`). No
+  settings key or `CLAUDE_CODE_*` variable points at an agents/skills directory.
+- **Caveats:** agents from an added dir are not hot-reloaded; `strictPluginOnlyCustomization` in managed
+  settings would silently break it.
+- **Notes:** fixed 2026-11-21 in `8a46181`. Re-proved from `/tmp`, outside the factory entirely, in the
+  loop's own spawn shape: the `--debug-file` log reports `additional: 11` skills loaded from the factory, and
+  `--agent nosuchagent-xyz` is refused naming all fourteen agents including the seven workers, the three
+  planners and the overseer — so `--add-dir` stops cleanly at `--agent` and the added root really is scanned.
+  Two claims from the original entry did not survive: the added folder needs **no** trust grant of its own
+  under `bypassPermissions`, and `--add-dir` is a discovery flag and not a sandbox — a `bypassPermissions`
+  worker could already read and write the factory without it, which is why the earlier "a worker could
+  rewrite the loop" framing is withdrawn.
+  **Still unverified, and it is the whole point of the fix:** whether a `hooks:` block in an agent's
+  frontmatter fires when that agent was reached through an added directory. Nothing has tested it. If it does
+  not fire, the Stop hook never runs and no worker ever lands its work — see the rule about a worker that
+  does not register its own hook.
 
 ### 3. `plan-task` never loads at all
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `.claude/agents/plan-task.md:4` — a literal newline inside the double-quoted `description`.
 - **Proof:** `claude plugin validate .claude/agents` → `✘ frontmatter: YAML frontmatter failed to parse:
   Unexpected character. At runtime this agent does not load at all`. Bisected: the em-dashes and the escaped
   quotes are both innocent; converting the description to a block scalar passes. PyYAML parses all eleven
   files fine, so this is Claude Code's parser being stricter than YAML — which is why nobody noticed.
 - **Fix:** fold the description onto one line, or use a `>-` block scalar.
-- **Notes:**
+- **Notes:** fixed 2026-11-21 by folding it onto one line, which is what the other ten agent files already do
+  — a block scalar would have turned every `\"` in the triggers into a literal backslash. Proof it now loads,
+  not just validates: `claude plugin validate .claude/agents` → `✔ Validation passed`, and the agent listing
+  from outside the repo now reads `… plan-epic, plan-feature, plan-task, review …` where `plan-task` was
+  absent from that same list before the fix.
 
 ### 4. Sixteen leftover `spider-factory:` namespaced names
 
@@ -115,14 +136,17 @@ group is why the loop has never run: the one recorded run on this machine claime
 - **Fix:** `.claude/agents/…`.
 - **Notes:**
 
-### 8. `setup-cli` sends you to the installer from the wrong repoomm
+### 8. `setup-cli` sends you to the installer from the wrong repo
 
 - **Status:** fixed
 - **Where:** `.claude/skills/setup-cli/SKILL.md:32-33` says cd into the project you mean, `:45` says "the
   CLI lives inside this repo", `:50` says `bash CLI/install-cli.sh`.
 - **Proof:** `CLI/` exists only in the factory checkout.
-- **Fix:** name the factory's absolute path to `CLI/install-cli.sh`.
-- **Notes:** I deleted the skill
+- **Fix:** ~~name the factory's absolute path to `CLI/install-cli.sh`.~~ none needed — the skill is gone.
+- **Notes:** the skill was deleted rather than corrected, 2026-11-21 in `c5d557f`. `README.md` and
+  `.claude/CLAUDE.md` no longer name it, and the diagram's `setupSkill` node became an `installer` node on
+  `CLI/install-cli.sh`, which is what actually puts `sf` on the path. The paths quoted under **Where** above
+  are the deleted file's and are kept as the record.
 
 ---
 

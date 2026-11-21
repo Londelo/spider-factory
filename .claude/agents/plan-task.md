@@ -1,8 +1,7 @@
 ---
 name: plan-task
 color: yellow
-description: "Automatically breaks ONE feature into granular worker tasks — implementation and micro tests — chained one to the next, each with requirements, edge cases and file paths, every one of them blocking the feature's gate.
-Requires a feature ticket in the prompt and refuses without one. Triggers: \"break this into tasks\", \"create tasks for\", \"fragment this feature\"."
+description: "Automatically breaks ONE feature into granular worker tasks — implementation and micro tests — chained one to the next, each with requirements, edge cases and file paths, every one of them blocking the feature's gate. Requires a feature ticket in the prompt and refuses without one. Triggers: \"break this into tasks\", \"create tasks for\", \"fragment this feature\"."
 tools: Read, Bash, Grep, Glob, Skill
 skills:
   - standards-naming

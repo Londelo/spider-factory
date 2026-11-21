@@ -11,7 +11,7 @@ model {
   // ═════════════════════════════════════════════════════════════════════════════
 
   machine = layer "The machine — one command in, background workers out" {
-    summary "One command in, background workers out: the command, the setup skill, the webs cloner, the checks, the parameters, the dispatcher, the claim."
+    summary "One command in, background workers out: the command, the installer, the webs cloner, the checks, the parameters, the dispatcher, the claim."
 
     sfCli = cliTool "sf — the one command, and its seven" {
       summary "The whole CLI: one bash file, seven commands, each one an engine beside it. Every one but bare `sf` runs only from inside the factory."
@@ -57,35 +57,40 @@ cloner beside this one is an npm script, not a `sf` one.
       link https://github.com/Londelo/spider-factory/blob/main/CLI/bin/sf "Source — CLI/bin/sf"
     }
 
-    setupSkill = skill "setup-cli — the skill that puts the CLI in your AI agent" {
-      summary "One conversation inside your AI agent: it checks the repo, the tickets and the CLI, then installs or removes `sf` on your say-so."
+    installer = cliTool "CLI/install-cli.sh — put sf on your path" {
+      summary "One bash script you run yourself: it writes the `sf` launcher at `~/.local/bin/sf` and, the first time only, the parameters file."
       description """
-**What it is:** `.claude/skills/setup-cli/SKILL.md` — a conversation, not a command you remember. Say
-"setup spider-factory" or "install the CLI" to the AI agent and it runs four steps.
+**What it is:** `CLI/install-cli.sh` — one bash file, no node, no package manager, and no agent in the
+loop of it: you run `bash CLI/install-cli.sh` and it locates the repo from its own path, so the directory
+you happen to stand in does not matter. This is the whole route to `sf` on your path. It writes two things.
 
-| Step | What the agent does |
-|---|---|
-| 1 · detect | `git rev-parse --show-toplevel`, `bd where`, `command -v sf && sf help` — the repo, whether tickets live here yet, whether `sf` is on the path |
-| 2 · report and branch | reads back the three answers **before** offering anything; no repo → stop and name the folder to `cd` into; no ticket database → hand off to `bead-initialize`; no CLI → step 3; all present → nothing to do, run `sf loop` |
-| 3 · install | runs `bash CLI/install-cli.sh` from the repo root — only after you confirm: it never blind-runs anything |
-| 4 · uninstall | either or both, each confirmed: `rm -f ~/.local/bin/sf` leaves the repo files put; `rm -rf .beads` deletes the tower and is confirmed against the repo path first |
+**Write 1 — the launcher: one real file at `~/.local/bin/sf`, never a symlink.** A real file is
+deliberate — it outlives the repo being moved or deleted, and it names its own problem. Its header bakes in
+the repo path (`# Repo: <path>`) and the line `written by spider-factory's CLI/install-cli.sh`, which is
+what the uninstaller greps for. On a later run, if `<repo>/CLI/bin/sf` is gone, the launcher itself prints
+the path it is missing, says nothing else on your system changed, and prints both ways out: the `rm -f` that
+clears the launcher, or clone the repo again and run its `CLI/install-cli.sh` again. Otherwise it execs
+`bash <repo>/CLI/bin/sf` with your arguments. Re-running the installer overwrites the launcher — that is how
+you repoint it after moving the repo.
 
-**What the installer writes:** one real file at `~/.local/bin/sf` (`CLI/bin/sf`'s launcher), never a
-symlink, which execs the real `CLI/bin/sf` at the repo path baked into it (`# Repo: <path>` in its own
-header). A real file is deliberate: it outlives the repo being moved or deleted and names its own
-problem — the missing-repo warning ("the spider-factory repo is gone from: `<path>`") prints the `rm`
-that clears it and the two ways to get it back: remove the launcher, or clone the repo again and run its
-`CLI/install-cli.sh` again. If `~/.local/bin` is not on your path, the installer
-prints the exact `export PATH=` line your shell profile is missing.
+**Write 2 — `CLI/spider-factory.example.env` copied to `CLI/spider-factory.env`, `chmod 600`, and only when
+that file is missing.** Once it exists the installer never touches it again: those are your edits by then,
+and deleting the file is how you get the defaults back. The announce line says which of the two happened —
+`wrote the example` or `kept your edits`. What the settings are is the parameters node's, not this one's.
 
-**Its second write:** `CLI/spider-factory.example.env` copied to `CLI/spider-factory.env`, the run's
-parameters at their defaults — yours to edit by hand. The installer touches that file only when it does
-not exist; delete it to get the defaults back. The seven commands themselves belong to the node above.
+**Then one warning and two lines, and both installers speak through `console.sh`.** If `~/.local/bin` is not
+on your `PATH` it prints the exact `export PATH=` line your shell profile is missing, rather than installing
+something you cannot reach. Each installer calls `nameTheSpeaker sf`, so the warning comes out `sf: …` and
+the two announce lines — the launcher it wrote and the env file's state — come out unprefixed.
 
-**Nothing here runs the loop.** The skill's whole job is to make `sf loop` reachable.
+**Taking it back off: `CLI/uninstall-cli.sh` removes that launcher and nothing else.** No launcher at all →
+it says so and exits 0. A launcher carrying no marker of this repo's → it refuses, leaves it alone, and
+hands you the `rm -f` to run yourself if it really is yours; that grep is what keeps it off somebody else's
+`sf`. The parameters file survives either way. Deleting the ticket database is not an uninstall and no
+script here does it.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/.claude/skills/setup-cli/SKILL.md "Source — the setup-cli skill"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/install-cli.sh "Source — CLI/install-cli.sh"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/uninstall-cli.sh "Source — CLI/uninstall-cli.sh"
     }
 
     websCloner = cliTool "npm run webs:clone — the webs the factory builds" {

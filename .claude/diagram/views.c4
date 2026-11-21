@@ -4,7 +4,7 @@ views {
   // Four walkthroughs and nothing else. Every node on a page is either pointed at
   // by a step or sits inside a box a step points at.
   //   1 · the plan     — a person turns an idea into nine tickets
-  //   2 · the run      — the skill installs the CLI, then ticket after ticket
+  //   2 · the run      — the installer puts `sf` on your path, then ticket after ticket
   //   3 · the log      — what a run writes and how to read a stuck tower
   //   4 · the failures — the same run with every alarm firing
   // A step here says only what happens at that moment. What a thing *is*, and
@@ -181,7 +181,7 @@ gates wait for a person. The database is all the loop ever reads.
       human,
       machine,
       machine.sfCli,
-      machine.setupSkill,
+      machine.installer,
       machine.websCloner,
       machine.knobs,
       machine.preflight,
@@ -209,17 +209,16 @@ gates wait for a person. The database is all the loop ever reads.
       waiting,
       waiting.towerStalled
 
-    // ═ ACT I — setup, once per machine: the skill, the command, the webs, the settings, the checks
+    // ═ ACT I — setup, once per machine: the installer, the command, the webs, the settings, the checks
 
-    human -> machine.setupSkill "setup spider-factory · install the CLI" {
-      title "You ask your AI agent to set it up — once per machine"
+    human -> machine.installer "bash CLI/install-cli.sh · put sf on your path" {
+      title "You run the installer yourself — once per machine"
       notes """
-There is no install command to remember. Say "setup spider-factory" and the skill looks at three things:
-are you in a repo, do tickets live here yet, is the command reachable.
-If only the CLI is missing, it asks you once, then runs the installer: one real file on your path, which
-finds the repo and runs the engine in the foreground, and — the first time only — the one settings file
-the parameters node names, which is yours to edit after that.
-If nothing is missing, it says so and gets out of the way.
+No agent and no skill stands between you and the command: one bash script, run by hand, and the two things
+it writes are on the node. If the parameters file does not exist yet it writes it from the shipped example;
+if it already exists, your edits survive the run. If `~/.local/bin` is not on your path it prints the profile
+line you are missing instead of installing something you cannot reach. Re-running it is how you repoint the
+launcher after moving the repo; `CLI/uninstall-cli.sh` takes that launcher off again and touches nothing else.
 """
     }
 

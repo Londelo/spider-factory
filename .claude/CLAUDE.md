@@ -46,7 +46,7 @@ spider-factory/
 │                                   #   files, each one spawned by its bare name; the 7 tower agents' frontmatter
 │                                   #   is what registers the one worker hook, the other four carry none
 ├── .claude/skills/                 # bead-initialize, bead-create, bead-read, bead-comment,
-│                                   #   setup-cli, pr-comments, standards-{coding,naming,errors,file-organization},
+│                                   #   pr-comments, standards-{coding,naming,errors,file-organization},
 │                                   #   framework-{jest,playwright}
 ├── CLI/                            # the `sf` package — bash, no node
 │   ├── bin/sf                      # bare `sf` = an agent session at the factory root, from anywhere; each of the

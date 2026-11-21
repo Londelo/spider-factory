@@ -45,9 +45,6 @@ npm run cli:install      # writes ~/.local/bin/sf and CLI/spider-factory.env
 npm run cli:uninstall    # removes that launcher, and only that launcher
 ```
 
-Or skip the ceremony and say "setup spider-factory" to your AI agent — the `setup-cli` skill checks the
-repo, the ticket database and the CLI, then installs on your say-so.
-
 **2 · Initialize beads in the project you want to build.** The tower lives in the target repo, not here — and the
 target has to sit inside the factory for any command but bare `sf` to reach it, which is what `webs/` is for.
 Say "initialize beads" there, or use the `bead-initialize` skill — it installs `bd`, runs `bd init`,

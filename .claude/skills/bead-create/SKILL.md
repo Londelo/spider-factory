@@ -72,16 +72,20 @@ Read `issue_type` and the graph for what a ticket *is*; read the id for where it
 
 ## The two id generators
 
-`CLI/src/create-beads/` holds the only two things in this system that decide a number. Both print **one id on
-stdout and nothing else**; every failure writes to stderr, prints nothing on stdout, and exits non-zero — so a
-failed run can never feed a half id into a `bd create` command line. Run them from inside the tower.
+The only two things in this system that decide a number are `create-gate.sh` and `create-task.sh`, and they
+live in the **factory checkout**, under `CLI/src/create-beads/` — that path is not inside the tower. The
+checkout is one of your working directories, so name the scripts by it; stand in the tower when you run them,
+because it is your cwd that decides which beads database `bd` reads and therefore which tower gets counted.
+Both print **one id on stdout and nothing else**; every failure writes to stderr, prints nothing on stdout,
+and exits non-zero — so a failed run can never feed a half id into a `bd create` command line.
 
 ```bash
-EPIC=$(CLI/src/create-beads/create-gate.sh foobar)                    # foobar-epic-a7f3c9-0
-FEAT=$(CLI/src/create-beads/create-gate.sh foobar "$EPIC")            # foobar-feature-a7f3c9-1
-SUITE=$(CLI/src/create-beads/create-task.sh foobar "$FEAT" suite)     # foobar-task-a7f3c9-1.1
-REVIEW=$(CLI/src/create-beads/create-task.sh foobar "$FEAT" review)   # foobar-task-a7f3c9-1.2
-TASK=$(CLI/src/create-beads/create-task.sh foobar "$FEAT")            # foobar-task-a7f3c9-1.3
+# cwd: the tower.  <factory> = the spider-factory checkout, your other working directory.
+EPIC=$(<factory>/CLI/src/create-beads/create-gate.sh foobar)                    # foobar-epic-a7f3c9-0
+FEAT=$(<factory>/CLI/src/create-beads/create-gate.sh foobar "$EPIC")            # foobar-feature-a7f3c9-1
+SUITE=$(<factory>/CLI/src/create-beads/create-task.sh foobar "$FEAT" suite)     # foobar-task-a7f3c9-1.1
+REVIEW=$(<factory>/CLI/src/create-beads/create-task.sh foobar "$FEAT" review)   # foobar-task-a7f3c9-1.2
+TASK=$(<factory>/CLI/src/create-beads/create-task.sh foobar "$FEAT")            # foobar-task-a7f3c9-1.3
 ```
 
 | Script | Takes | Prints |

@@ -108,13 +108,25 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 5. `bead-create` documents the id generators under a path that isn't there
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `.claude/skills/bead-create/SKILL.md:76` says "Run them from inside the tower", then `:80-84`
   run `CLI/src/create-beads/create-gate.sh` — a factory-root-relative path.
 - **Proof:** from inside a tower that path does not exist; a plan agent following the skill hits "no such
   file".
-- **Fix:** name the absolute path, or say plainly that these run from the factory checkout.
-- **Notes:**
+- **Fix:** ~~name the absolute path, or say plainly that these run from the factory checkout.~~ the second,
+  plus the one fact that makes it work: the skill now says the two scripts live under `CLI/src/create-beads/`
+  **in the factory checkout**, that the checkout is one of the agent's working directories, and that cwd
+  stays in the tower because cwd is what decides which beads database `bd` reads. The example block invokes
+  them as `<factory>/CLI/src/create-beads/…`.
+- **Notes:** fixed 2026-11-21. No absolute path is written into the skill, so nothing is pinned to one
+  machine — a tower-side session really is told about both roots: asked from `webs/kachalka` with the
+  factory added, it names `…/webs/kachalka` and `…/spider-factory` as its working directories and reads both.
+  Proved by running the generator the way the skill now says, from inside the tower:
+  `…/spider-factory/CLI/src/create-beads/create-gate.sh kachalka` → `kachalka-epic-66af423478cc-0`, exit 0,
+  and the same call with the wrong prefix exits 1 naming the database's own prefix. A `# Repo: <path>` line in
+  the `sf` launcher would have been a machine-independent way to name the checkout, but `install-cli.sh:27`
+  only started writing it — the launcher on this machine still says `# Plugin:` — so the skill does not lean
+  on it. See item 30.
 
 ### 6. `plan-task` points at its templates under a path that isn't there
 

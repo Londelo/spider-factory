@@ -64,14 +64,15 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 4. Sixteen leftover `spider-factory:` namespaced names
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `review.md` ×10 (`:84`, `:99`, `:100`, `:194-196`, `:238`, `:268-270`, `:279`),
   `plan-epic.md:191`, `plan-feature.md:44,219`, `plan-task.md:40,216`, `overseer.md:212`.
 - **Proof:** no `.claude-plugin/plugin.json`, no marketplace entry, and `spider-factory` appears 0 times in
   `~/.claude/plugins/installed_plugins.json`. The prefix has no namespace to resolve against. Consequence:
   `review` loads no skill at all and names no fixer; all three planners cannot load `bead-create`.
 - **Fix:** strip the prefix everywhere — the repo stopped being a plugin in `953b68f` and these were missed.
-- **Notes:**
+- **Notes:** fixed in `5421112` while this file was being written; `grep -rn "spider-factory:" .claude/agents/
+  .claude/skills/` now returns nothing.
 
 ### 5. `bead-create` documents the id generators under a path that isn't there
 

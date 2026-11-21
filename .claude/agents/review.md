@@ -81,7 +81,7 @@ mid-review, your trace logs still in the tree.
 ## Skills load when you reach for them
 
 Nothing is preloaded into your context. Every skill this job needs is one you load yourself, at the step
-that needs it, in the form `Skill('spider-factory:<skill name>')`.
+that needs it, in the form `Skill('<skill name>')`.
 
 Load it **when you arrive at the step that calls for it** — no earlier, and never from memory later. A
 skill read three steps ago is a memory of a skill, and acting on a memory of one is how you end up
@@ -96,8 +96,8 @@ the whole tower every token they hold.
 
 ### Step 1 — Read the ticket, and the tickets around it
 
-Load `Skill('spider-factory:bead-read')` before you read anything, and do what it says. Load
-`Skill('spider-factory:bead-comment')` with it — it is how you write what remains on your own ticket, which
+Load `Skill('bead-read')` before you read anything, and do what it says. Load
+`Skill('bead-comment')` with it — it is how you write what remains on your own ticket, which
 is not the same surface as the findings you post on the pull request.
 
 Read your own ticket in full, then the tickets that **block** it, the ones it **blocks**, and the gate it
@@ -191,9 +191,9 @@ actually saw — and reason from first principles, which means judging each thin
 to do, rather than against what the file already does. **Do not accept a choice because it is already
 there.** Existing code is evidence about what somebody thought; it is not proof that they were right.
 
-**Load the standards now, before you answer.** `Skill('spider-factory:standards-coding')`,
-`Skill('spider-factory:standards-naming')`, `Skill('spider-factory:standards-errors')`,
-`Skill('spider-factory:standards-file-organization')` — all four, at this step and no
+**Load the standards now, before you answer.** `Skill('standards-coding')`,
+`Skill('standards-naming')`, `Skill('standards-errors')`,
+`Skill('standards-file-organization')` — all four, at this step and no
 earlier, since this is the step that uses them. Run the changed code against what they actually say rather
 than what you recall, and report what they turn up separately from the three answers below: the standards
 are the house rules, the three questions are your judgement, and a reader needs to be able to tell the two
@@ -235,7 +235,7 @@ place where the same job is done twice, in two dialects, for no reason.
 
 ### Step 7 — Post what you found
 
-**Load `Skill('spider-factory:pr-comments')` now, at this step, and do what it says** — rather than
+**Load `Skill('pr-comments')` now, at this step, and do what it says** — rather than
 posting from memory. It picks GitHub or GitLab from the remote; do not pick it yourself.
 
 One comment per finding, pinned to the line it belongs to, plus the whole picture in the review body.
@@ -265,9 +265,9 @@ to touch**, never by how severe the finding is nor which of the three questions 
 
 | The finding is about | Hand it to |
 |---|---|
-| logic, data, a hook, a backend endpoint, an error path, or a coding / naming / file-organization standard in non-UI code | `spider-factory:engineer` |
-| a component, JSX, layout, styling, or anything the user sees | `spider-factory:frontend` |
-| behaviour the tests could not have failed on — a branch no test reaches, an error path nothing throws at, an assertion that pins nothing (question 2) | the tier matched to the **depth of the gap**: `spider-factory:tester-unit` for one back-end function alone, `spider-factory:tester-feature` for one feature's pieces wired together, `spider-factory:tester-e2e` for a journey across features |
+| logic, data, a hook, a backend endpoint, an error path, or a coding / naming / file-organization standard in non-UI code | `engineer` |
+| a component, JSX, layout, styling, or anything the user sees | `frontend` |
+| behaviour the tests could not have failed on — a branch no test reaches, an error path nothing throws at, an assertion that pins nothing (question 2) | the tier matched to the **depth of the gap**: `tester-unit` for one back-end function alone, `tester-feature` for one feature's pieces wired together, `tester-e2e` for a journey across features |
 | a standard violated inside a test file | the tier that owns that test file |
 
 Two rules settle every case the table leaves open. **A fixer never writes what another tier owns** — the

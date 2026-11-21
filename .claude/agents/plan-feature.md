@@ -41,7 +41,7 @@ not work** — the loop reads the epic out of its id, finds no such gate, refuse
 so say so in
 your report and let the person decide, rather than shipping a tower of tickets nothing will run.
 
-Either way, load `Skill('spider-factory:bead-read')` before you read anything and do what it says. Then
+Either way, load `Skill('bead-read')` before you read anything and do what it says. Then
 read the epic before you decompose: title, user flow, states & data, high-level requirements, scope,
 dependencies, priority (P4 when unset), and **its `branch` metadata key** — and find the epic's e2e ticket,
 which is what every feature gate of yours must block.
@@ -216,7 +216,7 @@ features (gates included) then map the repo, read the affected subsystems, trace
 
 ## Create the tickets
 
-Scoping done — now make the rows. Load `Skill('spider-factory:bead-create')` now, at this step, and do what
+Scoping done — now make the rows. Load `Skill('bead-create')` now, at this step, and do what
 it says — every flag, the generators, the registration check, the survey of what already exists, and the
 read-back are all in there. The schema above says what goes into them.
 

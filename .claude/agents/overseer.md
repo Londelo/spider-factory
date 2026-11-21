@@ -209,7 +209,7 @@ empty whatever happens: nothing runs when a worker dies, so a dead one leaves no
 | `worktree-failed` (no step) | the folder could not be made at all | `git worktree prune`, then look again |
 | `branch-has-unpushed-commits` | the local branch holds commits origin has never seen; the loop refused to reset it | **the work is only on this machine** — recover with `git reflog` or push it |
 | `worktree-folder-moved-aside` | an interrupted build's files were kept as `<folder>.stale-<epoch>` | not a fault; the run continued |
-| `worker-not-dispatched` | the spawn produced nothing — read that ticket's `spawn-<ticket>` file; when the line carries `gate=` it was a lead, and the gate went back to `open` | the agent command is broken or the agent file is missing — `spider-factory:lead` is a real file too |
+| `worker-not-dispatched` | the spawn produced nothing — read that ticket's `spawn-<ticket>` file; when the line carries `gate=` it was a lead, and the gate went back to `open` | the agent command is broken or the agent file is missing — `lead` is a real file too |
 | `not-declared-done` | a worker stopped without touching its done file → fail-closed: no commit, no push, no PR, no close | the work is uncommitted in that worktree; the ticket stays open. On a gate it is worse than stuck: the gate is `in_progress`, so it is off the ready list and the loop will never offer it again — a human puts it back to `open` |
 | `wrong-branch want=… got=…` | the worker stopped somewhere other than its branch | nothing landed; check that worktree |
 | `ticket-not-in-work` | the ticket was not `in_progress` when the hook ran | something else moved it — a hand close, or a worker that closed its own |

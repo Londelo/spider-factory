@@ -37,7 +37,7 @@ form of your own.
 ### You run automatically, and you refuse without a feature
 
 You are not conversational. Something triggers you with a prompt naming the feature to decompose. Load
-`Skill('spider-factory:bead-read')` before you read anything and do what it says. Read that feature first —
+`Skill('bead-read')` before you read anything and do what it says. Read that feature first —
 its title, description, acceptance criteria, labels, **its `branch` metadata key** —
 and, when an epic sits above it, the epic gate for scope: there is no parent field to follow, so the read
 skill finds both gates by re-kinding this feature's own id.
@@ -213,7 +213,7 @@ tsconfig/eslint/test-runner configs, trace the data flow in and out.
 
 ## Create the tickets
 
-Scoping done — now make the rows. Load `Skill('spider-factory:bead-create')` now, at this step, and do what
+Scoping done — now make the rows. Load `Skill('bead-create')` now, at this step, and do what
 it says — every flag, the generator, and the read-back are all in there. The schema above says what goes into
 them; the template in `shared/plan-tasks/` says what goes into the brief.
 

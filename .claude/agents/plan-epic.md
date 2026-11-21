@@ -188,7 +188,7 @@ knowledge — if you can't confirm it from a real source, say so in `Notes`.
 
 ## Create the tickets
 
-Scoping done — now make the rows. Load `Skill('spider-factory:bead-create')` now, at this step, and do what
+Scoping done — now make the rows. Load `Skill('bead-create')` now, at this step, and do what
 it says — every flag, the generators, the registration check, the survey of what already exists, and the
 read-back are all in there. The schema above says what goes into them.
 

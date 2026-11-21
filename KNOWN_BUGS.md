@@ -301,14 +301,21 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 14. Review diffs against a branch its own file says its ticket does not carry
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `review.md:113-114` — `git diff --stat <branch-named-in-your-ticket>...HEAD`.
 - **Proof:** against `review.md:33-34` — "Your ticket carries no branch of your own; nothing a task carries
   can be trusted as much as the gate it hangs under. Read `SF_BRANCH` before anything else". The placeholder
-  resolves to nothing, so the command degenerates to `git diff ...HEAD` — the whole tree, not the branch —
-  which is the exact failure the file itself calls "a review that voted".
+  resolves to nothing, and `git diff ...HEAD` exits 0 printing nothing — an empty diff, so review reads no
+  changed files at all.
 - **Fix:** use `$SF_BRANCH`.
-- **Notes:** no this is a bad fix we know that envs do not update properly using a claude diamon
+- **Notes:** the suggested `$SF_BRANCH` was a bad fix — the daemon freezes a background session's
+  environment, so the variable is not trustworthy. Measured 2026-11-21, and it is worse than filed: in a
+  scratch repo `git diff --stat ...HEAD` exits **0** and prints **nothing**, so the degenerate placeholder
+  yields an empty diff, not the whole tree — review reads no changed files and can post a clean bill of
+  health it never earned. Diffing a branch against itself is empty either way, since review's own work lands
+  on that branch. Fixed with no environment variable in it at all: the branch is `git branch --show-current`
+  in the worktree the loop put it in, and the diff base is the epic gate's `branch` read off `bd`, `main`
+  when the ticket sits under the epic itself. An empty `--stat` is now a finding, not a pass.
 
 ### 15. `sf commit` sweeps review's findings file onto the feature branch
 

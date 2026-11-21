@@ -331,7 +331,12 @@ group is why the loop has never run: the one recorded run on this machine claime
   and the no-PR fallback) and gains a close-out step that resolves only its own threads, leaving open the
   ones whose fixer came back wrong or disputed; `pr-comments` loses its write-a-file fallback, drops resolve
   from the never-do list, and gains the real resolve calls for both forges. Approve and merge stay the
-  human's.
+  human's. Same day, second round: `pr-comments` is cut to the tool and nothing else — forge from the remote,
+  prove the PR, one finding one comment, the post table — 199 lines down to ~100, and the resolve calls move
+  into `review.md`, which is the only thing that resolves anything. There review now creates **no files at
+  all**, each finding's comment must be complete enough to fix from and is pasted verbatim as the fixer's
+  whole brief, and the fixers spawn **one at a time** instead of in one batch — they share one worktree and
+  one branch, so a batch steps on each other's commits.
 
 ---
 

@@ -815,12 +815,12 @@ hook closes it once you declare done, and a ticket already closed makes the hook
 write what remains as a comment, spawn nothing, and `touch $SF_DONE_FILE` as the very last action and only
 when the brief is genuinely complete. **Six of the seven say spawn nothing** — `engineer`, `frontend` and the
 three testers each carry that bullet verbatim, and the lead carries it as hard rule 6. **`review` is the one
-exception**: its own contract says *spawn fixers, once, and file no tickets*, and it is the only agent file in
-the tower whose `tools:` line carries `Agent`. The round is on its node. The `lead` agent states the same rules
-inside its own steps and hard rules rather than in a section of that name — `bd heartbeat <gate>`, never
-`bd close` not even its own, spawn nothing, `touch $SF_DONE_FILE` last. No skill holds these rules, and the
-agent file is the **only** place most of them are written at all — the brief the loop sends is not a copy of
-this contract.
+exception**: its own contract says *spawn fixers, once each, one at a time, and file no tickets*, and it is
+the only agent file in the tower whose `tools:` line carries `Agent`. The round is on its node. The `lead`
+agent states the same rules inside its own steps and hard rules rather than in a section of that name — `bd
+heartbeat <gate>`, never `bd close` not even its own, spawn nothing, `touch $SF_DONE_FILE` last. No skill holds
+these rules, and the agent file is the **only** place most of them are written at all — the brief the loop
+sends is not a copy of this contract.
 
 **What the loop's brief actually sends.** `buildWorkerPrompt` (`CLI/src/beads-loop/worker.sh`) builds the one
 argument the spawn passes after the flags, and it is short: the ticket id, a `FIRST:` line ordering the worker to
@@ -899,15 +899,18 @@ verbose tier. Skill: `framework-playwright`.
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/tester-e2e.md "Source — .claude/agents/tester-e2e.md"
     }
     reviewAgent = worker "review" {
-      summary "Three questions as PR comments, then every finding handed once to the agent that owns that kind of fix."
+      summary "Three questions as PR comments, then every finding handed one at a time to the agent that owns its fix."
       description """
 **Labels `feature-review` and `epic-review` → `review`.** Three questions from first principles: does the code
 do what its source of truth demands, do the tests prove it, is it simple and readable. Maps the system the
 change sits in (entry → exit, following imports), instruments it with trace logs, runs the tests against the
-instrumented code, posts findings as PR comments. Files no tickets, writes **no findings file**, and commits or
-pushes nothing — its findings live on the pull request and in its final message and nowhere else, and the trace
-logs are edits to real files sitting in its own working tree; `sf commit` runs `git add -A`, so anything left in
-the tree rides onto the branch it is judging, which is why it **strips them back out before it stops**.
+instrumented code, posts **each finding as its own PR comment**, pinned to the line it belongs to and complete
+enough to fix from, then one summary comment with the whole picture. Files no tickets, **creates no files at
+all** — not a findings file, not a report, not notes, nothing new ever appears in that worktree — and commits or
+pushes nothing: its findings live on the pull request and in its final message and nowhere else. The only writes
+it makes are the trace logs of Step 4, into files that already exist, sitting in its own working tree;
+`sf commit` runs `git add -A`, so anything left there rides onto the branch it is judging, which is why it
+**strips them back out before it stops** and checks with `git status` that the tree holds nothing at all.
 Nothing is preloaded — `bead-read`, the standards and `pr-comments` load on demand at the step
 that uses them.
 
@@ -920,32 +923,40 @@ off `<repo>-epic-<uuid>-0` with `bd show --json`, and against `main` when its ow
 nothing; it says which, and stops rather than reviewing an empty diff.
 
 **Step 8 — one round of fixers, then it stops looking.** Once the findings are posted and the instrumentation
-stripped, review spawns **one fixer per finding, all in a single batch, one round only**, routing by **what the
-fix has to touch** — never by how severe the finding is nor by which of the three questions raised it:
-`engineer` for logic, data, a hook, an endpoint, an error path or a standard violated in non-UI code;
+stripped, review spawns **one fixer per finding, one at a time, in sequence, one round only**: it spawns the
+first, waits for it to report, then spawns the next, and never puts two of them on the branch together — they
+share one working tree and one branch, and two fixers editing the same files step on each other's commits. It
+routes by **what the fix has to touch** — never by how severe the finding is nor by which of the three questions
+raised it: `engineer` for logic, data, a hook, an endpoint, an error path or a standard violated in non-UI code;
 `frontend` for a component, JSX, layout, styling, or anything the user sees; and for behaviour the tests could
 not have failed on, the test tier matched to the **depth of the gap** — unit for one back-end function alone,
 feature for one feature's pieces wired, e2e for a journey across features — going one tier down when the depth
 is unclear. A finding needing both a change and its proof is **two spawns**, because a fixer never writes what
-another tier owns. These are nested sessions inside review's own — it is the only agent file in the tower whose
-`tools:` line carries `Agent` — and each arrives knowing nothing, so every prompt carries the file and the line,
-what the code does now against what the ticket demands, which step exposed it with the trace line or test output
-that proves it, what breaks because of it, the branch it is standing on, and the review ticket's id for context.
+another tier owns; they still go one after the other. These are nested sessions inside review's own — it is the
+only agent file in the tower whose `tools:` line carries `Agent` — and each arrives knowing nothing, so **the
+finding's own PR comment is the whole brief**: review pastes that comment body verbatim into the prompt and adds
+nothing it does not already say, putting alongside it only the url of the comment it came from, the branch it is
+standing on, and the name of the review ticket, for context. A comment that is not enough to fix from was never
+a finished finding: the missing detail goes back onto the pull request before the spawn.
 
 **Every prompt ends with the same four constraints:** fix this finding and nothing beside it; commit it
 yourself with `sf commit`; touch no ticket — no `bd close`, no `bd create`, no comment on anything; and
 **touch no done marker**. Review says that last one out loud and **names the variable**, because
 `$SF_DONE_FILE` is **review's own** — the loop sets it once on the worker's spawn line, and an `Agent` spawn
 inherits review's environment — so a fixer that finishes by touching it declares the review complete while
-review is still waiting on its siblings, and the hook would then commit, push and close a half-finished round.
+review is still waiting on the fixers it has not spawned yet, and the hook would then commit, push and close a
+half-finished round. Because the spawns are sequential, the **first** fixer to finish is enough to do it.
 Nothing in `CLI/` can tell which session created the marker, so the brief that reaches the fixer is the only
 defence; the five fixer files keep their own `touch $SF_DONE_FILE` rule untouched, because outside review each
 of them is the session that owns its marker. Then review re-runs no step, reads no fixer's diff, spawns no
-second batch, and never fixes what a fixer left broken.
+second round, and never fixes what a fixer left broken.
 
-**Then it closes out its own threads.** Once every spawn has reported, review takes each finding back to the
-thread it posted it in and resolves it — the ones whose fix landed, and only those — through the call
-`pr-comments` owns for each forge, never a verb it invents. A finding whose fixer came back wrong, or came back
+**Then it closes out its own threads.** Once the last fixer has reported, review takes each finding back to the
+thread it posted it in and resolves it — the ones whose fix landed, and only those. The resolve calls live in
+this agent's own file, not in `pr-comments`, which is posting-only and owns no resolve verb: GitHub resolves a
+**thread**, so it reads the thread ids off `gh api graphql … reviewThreads` first and only then fires
+`resolveReviewThread`; GitLab resolves a **discussion** by its id with
+`glab api --method PUT …/discussions/<id> -f resolved=true`. A finding whose fixer came back wrong, or came back
 saying it was not a defect, stays **open**: an open thread is the human's signal that this one still needs a
 person. It never resolves a comment it did not post, never approves, never merges — approve and merge are the
 human's, and are what the `lead` agent and the person closing a gate do, not this worker.

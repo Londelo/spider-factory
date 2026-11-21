@@ -184,7 +184,8 @@ the *branch*, not the ticket.
   can tell which session wrote the file. An `Agent` spawn from inside a worker's session inherits that worker's
   environment: `review` carries the `Agent` tool and hands every finding to a fixer, and each fixer's own contract
   ends by touching its marker — so the first fixer to finish touches **review's** marker, and review's hook then
-  commits, pushes and closes the review ticket while review still waits on its siblings. Nothing in `CLI/` can
+  commits, pushes and closes the review ticket while review still waits on the fixers it has not spawned yet —
+  review spawns them one at a time, so the very first one is enough to do it. Nothing in `CLI/` can
   see which session created the marker, so the only defence is the brief that reaches the fixer: review's four
   constraints end with **touch no done marker**, and review names the variable in the prompt to say why.
 - **A worker agent that does not register its own hook is a worker that never finishes.** The hook runs

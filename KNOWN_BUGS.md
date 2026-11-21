@@ -180,14 +180,23 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 9. `sf hook` refuses to run from outside the factory
 
-- **Status:** open
+- **Status:** wontfix
 - **Where:** `CLI/bin/sf:142` — `requireInsideFactory` in front of the Stop hook.
 - **Proof:** contradicts the hook's own contract that its cwd is a pooled daemon's cwd and means nothing. It
   passes today only because towers live under `spider-factory/webs/`. Put a tower anywhere else and every
   worker Stop dies before it commits, with no log line. The guard guards nothing either:
   `worker-stop.sh:191` already does its own `( cd "$worktreeDir" && sf commit … )`.
-- **Fix:** delete that one line.
+- **Fix:** ~~delete that one line.~~ Kept on purpose — see Notes.
 - **Notes:** keep this functionality I only want webs to live in the spider-factory
+  **Decided 2026-11-21:** the guard stays. The webs the factory builds are required to live under
+  `spider-factory/webs/` — that is the design, `webs/webs.yml` and `scripts/clone-webs.sh` are what put them
+  there, and a tower is a clone of one of those webs. So "a tower anywhere else" is not a state the system
+  supports, and the refusal at `CLI/bin/sf:108` is the system saying so rather than a bug. The line is not
+  deleted, and nothing in `dispatchHook` changes.
+  **What this decision accepts, so it is not lost:** the refusal is a `die` to stderr, which reaches the
+  hook's debug output and never the run's log files, so a worker whose tower sits outside the factory leaves
+  no line in `$SF_LOG_ROOT/<run>/`. If a tower is ever moved outside the factory for real, that silent death
+  is what to look for — and the fix is a `writeLog errors` beside the `die`, not the deletion of the guard.
 
 ### 10. A worker can be lost forever on an unparsed session id
 

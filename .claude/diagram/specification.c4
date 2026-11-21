@@ -4,7 +4,7 @@ specification {
   color opBlue #2563EB   // the dispatcher and the commands it is made of
   color workerPurple #7C3AED   // a worker agent
   color plannerTeal #0891B2   // a plan agent, outside the tower
-  color hookCyan #0E7490   // a hook script — both are registered, from the seven worker agents' own frontmatter
+  color hookCyan #0E7490   // a hook script — there is exactly one, registered by the seven worker agents' own frontmatter
   color gateAmber #D97706   // a gate: a person closes it, or the lead agent when its tier's flag is on
   color errorRed #DC2626   // an alarm: something failed
   color idleGray #64748B   // a waiting line: nothing failed, nothing ran
@@ -41,10 +41,6 @@ specification {
 
   element planner {
     style { color plannerTeal shape agent icon bootstrap:compass }
-  }
-
-  element skill {
-    style { color plannerTeal shape document icon bootstrap:magic }
   }
 
   // ── the tower ────────────────────────────────────────────────────────────────
@@ -117,7 +113,7 @@ specification {
   }
 
   relationship plans {
-    description "top-down tower build — each plan agent authors only its own tier's branch and base"
+    description "top-down tower build — each plan agent authors only its own tier's branch, and only on its own gate"
     color plannerTeal
     line dashed
   }

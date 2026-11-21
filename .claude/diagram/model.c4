@@ -147,7 +147,7 @@ Checks 3–5 pass their own sentence to `die` directly.
 the factory root or anything under it, and `requireEngine`, that `../src/beads-loop/index.sh` is actually
 there — so a broken install names itself instead of failing deep in a tick.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L123-L136 "Source — beads-loop/index.sh lines 123–136, the bootstrap that runs them in order"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L122-L135 "Source — beads-loop/index.sh lines 122–135, the bootstrap that runs them in order"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/preflight.sh#L5-L43 "Source — beads-loop/preflight.sh lines 5–43, checks 2–6"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/console.sh "Source — CLI/utils/console.sh, die and the four reused refusals"
     }
@@ -286,7 +286,7 @@ labelled with its category matches nothing. There is no merge label at either ti
 feature or an epic, each branch is merged by the **lead agent** standing on the gate above it, and the
 lead agent is reached by the gate dispatch, not by a key of this map.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L23-L33 "Source — beads-loop/index.sh lines 23–33, the AGENT map and the lead agent's name"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L21-L31 "Source — beads-loop/index.sh lines 21–31, the AGENT map and the lead agent's name"
     }
 
     spawnEnv = knobPanel "SF_* — the environment the spawn carries" {
@@ -320,7 +320,7 @@ done_file kind` — and the Stop hook reads it back as `SF_WORK_KIND="${claimKin
 claims line first and the context file only as a fallback. It is the only thing that tells the hook it is
 finishing a **gate** rather than a task.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/worker.sh#L54-L72 "Source — beads-loop/worker.sh lines 54–72, spawnWorker: the context file, then the env block on the --bg line"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/worker.sh#L46-L64 "Source — beads-loop/worker.sh lines 46–64, spawnWorker: the context file, then the env block on the --bg line"
     }
 
     claim = cliTool "bd ready --claim — the hand that takes one ticket" {
@@ -349,7 +349,7 @@ loop moves it to `in_progress` itself with `bd update <gate> --status in_progres
 step 1 of the tick and the only claim in the system made by status.
 """
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/claim.sh "Source — CLI/src/beads-loop/claim.sh, the frontier and the guards"
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/gates.sh#L13-L53 "Source — CLI/src/beads-loop/gates.sh lines 13–53, dispatchOneGate: the claim made by status"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/gates.sh#L13-L49 "Source — CLI/src/beads-loop/gates.sh lines 13–49, dispatchOneGate: the claim made by status"
     }
 
   }  // machine
@@ -480,8 +480,9 @@ only for the run's final worker — the one thing a human needs to attach to, re
       summary "The worker's own marker saying its brief is complete; the Stop hook is fail-closed on it."
       description """
 The worker's own declaration that its brief is complete, created by `touch \"$SF_DONE_FILE\"` as its very
-last action. The engine `rm -f`s it before spawning, so a marker can only mean *this* session; the Stop
-hook refuses to land anything without it.
+last action — an instruction that lives only in the worker's own agent file, never in the loop's brief (the
+workers layer owns what that brief does and does not say). The engine `rm -f`s it before spawning, so a marker
+can only mean *this* session; the Stop hook refuses to land anything without it.
 """
     }
   }
@@ -524,9 +525,10 @@ command is gone, and a hook that shelled out to it would be a hook that logs not
 
 **The commit is the worker's own command, not a private one:** `stageTheWork` first asks whether anything is
 left to land — usually the worker committed it all as it went, and then nothing is — and `commitTheTask` runs
-`sf commit` in the worktree with the ticket's title and a `Ticket:` line as the message, so a task's last
-commit is the same shape as all the others. `git diff --cached --quiet` proving the index came back clean is
-what `reason=commit-failed` means. The hook then pushes for itself: cheap when the branch is current, and it
+`sf commit` in the worktree with the ticket's title and a `Ticket: <id>` trailer as the message, so a task's last
+commit is the same shape as all the others — same command, same `agent:branch:message` form, nothing private.
+`commitTheTask` ends by asking `git diff --cached --quiet` whether anything is *still* staged: staged work left
+behind means the commit did not take, and that is what `reason=commit-failed` means. The hook then pushes for itself: cheap when the branch is current, and it
 is the hook's own guarantee that the branch is on the forge before a PR is opened off it — which is why
 `reason=push-failed` is a separate alarm from `reason=commit-failed`. `sf` is in `requireTools` for this
 reason; `reason=missing-tool tool=sf` is the alarm when the CLI is not installed. Both of those calls are made
@@ -607,7 +609,8 @@ made a gate unenforceable: beads refuses a `blocks` edge from an ancestor to its
 to walk, the id is the only thing pointing at a gate — so every ticket of a tower is created with an explicit
 `--id`, and a flat one reaches no gate: the loop refuses it, `ERROR reason=no-epic-gate ticket=<id>`, and
 leaves it claimed on purpose. Every id comes out of `CLI/src/create-beads/create-gate.sh` or
-`CLI/src/create-beads/create-task.sh` and never from an eye. A gate is a **custom type** and must be registered
+`CLI/src/create-beads/create-task.sh` — both in the **factory checkout**, not in the tower a plan agent stands in
+— and never from an eye. A gate is a **custom type** and must be registered
 (`bd config set types.custom \"gate\"`), as is the parking status
 (`bd config set status.custom \"failed-agent:frozen\"`): `bd` does not reject an unregistered type or status, it
 **accepts it silently and then refuses it**, so a broken gate and a working one look identical. Check
@@ -642,9 +645,9 @@ a branch to the wrong forge.
 |---|---|
 | `bd ready --claim --json` | the **only** sanctioned claim: atomic assignee + `in_progress` + 5-minute lease |
 | `bd ready --json` (peek) | used once, inside `waiting()`, purely to name `next=` |
-| `bd unclaim <id>` | put a claim back — the four places `releaseClaim` is called, listed on the claim node |
+| `bd unclaim <id>` | put a claim back — the two places `releaseClaim` is called, listed on the claim node |
 | `bd heartbeat <id>` | the worker keeps its lease alive; it never closes its own ticket |
-| `bd list --status in_progress --limit 0 --json` | the `.id`s of everything in progress, each through `resolveTicketBranches` → the branches currently at work, read before the claim so the ticket in hand is never counted against itself |
+| `bd list --status in_progress --limit 50 --json \| jq length` | a **count**, taken only once the capacity test has already said the run is full: `0` makes the waiting line `max_parallel_stalled`, anything else makes it `max_parallel in_progress=N`. It is never a listing, and nothing walks it — the loop runs no busy-branch check |
 | `bd list --status open,blocked --limit 0 --json` | the probe that tells `frontier_empty` from `tower_stalled` |
 | `bd show --json <id>` | read one ticket back — its status, its title (`--long`, the commit message), its `issue_type` (is this row a gate?), and a gate's `branch` |
 | `bd update <id> --set-metadata k=v` | **merges** — which is why writing `pr` never disturbs the plan's `branch` |
@@ -654,7 +657,7 @@ a branch to the wrong forge.
 | `CLI/src/create-beads/create-gate.sh <repo> [<epicGateId>]` then `bd create -t gate --id <what it printed> --metadata '{"branch":…}'` | a plan agent mints a gate id and nothing else: no gate id is ever typed. With an epic gate id in hand it numbers the next feature, with none it mints the epic and its one uuid |
 | `CLI/src/create-beads/create-task.sh <repo> <gateId> [suite\|review]` then `bd create -t task -l <label> --id <what it printed>` | a plan agent mints a task id and nothing else: a gate carries **zero** labels and the `branch` key alone, a task exactly one dispatching label and **no metadata at all**. `.1` and `.2` are fixed to a gate's suite and review, and asking for a second one refuses; above `.2` it takes
 the highest of that gate's existing task ids and adds one — counted off the database, not off the graph, so a
-ticket whose edge was never written still holds its number. Every ticket of a tower carries an explicit `--id` — a flat one reaches no gate. There is **no `--parent`** anywhere in a tower |
+ticket whose edge was never written still holds its number. Every ticket of a tower carries an explicit `--id` — a flat one reaches no gate. There is **no `--parent`** anywhere in a tower. Both scripts live in the **factory checkout**, which is one of a plan agent's working directories — they are not inside the tower it stands in, and its cwd stays there, because cwd is what decides which beads database `bd` reads and therefore which tower gets counted |
 | `bd dep add <blocked> <blocker> --type blocks` | the **one edge type in a tower**, read "blocker blocks blocked"; what a tier *is* = the tickets that block its gate |
 | `bd where` | which DB a directory resolves — `bd` walks **up** and ignores `BEADS_DIR` |
 
@@ -673,10 +676,12 @@ pointing it at your own build moves all of them. `loadSpiderFactoryEnv` composes
 not interchangeable**: the three that *start a session* take the launch form, the two that ask the running one a
 question take the plain name.
 
-- `$SF_AGENT_LAUNCH_COMMAND --bg --agent <agent> --permission-mode bypassPermissions \"<the six rules>\"` —
+- `$SF_AGENT_LAUNCH_COMMAND --bg --agent <agent> --permission-mode bypassPermissions \"<the brief>\"` —
   the worker spawn, run with `cd` **inside** the branch's worktree, and deliberately **no `-w`** —
   `claude --worktree` only ever *creates* one, and this branch already owns its own. The lead agent's gate spawn
-  is the same call with `--agent lead`.
+  is the same call with `--agent lead` and the same brief word for word: `buildWorkerPrompt` builds a lead variant
+  of the stay-on-branch rule into `$stayOnBranchRule` and never interpolates it, so a gate session is handed
+  nothing a worker is not. What that brief actually says is on the workers layer.
 - `$SF_AGENT_LAUNCH_COMMAND --agent <planner> \"<prompt>\"` — the three plan agents, foreground, through
   `CLI/src/plan-agent.sh`, which is what `sf plan:epic`, `sf plan:feature` and `sf plan:task` run.
 - `$SF_AGENT_LAUNCH_COMMAND --agent overseer --disallowedTools 'Bash(sf:*)'` — the reader, foreground, through
@@ -718,8 +723,11 @@ The loop owns the folders, because a worktree belongs to a **branch**, not to a 
   (`feature/add-record` → `feature+add-record`).
 - `<start>` is the **first** of `origin/<branch>`, `origin/<prTarget>`, `<prTarget>`, `HEAD` that resolves —
   a feature branch starts where it is going to land.
-- `git -C <tower> fetch --quiet origin` before each lookup, and the loop's one push —
-  `git -C <tower> push --quiet origin <start>:refs/heads/<gateBranch>`, publishing an epic branch that has none.
+- `git -C <tower> fetch --quiet origin` before each lookup, and the loop's one push. When the branch does not
+  exist on the remote yet, or sits exactly on its target, `ensureBranchAheadOfTarget` first writes it a commit of
+  its own — `git -C <tower> commit-tree <target>^{tree} -p <target> -m \"chore: open <branch>\"` — then runs
+  `git -C <tower> push --quiet origin <seedSha>:refs/heads/<branch>`, publishing an epic branch that has none.
+  The tower's own working tree is never touched and its HEAD never moves.
 - **Nothing else here commits.** `git add -A`, `git commit -m \"agent:branch:message\"` and
   `git push -u origin <branch>` all live inside `sf commit` (`CLI/src/commit.sh`) — the only way anything
   commits in this repo. The agent is `SF_AGENT`, `manual` when a person typed it; the branch is
@@ -799,8 +807,23 @@ hook closes it once you declare done, and a ticket already closed makes the hook
 write what remains as a comment, spawn nothing, and `touch $SF_DONE_FILE` as the very last action and only
 when the brief is genuinely complete. The `lead` agent states the same rules inside its own steps and hard
 rules rather than in a section of that name — `bd heartbeat <gate>`, never `bd close` not even its own, spawn
-nothing, `touch $SF_DONE_FILE` last. No skill holds these rules; the loop's spawn prompt repeats them, which is the
-safety net for a worker run outside the loop.
+nothing, `touch $SF_DONE_FILE` last. No skill holds these rules, and the agent file is the **only** place most of
+them are written at all — the brief the loop sends is not a copy of this contract.
+
+**What the loop's brief actually sends.** `buildWorkerPrompt` (`CLI/src/beads-loop/worker.sh`) builds the one
+argument the spawn passes after the flags, and it is short: the ticket id, a `FIRST:` line ordering the worker to
+read `bd show --json <ticket>` in full as its complete brief, one paragraph saying this folder is the worktree of
+a branch shared by every task of the feature so earlier commits may already be sitting there, and then exactly
+**two** numbered rules — keep the five-minute lease alive with `bd heartbeat <ticket>`, and never run `bd close`,
+because the Stop hook closes the ticket once you declare done and closing it by hand makes the hook walk past it.
+Those two are the whole overlap with the contract above. The stay-on-your-branch rule, the commit-as-you-go rule,
+the write-what-remains rule, the spawn-nothing rule, and the done marker itself appear **nowhere** in the brief,
+so the prompt is no safety net for any of them: the only thing anywhere that tells a worker to create
+`$SF_DONE_FILE` is its own agent file, and the Stop hook fails closed on that file. The lead agent's brief is
+word-for-word the same two rules — `buildWorkerPrompt` builds a lead variant of the branch rule into
+`$stayOnBranchRule` and never interpolates it into the string. **As committed this is also the one place the
+engine does not run at all:** the `printf` string that holds the brief is left unterminated, so `bash -n` on
+`worker.sh` fails at end of file, `index.sh` cannot source it, and no tick ever happens.
 
 **The same file holds the hook registration.** Each of these seven agent files carries a `hooks:` block in its own
 YAML frontmatter binding `Stop` → `sf hook stop` (timeout 300) — that block, and nothing
@@ -914,6 +937,12 @@ an explicit `--id`, because that id is the only thing the loop reads to find the
 plan agent ever numbers one itself, it runs `CLI/src/create-beads/create-gate.sh` or `create-task.sh` and passes
 what comes back. Nothing below recomputes a branch, and there is no parent chain to walk.
 
+**Where a plan agent stands, and what it can therefore reach.** Each of these sessions runs **inside the tower
+project**, not in the factory: `--add-dir` makes the factory checkout a second project root for discovery only,
+which is how its own agent file, its skills, the two id generators and the `plan-tasks` templates are readable at
+all. Name a factory file by the checkout; never assume the cwd holds it. The cwd itself stays in the tower on
+purpose — it is the cwd that decides which beads database `bd` reads, and therefore which tower gets counted.
+
 Each is one foreground command — `sf plan:epic`, `sf plan:feature`, `sf plan:task` — and anything you type
 after it goes to the planner as the prompt. What runs them is on the agent-command node.
 """
@@ -957,6 +986,11 @@ explicit `--id` from `create-task.sh <repo> <featureGate>`, run once per task in
 at all** — not even a `branch`: the loop reads the uuid off that id and takes both branches off the two gates it
 names (a plan agent never invents a branch below its own
 tier, and refuses with `ERROR reason=metadata-missing` when the feature's gate carries no `branch` of its own).
+Before it writes each ticket it reads that kind's section-by-section template — `engineer.md` for a
+`backend-logic` ticket, `frontend.md` for `frontend-ui`, `tester-unit.md` for `unit-tests` — three files under
+`.claude/shared/plan-tasks/` in the **factory checkout**, and if its draft disagrees with the template the
+template wins. The checkout is one of its working directories; its cwd stays in the tower, where no template
+exists, because cwd is what decides which beads database `bd` reads.
 Each task gets **two** edges —
 onto the feature's gate, making it part of that tier, and onto the single task before it, ordering the build —
 in one linked line, never a fan, and the tail hands to the `feature-test` ticket. Refuses outright without a
@@ -1488,9 +1522,13 @@ filed — the commit would be anonymous on a shared branch.
         #staysClaimed
         summary "Committing the tree failed — a genuinely empty tree is allowed, this is not one."
         description """
-`git add -A` then `git commit -F -`, message = the ticket title plus a `Ticket: <id>` trailer. A review or test
-ticket may legitimately land nothing (`git diff --cached --quiet` skips the commit entirely and the hook carries
-on to push, PR and close), so this is a genuine commit failure, not an empty tree.
+`sf commit \"<title>
+
+Ticket: <id>\"` run inside the worktree — which is `git add -A`, `git commit -m \"<agent>:<branch>:<that
+message>\"`, `git push -u origin <branch>`, all of it `CLI/src/commit.sh`. A review or test
+ticket may legitimately land nothing (`git diff --cached --quiet` before it skips the commit entirely and the hook
+carries on to push, PR and close), so this is a genuine commit failure, not an empty tree: it fires when the index
+is **still dirty** after `sf commit` returned.
 """
       }
       pushFailed = alarm "ERROR reason=push-failed" {

@@ -39,15 +39,23 @@ The agent you spawn reads the code, never its own memory of it; the diagram half
 ### File structure
 ```
 spider-factory/
+├── README.md                       # Tier 1 — the snapshot a human passing through reads
+├── KNOWN_BUGS.md                   # the open bug board: every known defect, its proof, and its file:line
+├── package.json                    # the npm entry points — cli:install, cli:uninstall, webs:clone
 ├── .claude/CLAUDE.md               # this file — pointer and vocabulary
 ├── .claude/diagram/                # the translated source of truth — likec4 model, specification, views,
-│                                   #   build.sh, and the built dist/
+│                                   #   likec4.config.json, build.sh, and the built dist/
 ├── .claude/agents/                 # 7 tower agents + 3 plan agents + the overseer watcher — project-level
 │                                   #   files, each one spawned by its bare name; the 7 tower agents' frontmatter
 │                                   #   is what registers the one worker hook, the other four carry none
 ├── .claude/skills/                 # bead-initialize, bead-create, bead-read, bead-comment,
 │                                   #   pr-comments, standards-{coding,naming,errors,file-organization},
 │                                   #   framework-{jest,playwright}
+├── .claude/shared/plan-tasks/      # the three briefs plan-task copies a ticket's shape from: engineer.md,
+│                                   #   frontend.md, tester-unit.md — one per category, each named for the agent
+│                                   #   that fills it, never for the category. They live here, in the factory
+│                                   #   checkout, and nowhere in the tower: a plan agent's cwd is the tower, so
+│                                   #   it must name each template by the checkout to open it at all
 ├── CLI/                            # the `sf` package — bash, no node
 │   ├── bin/sf                      # bare `sf` = an agent session at the factory root, from anywhere; each of the
 │                                   #   seven commands — loop, plan:epic, plan:feature, plan:task, overseer,
@@ -73,7 +81,10 @@ spider-factory/
 │       ├── commit.sh               # the only thing that commits, anywhere
 │       ├── forge.sh                # GitHub vs GitLab, and which tool names the right CLI
 │       ├── user-env.sh             # the loader for CLI/spider-factory.env
-│       ├── create-beads/           # create-gate.sh + create-task.sh, the only two things that mint an id
+│       ├── create-beads/           # create-gate.sh + create-task.sh, the only two things that mint an id —
+│                                   #   they live here, in the factory checkout, and never in the tower; the plan
+│                                   #   agent that runs them stands in the tower anyway, because its cwd is what
+│                                   #   decides which beads database bd reads and so which tower gets the id
 │       └── agent-hooks/            # worker-stop.sh — one engine like every other one, reached only as
 │                                   #   `sf hook stop`, which the seven worker agents' frontmatter registers on
 │                                   #   its own Stop event: see its row in the moving parts
@@ -81,16 +92,15 @@ spider-factory/
 │   ├── .gitkeep                    # the one tracked file, so webs/ exists in a fresh checkout
 │   ├── webs.example.yml            # the shipped empty list, tracked — clone-webs.sh copies it to webs.yml only when that is missing
 │   └── webs.yml                    # your repo urls, gitignored — the list clone-webs.sh actually reads
-├── scripts/                        # what npm runs, outside the `sf` command set
-│   ├── clone-webs.sh               # the cloner — `npm run webs:clone`, reads webs/webs.yml, clones each repo into webs/
-│   └── tower-walk.sh               # experiment harness — builds a tower and walks the frontier by hand
-└── .claude/shared/plan-tasks/      # the templates plan-task fills: engineer, frontend, tester-unit
+└── scripts/                        # what npm runs, outside the `sf` command set
+    ├── clone-webs.sh               # the cloner — `npm run webs:clone`, reads webs/webs.yml, clones each repo into webs/
+    └── tower-walk.sh               # experiment harness — builds a tower and walks the frontier by hand
 ```
 
 ### The three names — never interchangeable
 | Name | What it is | Examples |
 |---|---|---|
-| **category** | a display hint, and the name of a `plan-task` template | `backend-logic`, `frontend-ux`, `unit-tests` |
+| **category** | a display hint, and the key that picks which brief under `.claude/shared/plan-tasks/` `plan-task` copies a ticket's shape from — the brief file is named for the **agent** that fills it, never for the category | `backend-logic` → `engineer.md`, `frontend-ux` → `frontend.md`, `unit-tests` → `tester-unit.md` |
 | **label** | a string on a ticket, `bd create -l`. Any number may be attached; **exactly one** must be a key of the dispatcher's `AGENT` map — that one decides the worker | `backend-logic`, `frontend-ui`, `unit-tests`, `feature-test`, `epic-e2e-test`, `feature-review`, `epic-review` |
 | **agent** | a real file in `.claude/agents/`, spawned by that bare name | `engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`, `review`, `lead` |
 
@@ -136,8 +146,9 @@ id, never a graph walked. An id that does not read that grammar, a task whose hi
 number, or an epic gate that is not a gate row belongs to no tower: the loop refuses it, logs
 `ERROR reason=no-epic-gate ticket=<id>`, and leaves it claimed, unworked, on purpose. That is why every
 ticket in a tower is created with an explicit `--id`, and why every id comes out of
-`CLI/src/create-beads/create-gate.sh` or `CLI/src/create-beads/create-task.sh` and never from an eye: a bare
-`bd create` mints a flat id, and a flat id reaches no gate. The worktree is `.claude/worktrees/<branch with / → +>`, and it belongs to
+`CLI/src/create-beads/create-gate.sh` or `CLI/src/create-beads/create-task.sh` and never from an eye — both
+of them in the **factory checkout**, run by a plan agent whose cwd is the tower: see the `create-beads/` row.
+A bare `bd create` mints a flat id, and a flat id reaches no gate. The worktree is `.claude/worktrees/<branch with / → +>`, and it belongs to
 the *branch*, not the ticket.
 
 ### The moving parts, and who owns what
@@ -150,7 +161,7 @@ the *branch*, not the ticket.
 | `CLI/src/commit.sh` | **the only way anything commits in this repo** — `sf commit` = `git add -A`, one commit subject `agent:branch:message`, `git push -u origin <branch>` |
 | `CLI/utils/console.sh` | **the only file in `CLI/` that writes to a terminal** — sourced by every engine, by `bin/sf`, and by both installers; nothing else there runs `echo` or `printf` at a screen. `nameTheSpeaker <name>` once per script, and every line it says comes out `<name>: <line>` (`sf`, `beads-loop`, `plan-agent`, `overseer`, `commit`, `webs`, `create-gate`, `create-task`); `say` → stdout, `tell` → stderr, `plain` → stdout unprefixed (the key=value event lines), `die` = `tell` then exit 1. The four reused refusals — no beads database, a file missing from the install, a tool not on `PATH`, the agent command not on `PATH` — are each worded here and nowhere else. A run's log lines are **not** here: those are `logging.sh`'s, and a `printf` whose stdout a caller captures with `$( )` is that caller's return value, not output |
 | `CLI/utils/logging.sh` | the one definition of a log line — nine fixed keys, `-` for the unknown, the tag naming the file under `$logDir` the line appends to. Sourced by **exactly two things** — the engine and the Stop hook — and by **nothing else at all**; there is no logging command to go through, and a hook that shelled out to one would log nothing. The engine keeps the fields in **process memory**: it seeds them once with `seedStartingLogFields`, carries them with `setLogField`, and drops all but run and repo with `clearLogFields`. The hook has no process to keep them in, so `takeLogFieldsFromEnvironment` fills all nine from **its own environment** on every line — `SF_LOG_RUN` (falling back to the name of `$logDir`), `SF_PROJECT_DIR`, `SF_TICKET`, `SF_LABEL`, `SF_AGENT`, `SF_BRANCH`, `SF_PR_TARGET`, `SF_SESSION`, `SF_WORKTREE` — and an unset one comes out `-`. There is deliberately **no cross-process persistence and no scratch file**: two shells have two environments, so the hook exports them once in its own process — off the dispatched claims line, the loop's own spawn environment being uninheritable — and every line after carries them. Since `bin/sf` refuses from outside the factory, **every caller of `sf` needs its cwd under the factory root** — the Stop hook has it, the worktree being `<tower>/.claude/worktrees/…` and the loop itself refusing to run from anywhere else. `SF_LOG_QUIET=1` keeps a line out of stdout: the hook exports it, the engine does not |
-| `CLI/src/user-env.sh` + `CLI/spider-factory.env` | every knob; `spider-factory.example.env` is copied there on install and never touched again. `loadSpiderFactoryEnv` fills what is unset and never overwrites a value you exported, then exports the two agent-command variables — and only one of them is a knob. **`SF_AGENT_COMMAND`** (default `claude`) is yours: it comes from the env file or your own export, it is split on spaces so it may carry its own arguments, and it is what the PATH checks read and what `beads.sh` runs `agents --json` through. **`SF_AGENT_LAUNCH_COMMAND`** is ours: that same command with `--add-dir <factory root>` appended — the root derived from `user-env.sh`'s own path, not from `PWD` — recomputed on every load, never read out of the env file, and never anything to edit. Every spawn that has to *resolve* an agent goes through it: the worker, the three plan agents, the overseer. All three run with their cwd somewhere else than here — the worker inside a worktree, the planners and the watcher inside a tower — so the session's project root is the tower, and without the added directory Claude Code never scans `spider-factory/.claude/agents` or `.claude/skills`: `--agent <name>` resolves to nothing and no skill loads. `--add-dir` is a **discovery** flag, not a sandbox and not a permission grant — a `bypassPermissions` worker could already read and write the whole factory without it. Two sites stay on plain `$SF_AGENT_COMMAND` on purpose: `beads.sh`'s `agents --json`, because `--add-dir` is variadic and would swallow the `agents` positional as a second directory, and `preflight.sh`, which only asks whether the command's first word is on `PATH`. Bare `sf` needs neither flag because it opens its session at the factory root |
+| `CLI/src/user-env.sh` + `CLI/spider-factory.env` | every knob; `spider-factory.example.env` is copied there on install and never touched again. `loadSpiderFactoryEnv` fills what is unset and never overwrites a value you exported, then exports `SF_AGENT_LAUNCH_COMMAND` itself — the one name the loader owns, and the only one it writes; every other `SF_*`, `SF_AGENT_COMMAND` included, reaches the environment only through the fill above. **`SF_AGENT_COMMAND`** (default `claude`) is yours: it comes from the env file or your own export, it is split on spaces so it may carry its own arguments, and it is what the PATH checks read and what `beads.sh` runs `agents --json` through. **`SF_AGENT_LAUNCH_COMMAND`** is ours: that same command with `--add-dir <factory root>` appended — the root derived from `user-env.sh`'s own path, not from `PWD` — recomputed on every load, never read out of the env file, and never anything to edit. Every spawn that has to *resolve* an agent goes through it: the worker, the three plan agents, the overseer. All three run with their cwd somewhere else than here — the worker inside a worktree, the planners and the watcher inside a tower — so the session's project root is the tower, and without the added directory Claude Code never scans `spider-factory/.claude/agents` or `.claude/skills`: `--agent <name>` resolves to nothing and no skill loads. `--add-dir` is a **discovery** flag, not a sandbox and not a permission grant — a `bypassPermissions` worker could already read and write the whole factory without it. Two sites stay on plain `$SF_AGENT_COMMAND` on purpose: `beads.sh`'s `agents --json`, because `--add-dir` is variadic and would swallow the `agents` positional as a second directory, and `preflight.sh`, which only asks whether the command's first word is on `PATH`. Bare `sf` needs neither flag because it opens its session at the factory root |
 | `scripts/clone-webs.sh` + `webs/webs.yml` | the webs the factory builds, and nothing to do with `sf` or the installer — one repo url a line, cloned into `webs/`; `webs/webs.example.yml` is the tracked template that engine copies to `webs/webs.yml` and nothing else ever writes that file |
 | `webs/` | in the repo by `.gitkeep` alone — `webs/*` is ignored, so the directory ships and the clones inside it never do |
 | `.claude/agents/*.md` | the worker's own contract — the lease, never closing its own ticket, `sf commit` as it goes, the done marker last, and the `hooks:` frontmatter that puts the one worker hook on its own Stop event |

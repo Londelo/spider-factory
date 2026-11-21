@@ -373,17 +373,16 @@ The eight are listed on the node itself.
     }
 
     toolbelt.claudeCli -> workers.engineer "the rules arrive with the brief" {
-      title "The worker's prompt is the six rules it must follow"
+      title "The worker's prompt is two rules and an order to read its ticket"
       notes """
-The worker's whole prompt is six rules:
-- keep your claim alive
-- never close your own ticket
-- say what is left if you run out of room
-- start no other workers
-- stay on your branch; never a bare commit or push — commit the way your own agent file tells you, as you go
-and the sixth, its last act: touch the done marker, and only if the brief is genuinely finished.
-The lead agent gets the same six, with rule 5 rewritten: this ticket is a gate, and the merge is the forge's
-own command on the pull request, never a local merge into the target.
+The whole prompt is short: the ticket id, an order to read that ticket back in full as its complete brief, a
+paragraph saying this folder is the worktree of a branch every task of the feature shares, and then exactly two
+numbered rules — keep the lease alive with a heartbeat, and never close your own ticket, because the hook below
+closes it once you say you are done.
+Everything else the worker must obey — the branch rule, committing as it goes, saying what is left, starting no
+other workers, and the done marker itself — is nowhere in this prompt. It lives only in the worker's own agent
+file, which the session loaded when it started. What the brief sends, line by line, is on the workers layer.
+The lead agent's brief is the same two rules word for word.
 """
     }
 

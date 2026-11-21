@@ -191,22 +191,43 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 10. A worker can be lost forever on an unparsed session id
 
-- **Status:** unverified
+- **Status:** false positive
 - **Where:** `CLI/utils/logging.sh:73` `getSpawnedAgent`, fed straight into the log field at
-  `worker.sh:112` and `gates.sh:46`; `worker-stop.sh:52-63` matches on it; `worker-stop.sh:85` is
+  `worker.sh:104` and `gates.sh:46`; `worker-stop.sh:52-63` matches on it; `worker-stop.sh:85` is
   `[[ -n "$claimLine" ]] || exit 0`.
-- **Proof:** `setLogField` (`logging.sh:29`) turns an empty parse into `session=-`, the hook's session match
+- **Proof:** ~~`setLogField` (`logging.sh:29`) turns an empty parse into `session=-`, the hook's session match
   then finds nothing, and the hook exits silently — no commit, no push, no PR, no close, no log line. The
   ticket stays claimed forever and `bd ready` never shows it. A parse failure is indistinguishable from a
-  human session.
-- **What's unverified:** it depends on what `$SF_AGENT_COMMAND --bg` actually prints. To prove it: dispatch
-  one worker, then `cat $SF_LOG_ROOT/<run>/claims` and check `session=` is not `-`. Corroborating: the only
-  run ever recorded here, `~/.spider-factory/logs/2026-11-19_13-35-20/`, has zero-byte `claims`, zero-byte
-  `errors`, no `spawn-*` file, and `results` reads `ticks=49 claimed=0 done=0` — this path has never once
-  executed on this machine.
-- **Fix:** in spawnWorker's caller, `writeLog errors "reason=session-unparsed"` when `getSpawnedAgent`
-  returns empty, instead of writing `session=-`.
-- **Notes:**
+  human session.~~ The parse is not empty. The mechanism is real, its premise — that the sed never matches
+  what the CLI prints — is not.
+- **What's unverified:** ~~it depends on what `$SF_AGENT_COMMAND --bg` actually prints. To prove it: dispatch
+  one worker, then `cat $SF_LOG_ROOT/<run>/claims` and check `session=` is not `-`.~~ Done, by probe instead
+  of by a dispatch: the loop's own spawn form, run by hand.
+- **Fix:** none needed for the claimed bug. The `writeLog errors "reason=session-unparsed"` line is still
+  worth having, but as the tripwire for the residual in Notes, not as a fix for this item.
+- **Notes:** verified 2026-11-21 against the `claude` at
+  `~/.local/share/mise/installs/claude/latest/claude`. `$SF_AGENT_LAUNCH_COMMAND --bg --agent overseer
+  --permission-mode default "<trivial prompt>"` run from the factory root prints:
+
+  ```
+  Starting background service…
+  backgrounded · 940d2a30
+  ```
+
+  and that file through the real function — `getSpawnedAgent /tmp/sf-bug10/spawn.txt` — returns `940d2a30`.
+  The separator agrees byte for byte: the sed at `logging.sh:74` and the CLI output both carry
+  `backgrounded `, `c2 b7`, ` `, then the id. So `session=` carries a real id, the hook's match finds its
+  `reason=dispatched` line, and nothing is lost. The probe session was stopped with `claude stop 940d2a30`.
+  **The failed-spawn case this item also rested on is already handled:** `worker.sh:98-102` checks the spawn's
+  exit status, logs `reason=worker-not-dispatched` and releases the claim. Proven by the same probe run
+  against an untrusted directory, which exited 1.
+  **Residual, and not this item:** a spawn that exits **0** and prints no `backgrounded` line still yields
+  `session=-` and the silent exit at `worker-stop.sh:85`. Not reproducible against this CLI; a change to the
+  `--bg` output format is what would cause it, and the `reason=session-unparsed` line above is the only thing
+  that would ever say so.
+  **Also not this item, and found while probing:** `CLI/src/beads-loop/worker.sh` does not parse — the
+  `printf '%s' "` at `:23` is never closed, so `bash -n` fails at EOF, `index.sh` cannot source it, and
+  `sf loop` cannot start. Nobody has filed that one yet.
 
 ### 11. A fixer can complete review's ticket
 
@@ -224,7 +245,7 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 12. Nothing detects a dead worker
 
-- **Status:** open
+- **Status:** not needed
 - **Where:** the whole system. `CLI/src/beads-loop/config.sh:47` still seeds a `failures` file nothing
   writes.
 - **Proof:** Claude Code's hook events are SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,

@@ -43,7 +43,13 @@ and the watcher each run their own inside their engine, and `commit` needs only 
 same requirement: the `sf hook stop` that reaches the hook at all, the worker's `sf commit` as it goes, and the
 Stop hook's `sf commit` on its behalf.
 They all have it — the loop will only run a tower from inside the factory, and the worker, the hook and the
-tower all sit under that same root, the worktree being `<tower>/.claude/worktrees/…`. A person's own session
+tower all sit under that same root, the worktree being `<tower>/.claude/worktrees/…`. **That guard in front of
+the hook is the design, not an oversight**: the webs this factory builds are required to live under
+`spider-factory/webs/` — `webs/webs.yml` and `scripts/clone-webs.sh` are what put them there — and a tower is a
+clone of one of those webs, so a tower outside the factory is not a state the system supports and the refusal is
+the system saying so. **What that costs, kept on the record:** the refusal is a `die` to stderr, which reaches
+the hook's debug output and never `$SF_LOG_ROOT/<run>/`, so a worker whose tower does sit outside the factory
+leaves no line anywhere in the run's logs. A person's own session
 never reaches the hook at all, wherever it stands: the event is bound in the seven worker agents' own
 frontmatter, and a plain session is run as none of the seven. Only a session that reaches the hook as one of those
 seven does, and it always stands in that hook's own worktree.
@@ -805,10 +811,14 @@ the pull request: the ticket is where a worker leaves what the next reader canno
 five-minute lease alive with `bd heartbeat <ticket>` between long steps, never close your own ticket (the Stop
 hook closes it once you declare done, and a ticket already closed makes the hook walk past it, landing nothing),
 write what remains as a comment, spawn nothing, and `touch $SF_DONE_FILE` as the very last action and only
-when the brief is genuinely complete. The `lead` agent states the same rules inside its own steps and hard
-rules rather than in a section of that name — `bd heartbeat <gate>`, never `bd close` not even its own, spawn
-nothing, `touch $SF_DONE_FILE` last. No skill holds these rules, and the agent file is the **only** place most of
-them are written at all — the brief the loop sends is not a copy of this contract.
+when the brief is genuinely complete. **Six of the seven say spawn nothing** — `engineer`, `frontend` and the
+three testers each carry that bullet verbatim, and the lead carries it as hard rule 6. **`review` is the one
+exception**: its own contract says *spawn fixers, once, and file no tickets*, and it is the only agent file in
+the tower whose `tools:` line carries `Agent`. The round is on its node. The `lead` agent states the same rules
+inside its own steps and hard rules rather than in a section of that name — `bd heartbeat <gate>`, never
+`bd close` not even its own, spawn nothing, `touch $SF_DONE_FILE` last. No skill holds these rules, and the
+agent file is the **only** place most of them are written at all — the brief the loop sends is not a copy of
+this contract.
 
 **What the loop's brief actually sends.** `buildWorkerPrompt` (`CLI/src/beads-loop/worker.sh`) builds the one
 argument the spawn passes after the flags, and it is short: the ticket id, a `FIRST:` line ordering the worker to
@@ -837,7 +847,8 @@ so their sessions fire no hook; the mechanism is on the Stop hook's node.
 did>` after every major change that stands on its own — one commit per piece, so the pull request shows the
 work as it happens instead of one blob at the end. The name is passed rather than inherited, so a worker run
 outside the loop still commits named for itself. `lead` and `review` have no such section: `review` commits
-nothing at all, and the lead commits only what it had to resolve where the target moved under the branch.
+nothing at all — its fixes reach the branch only through its fixers' own `sf commit`, never its own — and the
+lead commits only what it had to resolve where the target moved under the branch.
 """
     engineer = worker "engineer" {
       summary "Business logic, endpoints, hooks, types, error factories; never tests, JSX or CSS."
@@ -883,14 +894,40 @@ verbose tier. Skill: `framework-playwright`.
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/tester-e2e.md "Source — .claude/agents/tester-e2e.md"
     }
     reviewAgent = worker "review" {
-      summary "Three questions from first principles, answered as comments on the pull request."
+      summary "Three questions as PR comments, then every finding handed once to the agent that owns that kind of fix."
       description """
 **Labels `feature-review` and `epic-review` → `review`.** Three questions from first principles: does the code
 do what its source of truth demands, do the tests prove it, is it simple and readable. Maps the system the
 change sits in (entry → exit, following imports), instruments it with trace logs, runs the tests against the
-instrumented code, posts findings as PR comments. Files no tickets; the trace logs stay in the working tree.
+instrumented code, posts findings as PR comments. Files no tickets, and commits or pushes nothing — the trace
+logs are edits to real files sitting in its own working tree, so it **strips them back out before it stops**,
+or the Stop hook would file them as one commit on the branch.
 Nothing is preloaded — `bead-read`, the standards and `pr-comments` load on demand at the step
 that uses them.
+
+**Step 8 — one round of fixers, then it stops looking.** Once the findings are posted and the instrumentation
+stripped, review spawns **one fixer per finding, all in a single batch, one round only**, routing by **what the
+fix has to touch** — never by how severe the finding is nor by which of the three questions raised it:
+`engineer` for logic, data, a hook, an endpoint, an error path or a standard violated in non-UI code;
+`frontend` for a component, JSX, layout, styling, or anything the user sees; and for behaviour the tests could
+not have failed on, the test tier matched to the **depth of the gap** — unit for one back-end function alone,
+feature for one feature's pieces wired, e2e for a journey across features — going one tier down when the depth
+is unclear. A finding needing both a change and its proof is **two spawns**, because a fixer never writes what
+another tier owns. These are nested sessions inside review's own — it is the only agent file in the tower whose
+`tools:` line carries `Agent` — and each arrives knowing nothing, so every prompt carries the file and the line,
+what the code does now against what the ticket demands, which step exposed it with the trace line or test output
+that proves it, what breaks because of it, the branch it is standing on, and the review ticket's id for context.
+
+**Every prompt ends with the same four constraints:** fix this finding and nothing beside it; commit it
+yourself with `sf commit`; touch no ticket — no `bd close`, no `bd create`, no comment on anything; and
+**touch no done marker**. Review says that last one out loud and **names the variable**, because
+`$SF_DONE_FILE` is **review's own** — the loop sets it once on the worker's spawn line, and an `Agent` spawn
+inherits review's environment — so a fixer that finishes by touching it declares the review complete while
+review is still waiting on its siblings, and the hook would then commit, push and close a half-finished round.
+Nothing in `CLI/` can tell which session created the marker, so the brief that reaches the fixer is the only
+defence; the five fixer files keep their own `touch $SF_DONE_FILE` rule untouched, because outside review each
+of them is the session that owns its marker. Then review re-runs no step, reads no fixer's diff, spawns no
+second batch, and never fixes what a fixer left broken.
 """
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/review.md "Source — .claude/agents/review.md"
     }

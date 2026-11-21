@@ -46,7 +46,8 @@ npm run cli:uninstall    # removes that launcher, and only that launcher
 ```
 
 **2 · Initialize beads in the project you want to build.** The tower lives in the target repo, not here — and the
-target has to sit inside the factory for any command but bare `sf` to reach it, which is what `webs/` is for.
+target lives inside the factory, in `webs/`: that is the design, not a limitation, and every `sf` command but
+bare `sf` refuses to run anywhere else.
 Say "initialize beads" there, or use the `bead-initialize` skill — it installs `bd`, runs `bd init`,
 registers the `gate` type and `failed-agent` status the tower needs, writes a SessionStart hook and a beads
 section into that repo's `CLAUDE.md`, and puts four git hooks in it: pre-commit, post-merge, pre-push,

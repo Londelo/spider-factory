@@ -557,6 +557,16 @@ switch on, the lead agent does.
       navigateTo theLogs
     }
 
+    workers.reviewAgent -> workers.engineer "each finding goes once to the agent that owns that kind of fix" {
+      title "One round of fixers, then review stops looking"
+      notes """
+One spawn per finding, one batch, one round only, routed by what the fix has to touch. The fixers commit their
+own fixes with `sf commit`; review still commits nothing, re-runs nothing, and spawns no second batch. The four
+constraints every prompt ends with — the last being touch no done marker, because `$SF_DONE_FILE` is review's
+own and a fixer that touches it closes the review ticket mid-round — are on the node.
+"""
+    }
+
     // ═ ACT IV — the tower stops, and with both switches off only a person can start it again
 
     machine.dispatcher -> waiting.towerStalled "nothing left to claim" {

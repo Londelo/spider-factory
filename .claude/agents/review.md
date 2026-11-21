@@ -9,11 +9,6 @@ hooks:
         - type: command
           command: "sf hook stop"
           timeout: 300
-  StopFailure:
-    - hooks:
-        - type: command
-          command: "sf hook fail"
-          timeout: 60
 ---
 
 # Review Agent

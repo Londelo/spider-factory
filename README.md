@@ -82,28 +82,22 @@ the shipped one back.
 
 ## The CLI
 
-Eight commands. Every one but bare `sf` runs only from inside this repo — anywhere under it, at any depth. On
+Seven commands. Every one but bare `sf` runs only from inside this repo — anywhere under it, at any depth. On
 top of that, the loop, the three planners and the watcher run from inside a tower project; `sf commit` only needs
 a git repo.
 
 ```bash
 sf                     # open an agent session at the factory root
-sf --help              # all eight, explained
+sf --help              # all seven, explained
 sf plan:epic a record box for my diary entries
 sf plan:feature SF-12
 sf plan:task SF-31
 sf loop                # dispatch the tower in the current directory — Ctrl-C stops dispatching
 sf overseer            # read the tower and report on it — reads only, writes nothing
 sf commit save a diary entry   # stage everything, commit as agent:branch:message, push
-sf log write claims reason=dispatched   # one line in the run's own format
-sf hook stop           # the two worker hooks — you never type these: each worker agent
-sf hook fail           # registers them on its own Stop and StopFailure events
+sf hook stop           # the worker's Stop hook — you never type this: each worker agent
+                       # registers it on its own Stop event
 ```
-
-`sf log` is the logging door and has one verb, `write <tag> [detail...]`. The shape of a log line belongs to
-the CLI alone, so a hook or a script of your own says what happened through it instead of formatting one
-itself; the line's nine fields come from your own environment — export `SF_TICKET`, `SF_BRANCH` and the rest
-once and every line after carries them.
 
 ## The workflow
 
@@ -115,10 +109,11 @@ once and every line after carries them.
    own id, builds the worktree, and spawns the worker inside it. Every line it logs prints to your screen
    as it goes.
 3. **Workers commit as they go** with `sf commit`, and declare themselves done with a marker file. No worker
-   ever closes its own ticket — finishing it is the job of the two scripts in `CLI/src/agent-hooks/`: commit, push,
-   open the PR, close. No marker, nothing lands. Each of the seven worker agents registers those two scripts on
-   its own Stop and StopFailure events, from the `hooks:` block in its own frontmatter, so a worker's session
-   ending is what finishes its ticket. How a hook knows which ticket it stands for is
+   ever closes its own ticket — finishing it is the job of the one script in `CLI/src/agent-hooks/`: commit, push,
+   open the PR, close. No marker, nothing lands. Each of the seven worker agents registers that script on its own
+   Stop event, from the `hooks:` block in its own frontmatter, so a worker's session
+   ending is what finishes its ticket. `Stop` is the only event there is, so a worker killed mid-turn is nobody's
+   to find — `sf overseer` is the only thing that looks. How a hook knows which ticket it stands for is
    [`.claude/CLAUDE.md`](./.claude/CLAUDE.md)'s to say.
 4. **You close the gates** when a tier is proved, then run the loop again for the next tier. `sf overseer`
    tells you what is stuck and why, and hands you the command when the fix is a mutation.

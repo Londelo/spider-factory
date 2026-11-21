@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sf — the spider-factory CLI. Eight commands, all foreground, each one an engine beside it in CLI/src/.
+# sf — the spider-factory CLI. Seven commands, all foreground, each one an engine beside it in CLI/src/.
 #   Every command but bare `sf` refuses to run from outside the factory; bare `sf` goes anywhere.
 #   sf loop          the dispatcher, ../beads-loop/index.sh; Ctrl-C stops dispatching.
 #   sf plan:epic     the planner, ../plan-agent.sh, epic kind
@@ -7,8 +7,7 @@
 #   sf plan:task     the planner, ../plan-agent.sh, task kind
 #   sf overseer      the watcher, ../overseer-agent.sh; reads the run, writes nothing
 #   sf commit        the committer, ../commit.sh; stages everything, subject is agent:branch:message, then pushes
-#   sf log           the logger, ../log.sh; the only way anything outside CLI/src/ writes a log line
-#   sf hook          the two worker hooks, ../src/agent-hooks/; the name the worker agents' frontmatter calls
+#   sf hook          the worker's Stop hook, ../src/agent-hooks/; the name the worker agents' frontmatter calls
 #   SF_AGENT_COMMAND (claude) — the command every agent runs through, the planners, the watcher and the workers alike
 #   The contracts are .claude/CLAUDE.md §The dispatcher and §Plan agents.
 set -uo pipefail
@@ -35,11 +34,9 @@ sf — spider-factory CLI
   sf plan:task     run the task planner
   sf overseer      read the tower here and report on it — reads only
   sf commit        stage everything here, commit it, push the branch
-  sf log           write one line in the run's own format — see below
-  sf hook          run one of the two worker hooks — 'sf hook stop' finishes a worker's
-                   ticket, 'sf hook fail' parks a dead one. You never type these: each
-                   worker agent's frontmatter registers them on its own Stop and
-                   StopFailure events, and each one reads its own stdin.
+  sf hook          run the worker's Stop hook — 'sf hook stop' finishes a worker's ticket.
+                   You never type this: each worker agent's frontmatter registers it on its
+                   own Stop event, and it reads its own stdin.
 
 `sf loop` prints every tick, so the log is on screen the whole time. Ctrl-C stops
 dispatching — the tickets it claimed stay claimed, and any worker already spawning
@@ -69,19 +66,6 @@ typed it yourself, then the branch you are on, then your own line:
 
 It commits, then pushes the branch to origin.
 
-`sf log` is the logging door. The shape of a log line belongs to the CLI alone — anything outside it, a
-hook or a script of your own, says what happened and the CLI writes it in the run's own format, into
-`<log-dir>/<tag>`:
-
-  export SF_TICKET=SF-12 SF_BRANCH=feat/record-box
-  sf log write claims reason=dispatched
-
-The line carries nine fields, each read from its own environment variable — `SF_LOG_RUN` (or the name of
-the log directory), `SF_PROJECT_DIR`, `SF_TICKET`, `SF_LABEL`, `SF_AGENT`, `SF_BRANCH`, `SF_PR_TARGET`,
-`SF_SESSION`, `SF_WORKTREE`. Export them once at the top of your own process and every line after that
-carries them; one you never set comes out `-`. `SF_LOG_DIR` is where the lines go; `SF_LOG_QUIET=1` keeps
-them out of stdout and leaves them in the file.
-
 SF_AGENT_COMMAND (claude) — the command that runs an agent. Point it at your own
 build and the three planners and the loop's workers all run through that instead;
 it is split on spaces, so it may carry its own arguments. The loop also asks it for
@@ -106,9 +90,7 @@ locateEngines() {
     planner="$here/../src/plan-agent.sh"
     watcher="$here/../src/overseer-agent.sh"
     committer="$here/../src/commit.sh"
-    logger="$here/../src/log.sh"
     stopHook="$here/../src/agent-hooks/worker-stop.sh"
-    failHook="$here/../src/agent-hooks/worker-fail.sh"
 }
 
 requireEngine() {
@@ -155,12 +137,6 @@ dispatchOverseerAgent() {
     exec bash "$watcher" "$@"
 }
 
-dispatchLogger() {
-    requireInsideFactory
-    requireEngine "$logger"
-    exec bash "$logger" "$@"
-}
-
 dispatchHook() {
     local which="${1:-}"
     requireInsideFactory
@@ -169,12 +145,8 @@ dispatchHook() {
             requireEngine "$stopHook"
             exec bash "$stopHook"
             ;;
-        fail)
-            requireEngine "$failHook"
-            exec bash "$failHook"
-            ;;
         *)
-            die "unknown hook '$which' — there are two: 'sf hook stop' finishes a worker's ticket, 'sf hook fail' parks a dead one."
+            die "unknown hook '$which' — there is one: 'sf hook stop' finishes a worker's ticket."
             ;;
     esac
 }
@@ -194,7 +166,7 @@ openFactorySession() {
 }
 
 unknownCommand() {
-    die "unknown command '$1' — there are eight: 'sf loop', 'sf plan:epic', 'sf plan:feature', 'sf plan:task', 'sf overseer', 'sf commit', 'sf log', 'sf hook'. Try 'sf --help'."
+    die "unknown command '$1' — there are seven: 'sf loop', 'sf plan:epic', 'sf plan:feature', 'sf plan:task', 'sf overseer', 'sf commit', 'sf hook'. Try 'sf --help'."
 }
 
 runRequestedCommand() {
@@ -218,9 +190,6 @@ runRequestedCommand() {
             ;;
         commit)
             dispatchCommitter "${@:2}"
-            ;;
-        log)
-            dispatchLogger "${@:2}"
             ;;
         hook)
             dispatchHook "${@:2}"

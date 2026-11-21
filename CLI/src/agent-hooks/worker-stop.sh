@@ -19,11 +19,21 @@ export SF_LOG_QUIET=1
 source "$here/../user-env.sh"
 loadSpiderFactoryEnv
 source "$here/../forge.sh"
+source "$here/../../utils/logging.sh"
 
 claimsRoot="${SF_LOG_ROOT:-$HOME/.spider-factory/logs}"
 
+logLine() {
+    local tag="$1"
+    shift
+    logDir="${SF_LOG_DIR:-${SF_LOG_ROOT:-$HOME/.spider-factory/logs}}"
+    mkdir -p "$logDir" 2>/dev/null || return 0
+    takeLogFieldsFromEnvironment
+    writeLog "$tag" "$@"
+}
+
 alarmAndExit() {
-    sf log write errors "$1"
+    logLine errors "$1"
     exit 0
 }
 
@@ -270,7 +280,7 @@ if [[ "${SF_WORK_KIND:-task}" == gate ]]; then
         alarmAndExit "reason=pr-not-found forge=$forge msg=\"the lead agent stopped on a gate whose branch has no pull request at all, so there was nothing for it to merge and the gate stays claimed\""
     annotateTicketWithThePr || alarmAndExit "reason=ticket-not-annotated pr=$prUrl"
     closeTicketAsItsClaimant || alarmAndExit "reason=close-failed pr=$prUrl"
-    sf log write closes "url=$prUrl gate=true"
+    logLine closes "url=$prUrl gate=true"
     rm -f "$(contextFileForWorktree "$worktreeDir")"
     exit 0
 fi
@@ -286,6 +296,6 @@ prUrl="$(prUrlAlreadyOnBranch)"
 annotateTicketWithThePr || alarmAndExit "reason=ticket-not-annotated pr=$prUrl"
 closeTicketAsItsClaimant || alarmAndExit "reason=close-failed pr=$prUrl"
 
-sf log write closes "url=$prUrl"
+logLine closes "url=$prUrl"
 rm -f "$(contextFileForWorktree "$worktreeDir")"
 exit 0

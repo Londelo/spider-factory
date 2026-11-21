@@ -223,13 +223,13 @@ If nothing is missing, it says so and gets out of the way.
 """
     }
 
-    human -> machine.sfCli "sf · or one of its eight commands" {
+    human -> machine.sfCli "sf · or one of its seven commands" {
       title "Everything the machine can do goes through one command"
       notes """
-Eight commands, each one an engine file beside it — the eight are listed on the node itself. Bare `sf` opens a
+Seven commands, each one an engine file beside it — the seven are listed on the node itself. Bare `sf` opens a
 session at the factory root and is the only arm that answers from anywhere: every other one first refuses
 unless you are standing in the factory or anything nested under it, and names the root it wants. A word that is
-not one of the eight is refused by name rather than guessed at. Before any engine runs it checks that the engine
+not one of the seven is refused by name rather than guessed at. Before any engine runs it checks that the engine
 file is there; for `loop` it also checks this folder answers a ticket list.
 """
     }
@@ -727,7 +727,7 @@ closed nothing.
   dynamic view theLogs {
     title "Spider Factory/Walkthrough/3 · The run log — who writes what, and how to read a tower that is not moving"
 
-    include human, machine.dispatcher, beads, workers.engineer, stopHook, failHook, overseerAgent, logRun, logRun.*
+    include human, machine.dispatcher, beads, workers.engineer, stopHook, overseerAgent, logRun, logRun.*
 
     // ═ ACT I — one directory per run, and one line format that never varies
 
@@ -735,11 +735,13 @@ closed nothing.
       title "One folder per run, with every file made up front"
       notes """
 The files are created empty before anything happens, so a missing file and an empty file look alike and
-neither can hide a silent failure. The folder is named for when the run started, and every line of every file
-has one shape, built by one function the CLI owns alone: the loop sources it and holds its own fields in
-memory, and everything else — both hooks included — gets its line from the one verb `sf log write` and never
-sees the shape. Where that door's nine fields come from — the caller's own exported environment, the hooks
-rebuilding theirs off this session's claims line — is on the log folder itself.
+neither can hide a silent failure — with one exception, `failures`, which is seeded like the rest and has no
+writer at all. The folder is named for when the run started, and every line of every file
+has one shape, defined in one file the CLI owns alone, and **exactly two callers source it**: the loop, which
+holds its nine fields in process memory for the whole run, and the Stop hook, which fills the same nine from
+its own environment on every line. Nothing else sources it, and there is no logging command to go through —
+it was deleted, and the hook writes its lines itself. Where the hook's nine come from — this session's claims
+line, rebuilt before its first line — is on the log folder itself.
 """
       navigateTo theLoop
     }
@@ -827,14 +829,6 @@ than a task, and the receipt that the lead agent's merge landed.
 """
     }
 
-    failHook -> logRun.fFailures "FAILURES" {
-      title "What a session that died mid-turn left behind"
-      notes """
-Which state the ticket was in, what kind of failure the session reported, and the worker's last message. This is
-the only place any of that is recorded.
-"""
-    }
-
     machine.dispatcher -> logRun.fResults "RESULTS" {
       title "The tally, written once at the end"
       notes """
@@ -854,7 +848,7 @@ many tickets it claimed is the number that says whether the run did anything at 
 | Is it failing? | `errors` — empty means nothing is failing |
 | Why nothing claimed? | `waiting` — the reason, and how many workers are busy |
 | Did this ticket ship? | `claims`, then `closes`, then its `spawn-<ticket>` |
-| Why did this worker die? | `failures`, then `done-<ticket>` — no marker means it never said it was done |
+| Why did this worker die? | **nothing records it** — no hook fires when a session dies, so there is no line anywhere. The tell is the absence: a `claims` line, no `closes` line, no `done-<ticket>` marker, and a ticket still `in_progress` that no `bd ready` will ever name. `failures` is created and never written, so an empty one proves nothing. Ask the overseer; it runs that check and hands you `bd update <ticket> --status failed-agent` to run yourself |
 | Why won't my gate dispatch? | nothing at all is the tier's own switch being off; otherwise `waiting` for `gate_unworkable gate=<id> step=<why>`, then `errors` for `gate-claim-lost` and `worktree-failed step=gate` — all three name the gate, not a ticket |
 | Why is a ticket claimed and never worked? | `errors` for `no-epic-gate` or `gate-unworkable` — both print `ticket=<id>`, and both leave it claimed on purpose |
 """
@@ -903,9 +897,7 @@ acted on.
       human,
       machine.dispatcher,
       beads,
-      toolbelt.claudeCli,
       stopHook,
-      failHook,
       logRun.fErrors,
       alarms,
       alarms.startupAlarms,
@@ -914,8 +906,6 @@ acted on.
       alarms.tickAlarms.*,
       alarms.stopAlarms,
       alarms.stopAlarms.*,
-      alarms.failAlarms,
-      alarms.failAlarms.*,
       waiting,
       waiting.*
 
@@ -1243,44 +1233,7 @@ worker's real session id; when that id is stale, this is where it surfaces.
 """
     }
 
-    // ═ PART D — the session dies instead of finishing
-
-    toolbelt.claudeCli -> failHook "StopFailure — the reason arrives on input" {
-      title "A worker session dies instead of finishing"
-      notes """
-The frontmatter that binds this worker's `Stop` binds its `StopFailure` to `sf hook fail` beside it, and the event
-hands over what failed and the worker's last message — which for a local model is where the real error text is.
-Whether that event has ever actually been seen to fire is on the hook node itself, and nothing here claims it has.
-The reason goes on the ticket *before* its status changes. It is the same
-hook for a lead agent: a gate whose lead agent died is parked here too, in `failed-agent`, and a parked gate is no
-longer open — so it stops coming up ready and waits for a person, like any other dead worker's ticket.
-"""
-    }
-
-    failHook -> alarms.failAlarms.ticketNotFoundFail "ERROR reason=ticket-not-found" {
-      title "The ticket is gone, or is no longer this worker's"
-      notes """
-No state came back at all. Anything not in progress is left alone — a dead session must not rewrite a ticket
-another worker owns.
-"""
-    }
-
-    failHook -> alarms.failAlarms.failNotAnnotated "ERROR reason=ticket-not-annotated kind=unknown" {
-      title "The reason would not write, so the status is not touched"
-      notes """
-A ticket parked as failed with nothing said about why is worse than one left as it was.
-"""
-    }
-
-    failHook -> alarms.failAlarms.statusNotSet "ERROR reason=status-not-set from=in_progress" {
-      title "Looks like a live worker, and is a dead one"
-      notes """
-The reason is on the ticket but the status never changed, so it still reads as in progress and stays off the
-queue. Nothing here brings it back — the missing line in `failures` beside a parked ticket is how you catch it.
-"""
-    }
-
-    // ═ PART E — not failures: the ticks that had nothing to dispatch
+    // ═ PART D — not failures: the ticks that had nothing to dispatch
 
     machine.dispatcher -> waiting.maxParallel "WAITING … reason=max_parallel in_progress=4" {
       title "Four workers running, so this tick claims nothing"
@@ -1328,13 +1281,22 @@ dispatches it, so the loop writes this line once a minute and waits for a person
       navigateTo index
     }
 
-    // ═ PART F — where all of it lands
+    // ═ PART E — where all of it lands
 
     machine.dispatcher -> logRun.fErrors "ERROR … never rate-limited" {
       title "Every alarm lands in one file, whoever saw it"
       notes """
-The loop and both hooks write it, and unlike the waiting lines it is never capped. When the tower is stuck: the
+The loop and the Stop hook write it, and unlike the waiting lines it is never capped. When the tower is stuck: the
 waiting lines for the reason, this file for the refusal, then whether any session is even alive.
+
+**The one failure with no alarm at all is a session that dies.** `Stop` is the only event a worker agent binds,
+and there is no `StopFailure` event to bind — proven, not assumed: put both keys in one agent's frontmatter and
+`Stop` fires while the other is refused outright as an unknown event type. So a worker killed by an API error
+writes nothing here, nothing to `failures`, and nothing to the ticket: it simply stops heartbeating, stays
+`in_progress`, and never appears in `bd ready` again. A gate whose lead agent died reads exactly the same way.
+Nothing in this repo detects it, and nothing un-parks it — the overseer's check for a worker that died quietly is
+the only thing that finds one, and all it does is name the ticket and hand a person
+`bd update <ticket> --status failed-agent` to run themselves.
 """
       navigateTo theLogs
     }

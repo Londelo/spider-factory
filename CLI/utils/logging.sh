@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# logging.sh — the one definition of a log line, sourced by CLI/src/beads-loop/index.sh and by CLI/src/log.sh.
-#   Nothing outside CLI/src/ sources it: anything else that wants a line goes through `sf log`.
+# logging.sh — the one definition of a log line, sourced by CLI/src/beads-loop/index.sh and by
+#   CLI/src/agent-hooks/worker-stop.sh, and by nothing else. The engine seeds the fields once and carries
+#   them in process memory; a one-shot caller with no process fills them from its own environment with
+#   takeLogFieldsFromEnvironment.
 #   <tag padded to 8> <ISO time>\trun=… repo=… ticket=… label=… agent=… branch=… target=… session=… worktree=… <detail>
 #   The tag is also the file the line appends to under $logDir. Carry a value on every line with
 #   setLogField <key> <value>; pass anything one line only (a step, a gate, an exit code) to writeLog as detail.
@@ -43,6 +45,19 @@ clearLogFields() {
     for key in "${logFieldNames[@]}"; do
         [[ "$key" == run || "$key" == repo ]] || logFields["$key"]="-"
     done
+}
+
+takeLogFieldsFromEnvironment() {
+    blankLogFields
+    setLogField run "${SF_LOG_RUN:-$(basename "$logDir")}"
+    setLogField repo "${SF_PROJECT_DIR:-}"
+    setLogField ticket "${SF_TICKET:-}"
+    setLogField label "${SF_LABEL:-}"
+    setLogField agent "${SF_AGENT:-}"
+    setLogField branch "${SF_BRANCH:-}"
+    setLogField target "${SF_PR_TARGET:-}"
+    setLogField session "${SF_SESSION:-}"
+    setLogField worktree "${SF_WORKTREE:-}"
 }
 
 writeLog() {

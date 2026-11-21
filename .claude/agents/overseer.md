@@ -129,10 +129,12 @@ One directory per `sf loop` start. The loop prints it at startup: `beads-loop: l
 **Six files exist from the first tick** — `claims errors waiting results closes failures`. Anything else
 appears only when something happens to it: `spawn-<ticket>` and `done-<ticket>` per dispatched ticket
 (`/` → `+`), plus `bd-stderr` and `claude-stderr`, which are redirect targets and are *not* pre-created.
+`failures` is seeded with the other five and **written by nothing at all** — no hook fires when a session
+dies. An empty one is never an all-clear.
 
 ## The one line format
 
-Every line in all six files is written by the same function:
+Every line that is ever written is written by the same function:
 
 ```
 claims   2026-11-12T20:47:51	run=2026-11-12_20-47-45 repo=my-app ticket=F1-T3 label=backend-logic agent=engineer branch=feature/login target=epic/login session=9f2c1a worktree=/app/.claude/worktrees/feature+login reason=dispatched
@@ -140,7 +142,7 @@ claims   2026-11-12T20:47:51	run=2026-11-12_20-47-45 repo=my-app ticket=F1-T3 la
 
 `<tag padded to 8> <time>\t<nine keys> <detail>`. The nine keys are always present, in that order, `-`
 when unknown: `run repo ticket label agent branch target session worktree`. They are the join key — the
-same ticket appears in `claims`, `closes`, `failures` and its own `spawn-`/`done-` file, and the keys are
+same ticket appears in `claims`, `closes` and its own `spawn-`/`done-` file, and the keys are
 how you line those up. `run=` is the run directory's name; `session=` is the background agent's id — `claude logs <session>`
 prints what that worker has been saying, and `claude agents` lists every background session the loop has up.
 
@@ -190,8 +192,8 @@ The loop is alive and idle is not the same as stalled: `waiting` says which. A w
 
 ## Every alarm, and what it means
 
-Anything with a `reason=` in `errors` is a machine saying it refused to do something. `failures` holds
-one line per dead worker: `from=<state> kind=<error> msg="<its last words>"`.
+Anything with a `reason=` in `errors` is a machine saying it refused to do something. `failures` stays
+empty whatever happens: nothing runs when a worker dies, so a dead one leaves no line anywhere.
 
 | `reason=` | What actually happened | Tell the human |
 |---|---|---|
@@ -214,7 +216,6 @@ one line per dead worker: `from=<state> kind=<error> msg="<its last words>"`.
 | `commit-failed` · `push-failed` · `pr-not-created` · `ticket-not-annotated` · `close-failed` | the finish sequence stopped partway | the `msg=` carries the tool's own words |
 | `pr-not-found forge=…` | a **lead** stopped on a gate whose branch has no pull request at any state — there was nothing for it to merge | the tier's branch was never put up as a PR; the gate stays claimed. A lead merges an existing PR and never opens one |
 | `missing-tool` · `forge-unknown` · `no-worktree` · `no-branch` · `no-pr-target` · `ticket-has-no-title` | the hook refused before finishing | each `msg=` says what was missing |
-| `ticket-not-found` · `ticket-not-annotated` · `status-not-set` | the fail hook could not park a dead worker | `status-not-set` → `failed-agent` is not registered in *this* database |
 
 A ticket left **claimed** with no worker is deliberate, not a leak: an unworkable ticket is parked off
 the frontier rather than re-tried every tick.
@@ -238,8 +239,9 @@ Run these when the human asks you to spot trouble, or when a waiting reason does
 
 1. **A worker that died quietly.** `bd list --status in_progress` names a claimed ticket, but
    `$SF_AGENT_COMMAND agents --json` shows no background session whose `cwd` is that ticket's worktree,
-   and there is no `done-<ticket>` in the run dir. The StopFailure hook should have parked it in
-   `failed-agent`; if it is still `in_progress`, the park failed — look for `status-not-set`.
+   and there is no `done-<ticket>` in the run dir. Nothing parks it: no hook fires when a session dies, so
+   it sits `in_progress`, invisible to `bd ready`, until a person moves it. This check is the only thing
+   that finds one — say so and hand them `bd update <ticket> --status failed-agent` to run themselves.
 2. **A worktree registration that lies.** `git -C <tower> worktree list` is ground truth; a folder under
    `.claude/worktrees/` that is not in that list is a stray — the loop moves it aside and raises
    `worktree-folder-moved-aside` — and a listed worktree whose directory is gone is a dangling one.
@@ -263,7 +265,8 @@ Run these when the human asks you to spot trouble, or when a waiting reason does
 ## Report like this
 
 Four lines, no preamble: **run** (dir, started, alive yes/no, ticks, claims and tickets closed from `results`);
-**progress** (tier by tier, and the gate that is holding things); **health** (what is in `errors`/`failures`,
-each explained or flagged unexplained); **action** (the one thing to do, and who does it — you never do it).
+**progress** (tier by tier, and the gate that is holding things); **health** (what is in `errors`,
+each explained or flagged unexplained, and any `in_progress` ticket with no live session behind it);
+**action** (the one thing to do, and who does it — you never do it).
 
 If you cannot tell whether something is wrong, say that, and say what you read that left you unsure.

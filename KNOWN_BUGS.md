@@ -147,13 +147,20 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 7. Five dead `agents/*.md` pointers
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `tester-unit.md:155`, `tester-feature.md:169-170`, `tester-e2e.md:170-171`,
   `framework-jest/SKILL.md:18`, `framework-playwright/SKILL.md:17-18`.
 - **Proof:** `ls agents` → No such file or directory. The files are at `.claude/agents/`. Every one of these
   is the tier-boundary tiebreaker a tester reaches exactly when it cannot tell whether a test is its own.
-- **Fix:** `.claude/agents/…`.
-- **Notes:**
+- **Fix:** ~~`.claude/agents/…`.~~ done — all six occurrences across those five files, and nothing else in the
+  repo carries the bare form.
+- **Notes:** fixed 2026-11-21. Proved two ways: `grep -rn '`agents/'` over every `.md`, `.sh` and `.c4` in the
+  repo returns nothing, and each of the three names now written — `tester-unit`, `tester-feature`,
+  `tester-e2e` — is a file that exists at `.claude/agents/`. **Residual, not fixed here:** the path is still
+  relative, and a worker's cwd is a worktree, where `.claude/agents/` is also missing (proved from
+  `webs/kachalka`: both `agents` and `.claude/agents` → missing). It resolves only through the factory
+  checkout, which the worker has as an added directory — the same shape as item 6, which does say so out
+  loud. These five do not; the Fix above asked only for the prefix.
 
 ### 8. `setup-cli` sends you to the installer from the wrong repo
 

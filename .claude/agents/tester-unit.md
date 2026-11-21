@@ -152,7 +152,7 @@ own end of that:
 | Two functions cooperating correctly | `tester-feature` — never you, even if both are yours |
 | A hook's pure computation vs. its lifecycle | computation **you**; mount/effect wiring `tester-feature` |
 
-If you cannot tell whether a test is yours, read `agents/tester-feature.md` — the first table in it
+If you cannot tell whether a test is yours, read `.claude/agents/tester-feature.md` — the first table in it
 is the other half of this boundary.
 
 ## TypeScript vs. JavaScript

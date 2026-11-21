@@ -167,7 +167,7 @@ Both tiers below you are green before you start. Their green is your premise, no
 | Being logged in while using features B, C, D | **you** |
 | A payment gateway responding | **you** (it is third-party — mock it, with realistic fixtures) |
 
-If you cannot tell whether a test is yours, read `agents/tester-feature.md` — the tier directly
+If you cannot tell whether a test is yours, read `.claude/agents/tester-feature.md` — the tier directly
 below you is the one you most often overlap.
 
 ## Quality Standards

@@ -15,7 +15,7 @@ description: >
 
 This skill is the **tool**. It says how to write a Jest test. It never says *what* to test or *how
 much* to test — that is the tier's job, and this is the **micro** tier's tool: `tester-unit` is the only
-agent that loads it (`agents/tester-unit.md`). The composition and broad tiers load
+agent that loads it (`.claude/agents/tester-unit.md`). The composition and broad tiers load
 `framework-playwright`, not this one. When the tier and the tool disagree, the tier decides whether the
 test exists at all; this skill decides only how it is spelled.
 

@@ -166,8 +166,8 @@ The unit tier is finished before you start — its coverage is your foundation, 
 | Login, shared headers, app boot | `tester-e2e` (unless the feature *is* that) |
 | A component's styling, tokens, responsive variants | `tester-feature` **only** for visible state the feature promises (empty/loading/error); the visual spec itself is `frontend`'s build, not a test |
 
-If you cannot tell whether a test is yours, read `agents/tester-unit.md` and `agents/tester-e2e.md`
-— their first tables are the other two halves of this boundary.
+If you cannot tell whether a test is yours, read `.claude/agents/tester-unit.md` and
+`.claude/agents/tester-e2e.md` — their first tables are the other two halves of this boundary.
 
 ## Quality Standards
 

@@ -24,13 +24,15 @@ The files the diagrams describe: `CLI/bin/sf`, `CLI/src/beads-loop/` (`index.sh`
 the engine is a directory now, and a link into it must name the file that actually holds the code),
 `CLI/src/plan-agent.sh`,
 `CLI/src/overseer-agent.sh`, `CLI/src/commit.sh`, `CLI/src/log.sh` (the `sf log` door — the only way anything
-outside `CLI/src/` writes a log line), `CLI/utils/console.sh` (every word any of them says to a
+that is not the engine itself writes a log line), `CLI/utils/console.sh` (every word any of them says to a
 terminal, and the four reused refusals), `CLI/utils/logging.sh` (the one definition of a log line), `CLI/src/forge.sh`,
 `CLI/src/user-env.sh`, `scripts/clone-webs.sh`, `CLI/src/create-beads/*`, `CLI/install-cli.sh`,
 `CLI/uninstall-cli.sh`,
-`CLI/spider-factory.example.env`, `webs/webs.example.yml`, `.claude/hooks/worker-stop.sh`,
-`.claude/hooks/worker-fail.sh` (both scripts exist; neither is registered — there is no hooks.json and no
-`.claude/settings.json`), `.claude/agents/*`, `.claude/skills/*`.
+`CLI/spider-factory.example.env`, `webs/webs.example.yml`, `CLI/src/agent-hooks/worker-stop.sh`,
+`CLI/src/agent-hooks/worker-fail.sh` (two engines like every other one, located by `locateEngines` in `CLI/bin/sf`,
+and registered — by the `hooks:` frontmatter of the seven worker agents, which
+reaches them as `sf hook stop` and `sf hook fail`; there is no hooks.json and no `.claude/settings.json`),
+`.claude/agents/*`, `.claude/skills/*`.
 
 The layout behind that list: `CLI/src/` holds what `bin/sf` runs plus the concern files under each command,
 `CLI/utils/` the bash more than one command sources (`console.sh`, `logging.sh`), and `scripts/` what npm runs.

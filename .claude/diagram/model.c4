@@ -5,7 +5,7 @@ model {
   // Every value here was read off CLI/bin/sf, CLI/src/beads-loop/ (index.sh and the nine beside it),
   // CLI/utils/console.sh, CLI/utils/logging.sh, CLI/src/log.sh,
   // CLI/src/forge.sh, CLI/src/user-env.sh, scripts/clone-webs.sh, CLI/spider-factory.example.env,
-  // .claude/hooks/worker-stop.sh, .claude/hooks/worker-fail.sh.
+  // CLI/src/agent-hooks/worker-stop.sh, CLI/src/agent-hooks/worker-fail.sh.
   // The cast only: the story is told by the four walkthroughs in views.c4.
   // Rules for editing these files: ./REFERENCE.md — the code is the only source of truth.
   // ═════════════════════════════════════════════════════════════════════════════
@@ -13,8 +13,8 @@ model {
   machine = layer "The machine — one command in, background workers out" {
     summary "One command in, background workers out: the command, the setup skill, the webs cloner, the checks, the parameters, the dispatcher, the claim."
 
-    sfCli = cliTool "sf — the one command, and its seven" {
-      summary "The whole CLI: one bash file, seven commands, each one an engine beside it in CLI/src/. Every one but bare `sf` runs only from inside the factory."
+    sfCli = cliTool "sf — the one command, and its eight" {
+      summary "The whole CLI: one bash file, eight commands, each one an engine beside it. Every one but bare `sf` runs only from inside the factory."
       description """
 **What it is:** `CLI/bin/sf` — one bash file, no node. The installer puts a launcher for it at
 `~/.local/bin/sf`. Every command is an arm of one `case` block, and nothing else is reachable.
@@ -22,15 +22,17 @@ model {
 | You type | What runs |
 |---|---|
 | `sf` | an agent session through `SF_AGENT_COMMAND` (default `claude`), **from anywhere, always at the factory root** — already inside it, you stay put; anything you type after it goes to that session |
-| `sf --help` / `-h` / `help` | the usage block, from anywhere: the seven commands, the prompt forms, and where every setting lives |
+| `sf --help` / `-h` / `help` | the usage block, from anywhere: the eight commands, the prompt forms, and where every setting lives |
 | `sf loop` | `CLI/src/beads-loop/index.sh`, foreground — the dispatcher over the tower in the current directory |
 | `sf plan:epic` / `sf plan:feature` / `sf plan:task` | `CLI/src/plan-agent.sh` with that kind, and everything you typed after the command handed to it as the prompt |
 | `sf overseer` | `CLI/src/overseer-agent.sh`, foreground — the reader, `sf` denied to it |
 | `sf commit <line>` | `CLI/src/commit.sh` — the only thing that commits, anywhere |
-| `sf log write <tag> [detail…]` | `CLI/src/log.sh` — the logging door, and its **one** verb. Anything outside `CLI/src/` that wants a line comes through here; the nine fields on it come from the caller's own environment (they are listed on the run-log node) |
+| `sf log write <tag> [detail…]` | `CLI/src/log.sh` — the logging door, and its **one** verb. Anything that is not the engine itself that wants a line comes
+through here — the two hook scripts included, which sit in that folder but run as their own process; the nine fields on it come from the caller's own environment (they are listed on the run-log node) |
+| `sf hook stop` / `sf hook fail` | `CLI/src/agent-hooks/worker-stop.sh` and `worker-fail.sh` — the two worker hooks, engines beside every other one, located by `locateEngines` and execed through the same `requireEngine` check. Nobody types these: each of the seven worker agent files registers them on its own `Stop` and `StopFailure` events, and each reads its own stdin. A third word dies naming the two |
 
-**Three checks, and where each one lives.** `requireInsideFactory` is the first line of all five command
-dispatchers, so it is the first thing every one of the seven does: it matches `$PWD/` against
+**Three checks, and where each one lives.** `requireInsideFactory` is the first line of all six command
+dispatchers, so it is the first thing every one of the eight does: it matches `$PWD/` against
 `<factory root>/*`, the root being `CLI/bin/sf`'s own folder's parent — the root itself, or anything nested
 under it at any depth, passes; anything else dies naming the root and telling you to `cd` into it, and says
 bare `sf` opens a session from anywhere. Bare `sf` and `sf --help` never meet it — bare `sf` answers from
@@ -43,11 +45,12 @@ and the watcher each run their own inside their engine, and `commit` needs only 
 same requirement: the two hooks' `sf log write`, the worker's `sf commit` as it goes, and the Stop hook's.
 They all have it — the loop will only run a tower from inside the factory, and the worker, the hook and the
 tower all sit under that same root, the worktree being `<tower>/.claude/worktrees/…`. A person's own session
-outside the factory never trips it either: both hooks leave at once when no claims line names their session,
-before either reaches the CLI.
+never reaches either hook at all, wherever it stands: the two events are bound in the seven worker agents' own
+frontmatter, and a plain session is run as none of the seven. Only a session that reaches a hook as one of those
+seven does, and it always stands in that hook's own worktree.
 
 **What is not a command.** Anything starting with `-` is not a command at all — it goes to the bare session as
-arguments. Anything else unknown is refused **by name**, with the seven listed and `Try 'sf --help'` under it,
+arguments. Anything else unknown is refused **by name**, with the eight listed and `Try 'sf --help'` under it,
 exit 1 — and `sf log` refuses anything but its one verb the same way, naming it and saying `there is one:
 'sf log write <tag> [detail...]'`. There is no webs command: the
 cloner beside this one is an npm script, not a `sf` one.
@@ -78,7 +81,7 @@ prints the exact `export PATH=` line your shell profile is missing.
 
 **Its second write:** `CLI/spider-factory.example.env` copied to `CLI/spider-factory.env`, the run's
 parameters at their defaults — yours to edit by hand. The installer touches that file only when it does
-not exist; delete it to get the defaults back. The seven commands themselves belong to the node above.
+not exist; delete it to get the defaults back. The eight commands themselves belong to the node above.
 
 **Nothing here runs the loop.** The skill's whole job is to make `sf loop` reachable.
 """
@@ -466,16 +469,23 @@ hook refuses to land anything without it.
   }
 
   stopHook = hook "worker-stop.sh — the Stop hook, fail-closed" {
-    summary "The closer, unregistered today: commit, push, the branch's pull request, close — and it refuses eighteen ways first."
+    summary "The closer, registered by each worker agent's own frontmatter: commit, push, the branch's PR, close — eighteen refusals first."
     description """
-**What it is:** the closer — a script that exists but nothing runs yet. It sits at `.claude/hooks/worker-stop.sh`
-and implements the whole finish below, but **nothing registers it**: the old `.claude/hooks/hooks.json` has been
-deleted, project hooks load only from a `.claude/settings.json`, and no `Stop` registration exists anywhere in
-the repo — until one is added, this script never fires. What *would* tell a dispatched worker apart from
-everything else is the `claims` line that names this session id: a session with no dispatched claims line leaves
-at once, silently, and writes nothing anywhere. Never the cwd — the hook input's `.cwd` is not evidence of
-anything, because `claude --bg` pools the worker into a process that took neither the spawn's environment nor
-its directory.
+**What it is:** the closer, and **it runs**. It sits at `CLI/src/agent-hooks/worker-stop.sh`, an engine beside every
+other one that `bin/sf` locates and execs, and implements the whole
+finish below. The registration is in the agent files themselves: each of the **seven worker agents** —
+`engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`, `review`, `lead` — carries a `hooks:` block
+in its YAML frontmatter binding `Stop` → `sf hook stop` (timeout 300), and the harness reaches this script through
+that command, the eighth arm of `sf`. There is no `hooks.json` — that file is gone — and no
+`.claude/settings.json` registers anything: an agent's own frontmatter is the only wiring. `overseer.md` and the
+three `plan-*.md` agents deliberately carry no such block, so a session run as one of those four never fires it.
+The event that arrives is **`Stop`, not `SubagentStop`**: `claude --bg --agent <name>` is a top-level session with
+an agent attached, not a subagent, which is why the binding sits under `Stop:`.
+
+What tells a dispatched worker apart from everything else is the `claims` line that names this session id: a
+session with no dispatched claims line leaves at once, silently, and writes nothing anywhere. Never the cwd — the
+hook input's `.cwd` is not evidence of anything, because `claude --bg` pools the worker into a process that took
+neither the spawn's environment nor its directory.
 
 ```
 worker says it is done → `sf commit` onto its feature's branch → push → the branch's PR →
@@ -512,15 +522,21 @@ the gate with the url, closes the **gate** as its claimant, writes `closes url=�
 context file and exits. **It never opens a new PR on the gate path** — the lead agent merged the branch
 through the forge, and a second PR off a merged branch is a lie about work nobody did.
 """
-    link https://github.com/Londelo/spider-factory/blob/main/.claude/hooks/worker-stop.sh "Source — .claude/hooks/worker-stop.sh"
+    link https://github.com/Londelo/spider-factory/blob/main/CLI/src/agent-hooks/worker-stop.sh "Source — CLI/src/agent-hooks/worker-stop.sh"
   }
 
   failHook = hook "worker-fail.sh — the StopFailure hook" {
-    summary "Unregistered like its sibling: what would run when a worker's session dies mid-turn — the reason onto the ticket, then park it."
+    summary "Registered beside its sibling on StopFailure, but never observed firing: the reason onto the ticket, then park it in `failed-agent`."
     description """
-**What it is:** what would happen when a worker's session dies on an API error mid-turn. The script for the
-harness's `StopFailure` event, **unregistered exactly like the Stop hook**: `.claude/hooks/hooks.json` is gone,
-no `.claude/settings.json` registers it, so nothing fires it today.
+**What it is:** what happens when a worker's session dies on an API error mid-turn. Registered exactly like the
+Stop hook, one event over: each of the **seven worker agents** binds `StopFailure` → `sf hook fail` (timeout 60)
+in its own frontmatter, and the harness reaches this script through that command. No `hooks.json`, no
+`.claude/settings.json` — the agent file is the wiring, same as its sibling.
+
+**What is actually known, not assumed:** the `Stop` half has been proven to fire under the loop's own spawn form;
+**this half never has been.** No test has yet killed a worker session on an API error, so nothing here has been
+observed happening. It is wired identically and is written for the harness's own `StopFailure` event — read what
+follows as the script's contract, not as a behaviour a run has demonstrated.
 A dead worker stops heartbeating and its lease lapses — and nothing in this repo runs `bd reclaim`, so an
 unwatched lapse simply leaves the ticket parked `in_progress`, invisible to `bd ready`, until a person moves
 it. This hook takes the ticket somewhere a human will see it, with the reason attached, on purpose.
@@ -540,7 +556,7 @@ inference, typically an `API Error:` line from the proxy). The reason is written
 a ticket parked in failure with nothing said about why is worse than one left `in_progress`. Every step is
 *attempted, never forced*: one that fails leaves the ticket exactly where it was and logs why.
 """
-    link https://github.com/Londelo/spider-factory/blob/main/.claude/hooks/worker-fail.sh "Source — .claude/hooks/worker-fail.sh"
+    link https://github.com/Londelo/spider-factory/blob/main/CLI/src/agent-hooks/worker-fail.sh "Source — CLI/src/agent-hooks/worker-fail.sh"
   }
 
   overseerAgent = worker "overseer — the reader, never the hand" {
@@ -775,6 +791,11 @@ when the brief is genuinely complete. The `lead` agent states the same rules ins
 rules rather than in a section of that name — `bd heartbeat <gate>`, never `bd close` not even its own, spawn
 nothing, `touch $SF_DONE_FILE` last. No skill holds these rules; the loop's spawn prompt repeats them, which is the
 safety net for a worker run outside the loop.
+
+**The same file holds the hook registration.** Each of these seven agent files carries a `hooks:` block in its own
+YAML frontmatter binding `Stop` and `StopFailure` to `sf hook stop` and `sf hook fail` — that block, and nothing
+else, is what makes a worker's session ending finish the work. The overseer and the three plan agents carry none,
+so their sessions fire neither hook; the mechanism is on the two hook nodes.
 
 **The five that build, commit as they go.** `engineer`, `frontend`, `tester-unit`, `tester-feature` and
 `tester-e2e` each carry a `## Commit As You Go` section running `SF_AGENT=<agent> sf commit <what you just

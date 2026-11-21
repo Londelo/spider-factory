@@ -2,9 +2,11 @@
 # worker-stop.sh — the Stop hook that finishes a dispatched worker's ticket: guard, commit through
 # `sf commit`, push, the branch's PR, annotate, close. FAIL-CLOSED on $SF_DONE_FILE — no marker, nothing
 # lands, the ticket stays claimed, ERROR reason=not-declared-done (.claude/CLAUDE.md
-# §The dispatcher). The hook finds its worker by SESSION ID, never by cwd: `claude --bg` hands the worker a
-# pooled process that inherited neither the spawn's environment nor its working directory, so the cwd the
-# hook input carries is not evidence of anything. The record of the dispatch is the claims line the loop
+# §The dispatcher). Registered as the `Stop` hook in the frontmatter of the seven worker agents, which
+# reaches this file as `sf hook stop`; nothing else calls it. The hook finds its worker by SESSION
+# ID, never by cwd: `claude --bg` hands the worker a pooled process whose environment was frozen by the
+# daemon at its first spawn, so neither the spawn's `SF_*` nor the cwd the hook input carries is evidence
+# of anything. The record of the dispatch is the claims line the loop
 # wrote at $SF_LOG_ROOT/<run>/claims — ticket, branch, target, worktree and run all come off that line, and
 # $SF_DONE_FILE is rebuilt from it as $SF_LOG_ROOT/<run>/done-<ticket>. The dispatch context under
 # $SF_LOG_ROOT/worker-context/, keyed by the worktree's folder name (`/` as `+`), is read only as a fallback
@@ -14,9 +16,9 @@ set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export SF_LOG_QUIET=1
-source "$here/../CLI/src/user-env.sh"
+source "$here/../user-env.sh"
 loadSpiderFactoryEnv
-source "$here/../CLI/src/forge.sh"
+source "$here/../forge.sh"
 
 claimsRoot="${SF_LOG_ROOT:-$HOME/.spider-factory/logs}"
 

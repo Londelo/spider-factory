@@ -2,9 +2,10 @@
 # worker-fail.sh — the StopFailure hook: a dispatched worker's session died on an API error.
 # Parks its ticket in failed-agent with the reason appended and raises the failures line, out of
 # reach of `bd reclaim`. Every step is attempted, never forced, and the hook never blocks a session.
-# The hook finds its worker by SESSION ID, never by cwd: `claude --bg` runs the worker in a pooled
-# process that inherited neither the spawn's environment nor its working directory, so the cwd the hook
-# input carries proves nothing. The record of the dispatch is the claims line the loop wrote at
+# Registered as the `StopFailure` hook in the frontmatter of the seven worker agents, which reaches this
+# file as `sf hook fail`; nothing else calls it. The hook finds its worker by SESSION ID, never by cwd:
+# `claude --bg` runs the worker in a pooled process whose environment was frozen by the daemon at its
+# first spawn, so neither the spawn's `SF_*` nor the cwd the hook input carries proves anything. The record of the dispatch is the claims line the loop wrote at
 # $SF_LOG_ROOT/<run>/claims — ticket, branch, target, worktree and run all come off that line. The
 # dispatch context under $SF_LOG_ROOT/worker-context/, keyed by the worktree's folder name (`/` as `+`),
 # is read only as a fallback for what a thin claims line omits. A session with no dispatched claims line
@@ -13,7 +14,7 @@ set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export SF_LOG_QUIET=1
-source "$here/../CLI/src/user-env.sh"
+source "$here/../user-env.sh"
 loadSpiderFactoryEnv
 
 claimsRoot="${SF_LOG_ROOT:-$HOME/.spider-factory/logs}"

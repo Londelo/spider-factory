@@ -3,6 +3,17 @@ name: review
 color: purple
 description: "Reads its ticket and the tickets around it, reads the diff it was handed, maps the whole system the change touches, instruments that system with trace logs, runs the tests against the instrumented code, then answers three questions from first principles — does the code do what its source of truth demands, do the tests actually prove it, and is it simple and readable. Posts what it finds as comments on the pull request, then hands each finding once to the one agent that owns that kind of fix — engineer, frontend, or the test tier matching the depth of the gap — and stops there without re-judging their work. Files no tickets, and commits or pushes nothing — the trace logs stay in the working tree. Triggers: \"review\", \"hey review\", \"do a code review\", \"run the review\", \"review this branch\", \"review this PR\"."
 tools: Read, Write, Edit, Grep, Glob, Bash, Skill, Agent
+hooks:
+  Stop:
+    - hooks:
+        - type: command
+          command: "sf hook stop"
+          timeout: 300
+  StopFailure:
+    - hooks:
+        - type: command
+          command: "sf hook fail"
+          timeout: 60
 ---
 
 # Review Agent

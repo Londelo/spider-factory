@@ -223,13 +223,13 @@ If nothing is missing, it says so and gets out of the way.
 """
     }
 
-    human -> machine.sfCli "sf · or one of its seven commands" {
+    human -> machine.sfCli "sf · or one of its eight commands" {
       title "Everything the machine can do goes through one command"
       notes """
-Seven commands, each one an engine file beside it — the seven are listed on the node itself. Bare `sf` opens a
+Eight commands, each one an engine file beside it — the eight are listed on the node itself. Bare `sf` opens a
 session at the factory root and is the only arm that answers from anywhere: every other one first refuses
 unless you are standing in the factory or anything nested under it, and names the root it wants. A word that is
-not one of the seven is refused by name rather than guessed at. Before any engine runs it checks that the engine
+not one of the eight is refused by name rather than guessed at. Before any engine runs it checks that the engine
 file is there; for `loop` it also checks this folder answers a ticket list.
 """
     }
@@ -401,8 +401,9 @@ Closing is somebody else's job.
       title "The worker's last act is to say it is finished"
       notes """
 The loop deleted the marker before this session started, so only this session could have made it.
-If the marker exists, the hook runs — what it does when it fires is the next three arrows. Whether anything
-registers either hook script today is on the hook nodes themselves.
+This agent's own `hooks:` frontmatter binds its `Stop` event to `sf hook stop`, so simply ending the session is
+what runs the hook — the mechanism is on the hook node itself.
+If the marker exists, the hook runs — what it does is the next three arrows.
 If it does not, the hook commits nothing, pushes nothing, opens nothing and closes nothing.
 """
     }
@@ -1247,9 +1248,10 @@ worker's real session id; when that id is stale, this is where it surfaces.
     toolbelt.claudeCli -> failHook "StopFailure — the reason arrives on input" {
       title "A worker session dies instead of finishing"
       notes """
-This script is written for the harness's own `StopFailure` event, which hands over what failed and the worker's
-last message — which for a local model is where the real error text is; nothing registers the script today, and
-the hook node owns that fact. The reason goes on the ticket *before* its status changes. It is the same
+The frontmatter that binds this worker's `Stop` binds its `StopFailure` to `sf hook fail` beside it, and the event
+hands over what failed and the worker's last message — which for a local model is where the real error text is.
+Whether that event has ever actually been seen to fire is on the hook node itself, and nothing here claims it has.
+The reason goes on the ticket *before* its status changes. It is the same
 hook for a lead agent: a gate whose lead agent died is parked here too, in `failed-agent`, and a parked gate is no
 longer open — so it stops coming up ready and waits for a person, like any other dead worker's ticket.
 """

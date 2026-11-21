@@ -6,6 +6,17 @@ tools: Read, Write, Edit, Grep, Glob, Bash
 skills:
   - bead-read
   - bead-comment
+hooks:
+  Stop:
+    - hooks:
+        - type: command
+          command: "sf hook stop"
+          timeout: 300
+  StopFailure:
+    - hooks:
+        - type: command
+          command: "sf hook fail"
+          timeout: 60
 ---
 
 # Lead Agent

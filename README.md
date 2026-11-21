@@ -82,13 +82,13 @@ the shipped one back.
 
 ## The CLI
 
-Seven commands. Every one but bare `sf` runs only from inside this repo — anywhere under it, at any depth. On
+Eight commands. Every one but bare `sf` runs only from inside this repo — anywhere under it, at any depth. On
 top of that, the loop, the three planners and the watcher run from inside a tower project; `sf commit` only needs
 a git repo.
 
 ```bash
 sf                     # open an agent session at the factory root
-sf --help              # all seven, explained
+sf --help              # all eight, explained
 sf plan:epic a record box for my diary entries
 sf plan:feature SF-12
 sf plan:task SF-31
@@ -96,6 +96,8 @@ sf loop                # dispatch the tower in the current directory — Ctrl-C 
 sf overseer            # read the tower and report on it — reads only, writes nothing
 sf commit save a diary entry   # stage everything, commit as agent:branch:message, push
 sf log write claims reason=dispatched   # one line in the run's own format
+sf hook stop           # the two worker hooks — you never type these: each worker agent
+sf hook fail           # registers them on its own Stop and StopFailure events
 ```
 
 `sf log` is the logging door and has one verb, `write <tag> [detail...]`. The shape of a log line belongs to
@@ -113,9 +115,11 @@ once and every line after carries them.
    own id, builds the worktree, and spawns the worker inside it. Every line it logs prints to your screen
    as it goes.
 3. **Workers commit as they go** with `sf commit`, and declare themselves done with a marker file. No worker
-   ever closes its own ticket — finishing it is the job of the two scripts in `.claude/hooks/`: commit, push,
-   open the PR, close. No marker, nothing lands. **Those two scripts are not registered with anything
-   today** — what that means for a run is `.claude/CLAUDE.md`'s to say.
+   ever closes its own ticket — finishing it is the job of the two scripts in `CLI/src/agent-hooks/`: commit, push,
+   open the PR, close. No marker, nothing lands. Each of the seven worker agents registers those two scripts on
+   its own Stop and StopFailure events, from the `hooks:` block in its own frontmatter, so a worker's session
+   ending is what finishes its ticket. How a hook knows which ticket it stands for is
+   [`.claude/CLAUDE.md`](./.claude/CLAUDE.md)'s to say.
 4. **You close the gates** when a tier is proved, then run the loop again for the next tier. `sf overseer`
    tells you what is stuck and why, and hands you the command when the fix is a mutation.
 

@@ -10,6 +10,17 @@ skills:
   - standards-errors
   - standards-file-organization
   - standards-naming
+hooks:
+  Stop:
+    - hooks:
+        - type: command
+          command: "sf hook stop"
+          timeout: 300
+  StopFailure:
+    - hooks:
+        - type: command
+          command: "sf hook fail"
+          timeout: 60
 ---
 
 ## Role

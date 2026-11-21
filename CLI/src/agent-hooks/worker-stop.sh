@@ -5,8 +5,10 @@
 # §The dispatcher). Registered as the `Stop` hook in the frontmatter of the seven worker agents, which
 # reaches this file as `sf hook stop`; nothing else calls it. The hook finds its worker by SESSION
 # ID, never by cwd: `claude --bg` hands the worker a pooled process whose environment was frozen by the
-# daemon at its first spawn, so neither the spawn's `SF_*` nor the cwd the hook input carries is evidence
-# of anything. The record of the dispatch is the claims line the loop
+# daemon at its first spawn, so the `SF_*` reaching this hook is whatever the first worker of the run had.
+# The cwd is not frozen — a claimed spare is chdir'd to the spawn's cwd, so `$PWD` and the hook input's
+# `cwd` are the worktree — but a worktree belongs to a branch and not to a ticket, so it names nothing
+# here. The record of the dispatch is the claims line the loop
 # wrote at $SF_LOG_ROOT/<run>/claims — ticket, branch, target, worktree and run all come off that line, and
 # $SF_DONE_FILE is rebuilt from it as $SF_LOG_ROOT/<run>/done-<ticket>. The dispatch context under
 # $SF_LOG_ROOT/worker-context/, keyed by the worktree's folder name (`/` as `+`), is read only as a fallback

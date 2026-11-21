@@ -209,8 +209,10 @@ the *branch*, not the ticket.
   `StopFailure:` block back: the harness refuses the key, and the loop's `sf hook` has no arm for it.
 - **A hook never reads its worker off its own environment or its cwd.** `claude --bg` runs every session through
   one shared daemon that freezes the **first** spawn's environment, and every later session and every hook it runs
-  inherits that frozen copy — so `SF_TICKET` in a hook is whatever the first worker of the run was, and the hook
-  input's cwd is a pooled process's cwd, not the worktree's. The hook takes the session id from its own stdin
+  inherits that frozen copy — so `SF_TICKET` in a hook is whatever the first worker of the run was. The cwd is
+  **not** frozen: a claimed spare is chdir'd to the spawn's cwd, so `$PWD` and the hook input's `cwd` are the
+  worktree — proven in both pool states on 2026-11-21 — but a worktree belongs to a branch and not to a ticket,
+  so it names nothing. The hook takes the session id from its own stdin
   JSON and looks up that worker's `reason=dispatched` claims line; anything else commits, pushes and closes the
   wrong ticket.
 - **No `parent-child` edge, and no `--parent`, anywhere.** The tower is `blocks` edges only. Parenthood is

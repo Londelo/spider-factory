@@ -300,10 +300,12 @@ lead agent is reached by the gate dispatch, not by a key of this map.
       description """
 Set on the `$SF_AGENT_LAUNCH_COMMAND --bg` line and nothing else; they are the values the finish needs, and the same
 eight names the log line carries. **The hook does not read them from here.** `claude --bg` hands the worker a
-pooled process that inherited neither this environment nor its working directory, so the hook rebuilds every
-one of them from the dispatched claims line — the context file only as a fallback — and exports them into its
-own process before it writes anything (the run-log node owns that mechanism). What the hook cannot rebuild, it
-refuses: no ticket or no run is `reason=claim-malformed`, no branch `reason=no-branch`, no target
+pooled process whose environment the daemon froze at the run's first spawn, so every later session and every hook
+inherits that first worker's copy — the hook rebuilds every one of them from the dispatched claims line, the
+context file only as a fallback, and exports them into its own process before it writes anything (the run-log node
+owns that mechanism). The working directory is the one thing it does inherit true: a claimed spare is chdir'd to
+the spawn's cwd, so the hook stands in the worktree — but a worktree belongs to a branch and not to a ticket, so
+it identifies nothing. What the hook cannot rebuild, it refuses: no ticket or no run is `reason=claim-malformed`, no branch `reason=no-branch`, no target
 `reason=no-pr-target`, and the ticket stays claimed.
 
 | Var | Value | Who reads it |
@@ -383,8 +385,8 @@ Those nine come from **one variable per key**: `SF_LOG_RUN` (falling back to the
 out `-`. Nothing carries from one process to the next — two shells are two environments — so the hook sets them
 where it sets everything else: off the dispatched claims line it just matched to this session, with the dispatch
 context file as the fallback for what a thin line omits — it cannot inherit them from the worker, because
-`claude --bg` runs the worker in a pooled process that took neither the spawn's environment nor its working
-directory. The loop does set most of the same names on the `--bg` line itself (the eight on the spawn node) —
+`claude --bg` runs the worker in a pooled process whose environment the daemon froze at the run's first spawn.
+The loop does set most of the same names on the `--bg` line itself (the eight on the spawn node) —
 see that node for what they are for. The directory the lines land in is `SF_LOG_DIR`, falling back to
 `SF_LOG_ROOT` and then the default.
 
@@ -509,8 +511,8 @@ an agent attached, not a subagent, which is why the binding sits under `Stop:`.
 
 What tells a dispatched worker apart from everything else is the `claims` line that names this session id: a
 session with no dispatched claims line leaves at once, silently, and writes nothing anywhere. Never the cwd — the
-hook input's `.cwd` is not evidence of anything, because `claude --bg` pools the worker into a process that took
-neither the spawn's environment nor its directory.
+hook input's `.cwd` is the worktree and is real, a claimed spare being chdir'd to the spawn's cwd, but a worktree
+belongs to a branch and not to a ticket, so it identifies no worker.
 
 ```
 worker says it is done → `sf commit` onto its feature's branch → push → the branch's PR →

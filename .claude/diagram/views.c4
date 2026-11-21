@@ -365,9 +365,10 @@ you can still attach to it, read it, or stop it later.
       notes """
 Eight settings go in with the session: which ticket, which branch, which target, which worker and label, where
 the tower is, where the run's log is, where the done marker goes. The hook that finishes the work does not read
-them from here — it rebuilds every one from this session's claims line, because the background session is
-pooled and took neither this environment nor this folder. What the hook cannot rebuild it refuses, and the
-ticket stays claimed.
+them from here — it rebuilds every one from this session's claims line, because the background session is pooled
+and the daemon froze its environment at the run's first spawn. The folder it stands in is the worktree and is
+real, but a folder belongs to a branch and not to a ticket, so it names no worker. What the hook cannot rebuild it
+refuses, and the ticket stays claimed.
 The eight are listed on the node itself.
 """
     }

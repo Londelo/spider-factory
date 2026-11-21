@@ -319,13 +319,19 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 15. `sf commit` sweeps review's findings file onto the feature branch
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `CLI/src/commit.sh:39` — `git add -A`.
 - **Proof:** `review.md:57` and `:306` tell review to leave the findings file in the working tree, and
   `review.md:287` has each fixer run `sf commit` in that same worktree. Review's own rule is "They commit;
   you commit nothing" (`:289`), so it can never take the file back out.
 - **Fix:** have review write findings under a gitignored path.
-- **Notes:** we should no longer be adding a review file at all. we post all our review findings to the PR, then spawn workr agents to fix then, then finally the review agent resolved the comment and stops
+- **Notes:** the fix is not a gitignored path — review writes no findings file at all. Findings go to the PR
+  and nowhere else, then the fixers run, then review resolves the threads whose fixes landed and stops.
+  `git add -A` stays as it is. Done 2026-11-21: `review.md` loses both findings-file paths (the standing rule
+  and the no-PR fallback) and gains a close-out step that resolves only its own threads, leaving open the
+  ones whose fixer came back wrong or disputed; `pr-comments` loses its write-a-file fallback, drops resolve
+  from the never-do list, and gains the real resolve calls for both forges. Approve and merge stay the
+  human's.
 
 ---
 

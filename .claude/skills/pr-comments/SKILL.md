@@ -32,9 +32,11 @@ Run them from where you are standing. A `gh`, `glab` or `git` command run by abs
 the worktree, resolves against the wrong repository and will happily post your finding to a stranger's PR.
 
 **If any check fails, do not improvise.** There is no fallback that puts a finding on a PR that does not
-exist. Write the findings to a file in your worktree, name the file and its full path in your final
-message, and say plainly that you found no PR to post to. A finding nobody reads is a failure; a finding
-posted to the wrong place is a lie.
+exist, and **there is no findings file** — never write one into the worktree. `sf commit` runs `git add -A`,
+so anything you leave in the tree rides onto the branch you are supposed to be judging. Report the failure
+in your final message instead, naming each finding you could not post and why, and say plainly that you
+found no PR to post to. A finding nobody reads is a failure; a finding posted to the wrong place is a lie,
+and a finding committed onto the branch under review is both.
 
 ## Which forge
 
@@ -113,8 +115,30 @@ a comment.
 | Revise your own last one | `gh pr comment --edit-last --create-if-none --body-file <file>` | `glab mr note update` |
 | Take it back | `gh pr comment --delete-last --yes` | `glab mr note delete` |
 
-GitLab has no neutral-review verb — a note *is* the review. Post the whole picture as one note and do not
-approve, resolve, or merge; those are decisions for the human who reads your report.
+GitLab has no neutral-review verb — a note *is* the review. Post the whole picture as one note.
+
+**Never approve and never merge** — those are decisions for the human who reads your report. **Resolving is
+yours**, and only for the comments you posted yourself, once the fix you asked for has actually landed:
+
+```bash
+# GitHub — a thread is resolved by its node id, never by the comment id
+gh api graphql -f query='
+  mutation ($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' \
+  -f id="$threadId"
+# the ids come from the same query, read first:
+gh api graphql -f query='
+  query ($owner: String!, $repo: String!, $n: Int!) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $n) { reviewThreads { nodes { id isResolved } } } } }' \
+  -f owner="$owner" -f repo="$repo" -F n="$number"
+
+# GitLab — a discussion is resolved through the REST API; glab has no resolve verb
+glab api --method PUT "projects/:id/merge_requests/$iid/discussions/$discussionId" -f resolved=true
+```
+
+Confirm the shape with `gh api --help` or `glab api --help` before you fire it — a resolve call that
+silently no-ops leaves a finding hanging open that the board says is closed. Resolve only what you posted,
+only after the fix is on the branch, and never a comment somebody else wrote.
 
 `gh pr review --comment` files it as neutral so it never accidentally certifies the branch.
 

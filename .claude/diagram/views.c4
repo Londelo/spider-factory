@@ -216,7 +216,8 @@ gates wait for a person. The database is all the loop ever reads.
       notes """
 No agent and no skill stands between you and the command: one bash script, run by hand, and the two things
 it writes are on the node. If the parameters file does not exist yet it writes it from the shipped example;
-if it already exists, your edits survive the run. If `~/.local/bin` is not on your path it prints the profile
+if it already exists, your edits survive the run — and it is still **read**, so every key the example carries that
+your kept file lacks is counted and named, the ways out included. If `~/.local/bin` is not on your path it prints the profile
 line you are missing instead of installing something you cannot reach. Re-running it is how you repoint the
 launcher after moving the repo; `CLI/uninstall-cli.sh` takes that launcher off again and touches nothing else.
 """
@@ -374,18 +375,19 @@ The eight are listed on the node itself.
     }
 
     toolbelt.claudeCli -> workers.engineer "the rules arrive with the brief" {
-      title "The worker's prompt is three rules and an order to read its ticket"
+      title "The worker's prompt is four rules and an order to read its ticket"
       notes """
 The whole prompt is short: the ticket id, an order to read that ticket back in full as its complete brief, a
-paragraph saying this folder is the worktree of a branch every task of the feature shares, and then exactly three
-numbered rules — keep the lease alive with a heartbeat, never close your own ticket because the hook below closes
-it once you say you are done, and stay on this branch in this folder, committing as you go and leaving nothing
-for a bare `git commit` or `git push`. The numbers run 1, 2, 5: two rules were cut and nothing renumbered the
-rest.
+paragraph saying this folder is the worktree of a branch every task of the feature shares, and then exactly four
+numbered rules, **1 to 4 with no gaps** — ground every beads command before you run it, because `bd` finds its
+database by walking **up** from wherever you are standing, so run `bd where` and `cd '$SF_PROJECT_DIR'` if it names
+somebody else's tower; keep the lease alive with a heartbeat; never close your own ticket, because the hook below
+closes it once you say you are done; and stay on this branch in this folder, committing as you go and leaving nothing
+for a bare `git commit` or `git push`.
 What is still nowhere in this prompt — saying what is left, starting no other workers, and the done marker
 itself — lives only in the worker's own agent file, which the session loaded when it started. What the brief
 sends, line by line, is on the workers layer.
-The lead agent's brief is the same three rules, its fifth rewritten for a gate: verify the tier, then merge this
+The lead agent's brief is the same four rules, its fourth rewritten for a gate: verify the tier, then merge this
 branch's own pull request through the forge.
 """
     }
@@ -647,8 +649,10 @@ Any one missing: no done marker, the gate stays claimed, and a human is told whi
       notes """
 The target is the gate's **`prTarget`** — `epic/record-box` here, read off the epic gate its own id names — and
 the forge does the merge. A local
-`git merge origin/<prTarget>` happens only to bring the target into *this* branch when it moved underneath, and
-that resolution is committed with `sf commit` so the pull request carries it.
+`git -c merge.conflictStyle=diff3 merge origin/<prTarget>` happens only to bring the target into *this* branch when
+it moved underneath — the base section is asked for on the command line, never written into anyone's config — and
+that resolution is committed with `sf commit` so the pull request carries it. Why the style must be asked for is on
+the lead agent's node.
 """
     }
 

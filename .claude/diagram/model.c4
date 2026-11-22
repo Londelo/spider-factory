@@ -31,13 +31,17 @@ model {
 
 **Three checks, and where each one lives.** `requireInsideFactory` is the first line of all five command
 dispatchers, so it is the first thing every one of the seven does: it matches `$PWD/` against
-`<factory root>/*`, the root being `CLI/bin/sf`'s own folder's parent — the root itself, or anything nested
+`<factory root>/*`, the root being **two levels up from the script's own folder** — `locateEngines` resolves
+`$0` to `CLI/bin`, walks `$here/../..`, and keeps the result in `$factoryRoot` — so the root itself, or anything nested
 under it at any depth, passes; anything else dies naming the root and telling you to `cd` into it, and says
 bare `sf` opens a session from anywhere. Bare `sf` and `sf --help` never meet it — bare `sf` answers from
-wherever you are and `cd`s to that root itself. `requireEngine` runs next, before every command: the engine
+wherever you are and `cd`s to that root itself, and it `cd`s to **the same `$factoryRoot`**, the one
+`locateEngines` already computed: the arm derives nothing of its own, because a second computation of the same
+path is a second fact that can disagree with the first. `requireEngine` runs next, before every command: the engine
 file is actually there, or the message names the missing path and says re-run `CLI/install-cli.sh`.
-`requireBeadsProject` — a beads database reachable from here — `sf` runs only for `loop`; the three planners
-and the watcher each run their own inside their engine, and `commit` needs only a git repo.
+`requireBeadsProject` — a beads database reachable from here — is **one predicate in `CLI/utils/console.sh`**, not a
+copy per command: `sf` runs it only for `loop`, the three planners and the watcher each call that same one inside
+their engine, the two id generators call it before they mint anything, and `commit` needs only a git repo.
 
 **Who else stands at that door.** Every `sf` call a worker or a hook makes is a command and so carries the
 same requirement: the `sf hook stop` that reaches the hook at all, the worker's `sf commit` as it goes, and the
@@ -81,7 +85,10 @@ you repoint it after moving the repo.
 
 **Write 2 — `CLI/spider-factory.example.env` copied to `CLI/spider-factory.env`, `chmod 600`, and only when
 that file is missing.** Once it exists the installer never touches it again: those are your edits by then,
-and deleting the file is how you get the defaults back. The announce line says which of the two happened —
+and deleting the file is how you get the defaults back. It does **read** it, to compare: every key the shipped
+example carries that the kept file lacks is counted and named on stderr, with the two ways out — add them by
+hand, or delete the file and re-run. A file kept for a year and an example that gained a key since is otherwise
+indistinguishable from a setting nobody wrote. The announce line says which of the two happened —
 `wrote the example` or `kept your edits`. What the settings are is the parameters node's, not this one's.
 
 **Then one warning and two lines, and both installers speak through `console.sh`.** If `~/.local/bin` is not
@@ -129,11 +136,15 @@ says so out loud instead of cloning nothing quietly. The run exits non-zero only
       summary "The seven checks that must hold before the first tick; six of them refuse the run outright."
       description """
 In the order the code runs them — the bootstrap at the bottom of `CLI/src/beads-loop/index.sh`, which calls
-them one after another; checks 2–6 live in `preflight.sh` beside it, checks 1 and 7 in `config.sh`. Six of the seven
+them one after another; checks 2–5 live in `preflight.sh` beside it, check 6 is `requireBeadsProject`, which lives
+in `CLI/utils/console.sh` beside `die` and is the one beads probe every command runs, checks 1 and 7 in `config.sh`.
+Six of the seven
 end the run through `die` — `beads-loop: <what is wrong>` on stderr, exit 1 — and no tick ever happens; a run that
 cannot report on itself is not a run. `die` is not theirs: it lives in `CLI/utils/console.sh`, the one file in the CLI
-that writes to a terminal — every engine, `bin/sf` and both installers source it and call `nameTheSpeaker <name>`
-once, so every line each one says comes out `<name>: <line>`. Check 2 refuses through `reportToolNotOnPath` and
+that writes to a terminal — every engine, `bin/sf`, `CLI/utils/user-env.sh` and both installers source it and each
+script calls `nameTheSpeaker <name>`
+once, so every line each one says comes out `<name>: <line>`; the loader sources it for exactly that reason, so it
+can name a line of the parameters file it refuses to read. Check 2 refuses through `reportToolNotOnPath` and
 check 6 through `reportNoBeadsDatabase`; that second sentence is the one `sf`, `plan-agent.sh` and
 `overseer-agent.sh` refuse with too, and `reportMissingFromInstall` (a file the install should have put down) and
 `reportAgentCommandNotOnPath` (the first word of `SF_AGENT_COMMAND`) are the other two reused refusals.
@@ -146,7 +157,7 @@ Checks 3–5 pass their own sentence to `die` directly.
 | 3 | `requireNumericSettingsFromEnvironment` | `SF_MAX_PARALLEL` / `SF_POLL_S` / `SF_MAX_TICKETS` set to anything but digits — never defaulted silently, because they govern unattended workers |
 | 4 | `requireGateFlagsAreSwitches` — `SF_AGENT_FEATURE_GATES` and `SF_AGENT_EPIC_GATES`, each read by `configureFromEnvironment` | either one is anything but `0` or `1` — the line names the flag and says what each value means: `0` a human closes that gate, `1` the lead agent does. A half-open gate tier is not a state the loop will guess its way through |
 | 5 | `requireUsablePollInterval` — `SF_POLL_S` must divide 60 | the permitted list is printed: `1 2 3 4 5 6 10 12 15 20 30 60`; the waiting lines are rate-limited at one per minute, so a poll that does not divide the minute makes that cadence a lie |
-| 6 | `requireBeadsProject` — `bd list --limit 1 --json` must answer an **array** | `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the environment does not save a wrong directory |
+| 6 | `requireBeadsProject` — `requireBeadsToolsOnPath` first, then `bd list --limit 1 --json` must answer an **array** | a missing `bd` or `jq` is named as a missing binary, never as a missing database; then `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the environment does not save a wrong directory |
 | 7 | `createRunLogDirectory` — `mkdir -p` the run's dir, then seed `claims errors waiting results closes` | fatal on purpose: a run that cannot write its logs cannot raise an alarm |
 
 `sf` itself runs check 6 and two before it — `requireInsideFactory`, that the directory it was typed in is
@@ -155,15 +166,18 @@ there — so a broken install names itself instead of failing deep in a tick.
 """
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L122-L135 "Source — beads-loop/index.sh lines 122–135, the bootstrap that runs them in order"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/preflight.sh#L5-L43 "Source — beads-loop/preflight.sh lines 5–43, checks 2–6"
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/console.sh "Source — CLI/utils/console.sh, die and the four reused refusals"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/console.sh "Source — CLI/utils/console.sh, die, the four reused refusals and the one beads probe"
     }
 
     knobs = knobPanel "The run's parameters (env, read once at startup)" {
       summary "The run's parameters, read once at startup out of `CLI/spider-factory.env`; what you export yourself still wins."
       description """
-Both engines source `CLI/utils/user-env.sh` and call `loadSpiderFactoryEnv` as their first act. It takes only
-`SF_*=` lines out of `CLI/spider-factory.env` (`CLI/spider-factory.example.env` copied there on install), expands `$HOME` in a
+Both engines source `CLI/utils/user-env.sh` and call `loadSpiderFactoryEnv` as their first act. It takes **any**
+`KEY=value` line out of `CLI/spider-factory.env` (`CLI/spider-factory.example.env` copied there on install) — not only
+`SF_*=` ones, so a knob the engines read by name works whatever it is called — expands `$HOME` in a
 value, and **exports only what is unset** — so a value you exported yourself still beats the file.
+A line that is neither blank, nor a comment, nor `KEY=value` is **named on stderr with its file and line number and
+skipped**, never dropped in silence; the loader sources `console.sh` so it has `tell` to do that with.
 `SF_ENV_FILE` points it elsewhere, which is the whole test hook; no file at all is a normal state, and
 the engines' own `:-` defaults are the floor under it. `CLI/spider-factory.example.env` is documentation that happens
 to be installed, so it and the engines are kept in step by hand.
@@ -678,8 +692,8 @@ an unregistered type, it **accepts and hides it**, so a broken gate and a workin
 `SF_AGENT_COMMAND`, default `claude` — the one command every agent in the system runs through, so
 pointing it at your own build moves all of them. `loadSpiderFactoryEnv` composes a second name off it,
 `SF_AGENT_LAUNCH_COMMAND` = `$SF_AGENT_COMMAND --add-dir <factory root>`, and **which of the two a call uses is
-not interchangeable**: the three that *start a session* take the launch form, the two that ask the running one a
-question take the plain name.
+not interchangeable**: the three sites that have to *resolve an `--agent`* — the worker spawn, the three planners,
+the watcher — take the launch form, and every other call stays on the plain name.
 
 - `$SF_AGENT_LAUNCH_COMMAND --bg --agent <agent> --permission-mode bypassPermissions \"<the brief>\"` —
   the worker spawn, run with `cd` **inside** the branch's worktree, and deliberately **no `-w`** —
@@ -709,8 +723,11 @@ root for discovery only** — it is **not a sandbox and not a permission grant**
 session works or what it may touch. The root is derived from `CLI/utils/user-env.sh`'s own location, so it always
 names the checkout the code is actually running from.
 
-`SF_AGENT_COMMAND` is split on spaces, so it may carry its own arguments, and its first word is what the startup
-check looks for on the PATH — that check and the capacity count are the two places the plain name is still used.
+`SF_AGENT_COMMAND` is split on spaces, so it may carry its own arguments, and its first word is what the PATH checks
+look for. **Every place the plain name survives is a read, never a spawn:** `beads.sh`'s `agents --json` (the
+`--add-dir` flag is variadic and would swallow the `agents` positional as a second directory), the loop's startup
+`requireToolsOnPath`, the `requireAgentCommand` each of the two foreground engines runs before it execs, and bare
+`sf`'s own `exec`.
 
 Workers run `bypassPermissions` unattended, so this loop only ever belongs in a repo you fully trust.
 """
@@ -823,13 +840,17 @@ sends is not a copy of this contract.
 argument the spawn passes after the flags, and it is short: the ticket id, a `FIRST:` line ordering the worker to
 read `bd show --json <ticket>` in full as its complete brief, one paragraph saying this folder is the worktree of
 a branch shared by every task of the feature so earlier commits may already be sitting there, and then exactly
-**three** numbered rules — keep the five-minute lease alive with `bd heartbeat <ticket>`; never run `bd close`,
+**four** numbered rules, running **1, 2, 3, 4** with no gaps — ground every beads command before you run it; keep
+the five-minute lease alive with `bd heartbeat <ticket>`; never run `bd close`,
 because the Stop hook closes the ticket once you declare done and closing it by hand makes the hook walk past it;
 and stay on `${branch}`, in this folder — never create a branch, never check one out, never merge, never rebase,
 never a bare `git commit` or `git push`, and commit as your agent file tells you as you go, because whatever is
-still uncommitted when you stop becomes one last commit on the branch carrying your ticket's title. The numbers
-run **1, 2, 5**: the rules that were once 3 and 4 are gone and nothing renumbered what is left, so a reader
-counting down the brief finds no rule 3 and no rule 4. Rule 5 is the only part that differs by agent — for the
+still uncommitted when you stop becomes one last commit on the branch carrying your ticket's title.
+**Rule 1 is the one that guards the database**, and it is there because `bd` finds its database by walking **up**
+from wherever the session happens to be standing: the rule names `$SF_PROJECT_DIR` as the tower's database, orders
+the worker to run `bd where`, and to `cd '$SF_PROJECT_DIR'` first if that does not name it — one stray `cd` and the
+worker is reading somebody else's tower, claiming and closing tickets in a tower it was never dispatched into.
+Rule 4 is the only part that differs by agent — for the
 **lead** it says this ticket is a GATE, that you verify the tier it stands for and then merge this branch's own
 pull request into its target with the forge's own command (`gh pr merge` / `glab mr merge`) and never a local
 `git merge` into the target — built as `$stayOnBranchRule` and interpolated into the one `printf`, which is
@@ -979,8 +1000,14 @@ missing, and touches no marker — the gate stays claimed and a human is told wh
 **Merge, and only now** — `gh pr merge` / `glab mr merge` on that branch's PR into its **`prTarget`**, which
 Step 1 derived off the gate's own id: the epic gate's `branch`, or `main` when the gate is the epic gate. The
 forge does the merge: never a local `git merge` into the target, never a push to the target, never a rebase.
-Where the target moved under the branch it brings the target *into this branch* (`git merge
-origin/<prTarget>`),
+Where the target moved under the branch it brings the target *into this branch*, with one
+command and no others: `git -c merge.conflictStyle=diff3 merge origin/<prTarget>`. The style is `merge` unless it is
+asked for, and a plain `git merge` then hands over two sides with no `|||||||` base section showing what the code
+looked like before either side touched it — which is the only legitimate way to choose between two sides. The setting
+is asked for **on the command line and never written into anyone's config**. A test file in that conflict is spliced,
+never chosen: union of the cases, both sides kept, and where both assert they are made to agree by fixing the code,
+never by silencing an assertion — a test weakened to end a conflict makes everything above the gate a lie.
+It
 commits the resolution with `sf commit` and pushes, so the PR carries it and the pipeline re-runs. Writes no
 code and no tests; never closes, reopens, unclaims or reclaims a ticket — `bd close` would end the hook before
 it ever ran.
@@ -1009,6 +1036,13 @@ project**, not in the factory: `--add-dir` makes the factory checkout a second p
 which is how its own agent file, its skills, the two id generators and the `plan-tasks` templates are readable at
 all. Name a factory file by the checkout; never assume the cwd holds it. The cwd itself stays in the tower on
 purpose — it is the cwd that decides which beads database `bd` reads, and therefore which tower gets counted.
+
+**Their `tools:` lines are three different lists, and one of them is not a typo.** `plan-epic` alone carries
+`Write`, `Edit`, the four task tools and the web tools (`WebSearch`, `WebFetch`, `mcp__searxng__*`) — it is the one
+planner that has to research a vague idea and write down what it found. `plan-feature` and `plan-task` carry
+`Read, Bash, Grep, Glob, Skill` and nothing else: they read the tier above, then write tickets through `bd` and
+write no file anywhere. Never assume the three are symmetric — a step, a brief or a fix aimed at "the planners"
+breaks on whichever of them lacks the tool.
 
 Each is one foreground command — `sf plan:epic`, `sf plan:feature`, `sf plan:task` — and anything you type
 after it goes to the planner as the prompt. What runs them is on the agent-command node.

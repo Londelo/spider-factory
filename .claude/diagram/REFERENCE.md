@@ -24,7 +24,7 @@ The files the diagrams describe: `CLI/bin/sf`, `CLI/src/beads-loop/` (`index.sh`
 the engine is a directory now, and a link into it must name the file that actually holds the code),
 `CLI/src/plan-agent.sh`,
 `CLI/src/overseer-agent.sh`, `CLI/src/commit.sh`, `CLI/utils/console.sh` (every word any of them says to a
-terminal, and the four reused refusals), `CLI/utils/logging.sh` (the one definition of a log line, sourced by the
+terminal, the four reused refusals, and the one `requireBeadsProject` probe every command that needs a tower calls), `CLI/utils/logging.sh` (the one definition of a log line, sourced by the
 engine and by the Stop hook and by nothing else), `CLI/utils/forge.sh`,
 `CLI/utils/user-env.sh`, `scripts/clone-webs.sh`, `CLI/src/create-beads/*`, `CLI/install-cli.sh`,
 `CLI/uninstall-cli.sh`,
@@ -104,7 +104,9 @@ exists (validate fails).
 - A step block ends at the `}` indented four spaces. A stray `{ }` after a `title` breaks validate.
 - Bare, unqualified names of nested nodes do not resolve — write `machine.dispatcher`, not `dispatcher`.
 - Nested actors inside a sequence view warn (`Sequence view does not support nested actors`); about eleven
-  of those warnings is the normal state of this project, not a regression.
+  of those warnings is the normal state of this project, not a regression. `build` validates and then lays out, so
+  it prints the same eleven twice — twenty-two out of `build.sh`, eleven out of a bare `validate`, and neither is
+  a new warning.
 - A dynamic step may create its own relationship — there is no relationship block to update.
 - Renaming or deleting a node means grepping `views.c4` for it first.
 

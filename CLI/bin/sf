@@ -148,14 +148,12 @@ dispatchHook() {
 }
 
 openFactorySession() {
-    local root
-    root="$(cd "$here/../.." && pwd)"
     source "$here/../utils/user-env.sh"
     loadSpiderFactoryEnv
     (
         case "$PWD/" in
-            "$root"/*) ;;
-            *) cd "$root" || exit 1 ;;
+            "$factoryRoot"/*) ;;
+            *) cd "$factoryRoot" || exit 1 ;;
         esac
         exec ${SF_AGENT_COMMAND:-claude} "$@"
     )

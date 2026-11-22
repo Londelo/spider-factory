@@ -583,10 +583,16 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 27. `openFactorySession` recomputes a value `locateEngines` already has
 
-- **Status:** open
-- **Where:** `CLI/bin/sf:156` — `root="$(cd "$here/../.." && pwd)"`, duplicating `factoryRoot` from `:88`.
+- **Status:** fixed
+- **Where:** `CLI/bin/sf` — `root="$(cd "$here/../.." && pwd)"`, duplicating `factoryRoot` from `locateEngines`.
 - **Fix:** use `factoryRoot`.
-- **Notes:**
+- **Notes:** The local `root` is gone; `openFactorySession` now matches and cd's on `factoryRoot`, the one value
+  `requireInsideFactory` already tests every other command against. It is safe because `locateEngines` runs at
+  the bottom of the file, before `runRequestedCommand` reaches any dispatch — so the variable is always set by
+  the time bare `sf` gets there. Proven three ways with `SF_AGENT_COMMAND=pwd`: from `/tmp` the session lands at
+  the factory root, from `CLI/src` it stays at `CLI/src`, and an argument still reaches the command (`--version`
+  came out of `pwd`). The board's own line numbers were stale by four — the duplicate was at `:152`, not `:156`
+  — because item 25 deleted lines from this file first.
 
 ### 28. The diagram claims a finished worker is never removed from the listing
 

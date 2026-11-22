@@ -7,7 +7,7 @@ set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$here/../utils/console.sh"
-source "$here/user-env.sh"
+source "$here/../utils/user-env.sh"
 loadSpiderFactoryEnv
 nameTheSpeaker plan-agent
 

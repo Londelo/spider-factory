@@ -18,9 +18,9 @@ set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export SF_LOG_QUIET=1
-source "$here/../user-env.sh"
+source "$here/../../utils/user-env.sh"
 loadSpiderFactoryEnv
-source "$here/../forge.sh"
+source "$here/../../utils/forge.sh"
 source "$here/../../utils/logging.sh"
 
 claimsRoot="${SF_LOG_ROOT:-$HOME/.spider-factory/logs}"

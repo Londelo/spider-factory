@@ -564,11 +564,22 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 26. Two shared-bash files sit in `src/` against the documented rule
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `CLI/src/forge.sh` and `CLI/src/user-env.sh`.
 - **Proof:** the rule is that a file two or more commands source lives in `CLI/utils/`, never in `src/`.
 - **Fix:** move both to `utils/` and fix the source paths.
-- **Notes:**
+- **Notes:** Both files now live in `CLI/utils/` beside `console.sh` and `logging.sh`. Every source path that
+  reached them is updated — `CLI/src/plan-agent.sh:10`, `CLI/src/overseer-agent.sh:12`,
+  `CLI/src/beads-loop/index.sh:18` and `:56` (both now through the `$utilsDir` that file already computed),
+  `CLI/src/agent-hooks/worker-stop.sh:21` and `:23` (both now `$here/../../utils/…`, the same depth the
+  `logging.sh` line beside them already used), and `CLI/bin/sf:153`. Two prose citations followed:
+  `CLI/src/beads-loop/config.sh:3` and `CLI/spider-factory.example.env:4`. Nothing was rewritten inside the
+  two files: `user-env.sh` derives `spiderFactoryEnvDir` from `BASH_SOURCE` plus `/..`, which from `utils/`
+  is still `CLI/`, so the env file and the factory root both still resolve — proven by sourcing it from its
+  new home and printing `spiderFactoryEnvFile`, `spiderFactoryRoot` and the composed
+  `SF_AGENT_LAUNCH_COMMAND`. Proven further by tracing each of the four callers under `bash -x`: every one of
+  them now reads `utils/user-env.sh`, and the loop and the Stop hook read `utils/forge.sh`, with no
+  "No such file" anywhere in the traces.
 
 ### 27. `openFactorySession` recomputes a value `locateEngines` already has
 

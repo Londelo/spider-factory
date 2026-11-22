@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # config.sh — the knobs, and everything derived off them, sourced by beads-loop/index.sh.
-#   The knobs are declared in index.sh and arrive through CLI/spider-factory.env (CLI/src/user-env.sh).
+#   The knobs are declared in index.sh and arrive through CLI/spider-factory.env (CLI/utils/user-env.sh).
 
 configureFromEnvironment() {
     maximumParallelWorkers="${SF_MAX_PARALLEL:-4}"

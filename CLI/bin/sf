@@ -150,7 +150,7 @@ dispatchHook() {
 openFactorySession() {
     local root
     root="$(cd "$here/../.." && pwd)"
-    source "$here/../src/user-env.sh"
+    source "$here/../utils/user-env.sh"
     loadSpiderFactoryEnv
     (
         case "$PWD/" in

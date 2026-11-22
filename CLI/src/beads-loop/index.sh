@@ -15,7 +15,7 @@ set -uo pipefail
 loopDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 engineDir="$(dirname "$loopDir")"
 utilsDir="$(dirname "$engineDir")/utils"
-source "$engineDir/user-env.sh"
+source "$utilsDir/user-env.sh"
 loadSpiderFactoryEnv
 
 declare -A AGENT=(
@@ -53,7 +53,7 @@ claimedThisRun=0
 
 source "$utilsDir/console.sh"
 source "$utilsDir/logging.sh"
-source "$engineDir/forge.sh"
+source "$utilsDir/forge.sh"
 source "$loopDir/logs.sh"
 source "$loopDir/config.sh"
 source "$loopDir/preflight.sh"

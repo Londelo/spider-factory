@@ -358,7 +358,7 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 17. `bead-initialize` still credits the deleted Fail hook
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `.claude/skills/bead-initialize/SKILL.md:66` — "the Fail hook writes it".
 - **Proof:** `worker-fail.sh` was deleted in `73e2377`. `:75` also has a person run
   `bd config set status.custom "failed-agent:frozen"` for a status no code path ever sets — both

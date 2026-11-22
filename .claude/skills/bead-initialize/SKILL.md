@@ -63,8 +63,11 @@ nearest `.beads/` above you, not the one you think you are in.
 Epics and features are `-t gate`, a **custom** type. `bd` does not refuse an unregistered type — it
 accepts `gate`, writes the row, and hides it, so a broken tower and a working one look identical.
 
-`failed-agent` is a **custom status**, and it is what parks a dead worker's ticket: the Fail hook writes
-it, and only that hook's Stop-hook counterpart ever lands work. An unregistered status is refused outright
+`failed-agent` is a **custom status**, and it is what parks a dead worker's ticket. **A person sets it** —
+`bd update <ticket> --status failed-agent` — and nothing else ever does: the only hook in the system is the
+worker's own `Stop` hook, which commits, pushes, closes and stops there. The overseer's job
+when it finds a worker that died quietly is to name the ticket and hand that command to a human to run. An
+unregistered status is refused outright
 (`invalid status "failed-agent"`), so a dead worker's ticket stays `in_progress`, its lease lapses, and the
 reaper hands it to another worker to redo. `bd reclaim` only ever reverts `in_progress` issues, so the
 status is the whole of the parking — nothing parks a ticket that never got it.

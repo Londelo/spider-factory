@@ -106,12 +106,14 @@ ls jest.config.* vitest.config.* playwright.config.* 2>/dev/null
 **Step 6 — The pipeline must be green, and the branch must be mergeable.** Read the pull request's checks
 from the forge — `gh pr checks` on GitHub, the pipeline on GitLab. Queued is not green and skipped is not
 green; name each check that is not passing and stop. If the forge says the branch **cannot be merged**
-because the target moved under it, bring the target into *this* branch and finish the conflict —
-`git merge origin/<prTarget>`, never the other direction, never a rebase, never a rewrite of the target:
+because the target moved under it, bring the target into *this* branch and finish the conflict — merge
+`origin/<prTarget>` into here, never the other direction, never a rebase, never a rewrite of the target, and
+with the one command below:
 
-- Leave `merge.conflictStyle` alone. It is unset on this machine, which means `diff3`: you get the
-  `|||||||  base` section showing what the code looked like *before either side touched it*, and that is the
-  only legitimate way to choose between two sides.
+- Ask for the base section on the command line: `git -c merge.conflictStyle=diff3 merge origin/<prTarget>`.
+  The style is `merge` unless it is asked for, and a plain `git merge` then hands you two sides and no
+  `|||||||  base` section showing what the code looked like *before either side touched it* — which is the
+  only legitimate way to choose between two sides. Never write that setting into anyone's config.
 - Commit what you resolved with `sf commit` and push it, so the pull request carries the resolution and the
   pipeline gets a chance to re-run on it.
 - For a test file in that list: **splice** — union of the cases, keep both, never choose one. If both sides

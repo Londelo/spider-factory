@@ -418,7 +418,7 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 21. `lead`'s conflict rule rests on a false git claim
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `.claude/agents/lead.md:112-114` — "Leave `merge.conflictStyle` alone. It is unset on this
   machine, which means `diff3`".
 - **Proof:** `git config --get merge.conflictStyle` exits 1 — it is unset — and unset means `merge`, not
@@ -426,7 +426,15 @@ group is why the loop has never run: the one recorded run on this machine claime
   section it calls *the only legitimate way* to choose between two sides, while the same sentence forbids
   every other method.
 - **Fix:** pass `--conflict-style diff3` (or set it), or drop the claim.
-- **Notes:**
+- **Notes:** The bullet now reads `git -c merge.conflictStyle=diff3 merge origin/<prTarget>` and forbids
+  writing the setting into any config; the sentence above it no longer names a bare `git merge`, so there is
+  one command to run. Proven in a scratch repo on git 2.56.0, two sides editing one line: a plain
+  `git merge` leaves **0** `|||||||` markers in the conflicted file, the same merge with
+  `-c merge.conflictStyle=diff3` leaves **1**. **Two corrections to this entry's own text:** `git merge` has
+  no `--conflict-style` option at all — it exits 129, and `git merge -h` lists no conflict option — so the
+  Fix line as written was not runnable, and `-c` on `git merge` is likewise refused; the flag belongs to
+  `git`. And the Proof's `git merge-file` evidence was the wrong tool to cite: it is a different command with
+  its own defaults. Done 2026-11-21.
 
 ### 22. `.claude/CLAUDE.md` states the category/template binding backwards
 

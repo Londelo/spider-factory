@@ -13,11 +13,9 @@
   "license": "ISC",
   "author": "",
   "type": "commonjs",
-  "main": "index.js",
   "scripts": {
     "cli:install": "bash CLI/install-cli.sh",
     "cli:uninstall": "bash CLI/uninstall-cli.sh",
-    "webs:clone": "bash scripts/clone-webs.sh",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "webs:clone": "bash scripts/clone-webs.sh"
   }
 }

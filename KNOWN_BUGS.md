@@ -605,11 +605,16 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 29. `package.json` still describes the node package this stopped being
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `package.json` — `"main": "index.js"` for a repo with no `index.js`, plus
   `"test": "echo \"Error: no test specified\" && exit 1"`.
 - **Fix:** drop `main` and the stub test script.
-- **Notes:**
+- **Notes:** Both are gone. The manifest now describes what the repo is: metadata and three npm entry points,
+  no entry module and no test runner. Proven by reading the file back through `jq` — `main` is absent, and the
+  three scripts that remain each name a file that exists (`CLI/install-cli.sh`, `CLI/uninstall-cli.sh`,
+  `scripts/clone-webs.sh`). Nothing needed re-homing: no document cites `main`, `index.js` or `npm test`, and
+  `.claude/CLAUDE.md:44` already names exactly the three scripts that survived. `"type": "commonjs"` was left
+  alone — it is not what the board named.
 
 ### 30. The old plugin is still installed
 

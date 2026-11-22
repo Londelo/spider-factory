@@ -68,9 +68,10 @@ accepts `gate`, writes the row, and hides it, so a broken tower and a working on
 worker's own `Stop` hook, which commits, pushes, closes and stops there. The overseer's job
 when it finds a worker that died quietly is to name the ticket and hand that command to a human to run. An
 unregistered status is refused outright
-(`invalid status "failed-agent"`), so a dead worker's ticket stays `in_progress`, its lease lapses, and the
-reaper hands it to another worker to redo. `bd reclaim` only ever reverts `in_progress` issues, so the
-status is the whole of the parking — nothing parks a ticket that never got it.
+(`invalid status "failed-agent"`), so a dead worker's ticket stays `in_progress` — invisible to `bd ready`,
+and **nothing notices**. There is no reaper: `bd reclaim` appears nowhere in the code, and no lease is ever
+checked by anything. That is exactly why the status has to be set by hand — it is the whole of the parking,
+and nothing parks a ticket that never got it.
 
 ```bash
 bd config set types.custom "gate"

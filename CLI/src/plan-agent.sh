@@ -38,10 +38,6 @@ Run it from inside a tower project (one with a beads DB).
 USAGE
 }
 
-requireBeadsProject() {
-    bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 || reportNoBeadsDatabase
-}
-
 requireAgentCommand() {
     local commandWord="${agentCommand%% *}"
     command -v "$commandWord" >/dev/null 2>&1 || reportAgentCommandNotOnPath "$commandWord"

@@ -34,14 +34,6 @@ requireUsablePollInterval() {
     }
 }
 
-runningInABeadsProject() {
-    bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1
-}
-
-requireBeadsProject() {
-    runningInABeadsProject || reportNoBeadsDatabase
-}
-
 gateTierIsSwitchedOn() {
     case "$1" in
         feature) [[ "$agentHandlesFeatureGates" == "1" ]] ;;

@@ -4,6 +4,9 @@
 #   nameTheSpeaker <name> once at the top of a script and every line it says comes out "<name>: <line>".
 #   say and tell take a whole sentence; plain takes one exactly as written, for the key=value event lines
 #   that carry no speaker. die is tell and then exit 1.
+#   The beads question every command asks before it asks anything else is asked here too — it is nothing but
+#   these refusals in order: name a tool that is not on PATH, then name the missing database. Every command
+#   that asks it sources this file already, so it is asked once.
 #   A run's log lines are not here — those are writeLog's, in CLI/utils/logging.sh.
 
 sfConsoleName=""
@@ -43,6 +46,19 @@ reportToolNotOnPath() {
 
 reportAgentCommandNotOnPath() {
     die "the agent command '$1' is not on PATH — fix SF_AGENT_COMMAND, or leave it unset to get 'claude'"
+}
+
+requireBeadsToolsOnPath() {
+    local requiredTool
+    for requiredTool in bd jq; do
+        command -v "$requiredTool" >/dev/null 2>&1 || reportToolNotOnPath "$requiredTool"
+    done
+}
+
+requireBeadsProject() {
+    requireBeadsToolsOnPath
+    bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 ||
+        reportNoBeadsDatabase
 }
 
 announceRunLogDirectory() {

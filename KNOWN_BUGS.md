@@ -543,7 +543,20 @@ group is why the loop has never run: the one recorded run on this machine claime
   checks its tools first.
 - **Fix:** have the five test `command -v bd jq` first and `reportToolNotOnPath`, then ask the beads
   question.
-- **Notes:**
+- **Notes:** All six copies were the **same function under the same name**, `requireBeadsProject`, so the
+  Fix's five-line-each patch would have left six copies of a predicate standing where six copies already
+  stood. It is defined once now, in `CLI/utils/console.sh:51-62`: `requireBeadsToolsOnPath` names the first
+  of `bd jq` that is not on `PATH`, and only then does the `bd list --limit 1 --json` question get asked —
+  the two refusals this file already owned, in order, which is why it lives beside them and why no call site
+  needed a new `source`: all six already source this file. The five local definitions are deleted, and with
+  them `preflight.sh`'s private `runningInABeadsProject`, which nothing else called. `preflight.sh`'s own
+  `requireToolsOnPath` still runs first in the loop's bootstrap and checks `bd jq git` plus the agent command;
+  the second `command -v` pair costs two builtins. Proven both ways, no scratch state touched: with `PATH`
+  stripped, `requireBeadsProject` says **`bd not found on PATH`** and exits 1; with the tools present and no
+  database above the cwd it says **`no beads database found from /tmp — cd into the tower project and
+  re-run`**. Before this commit the first case printed the second sentence. Every call site still calls it —
+  `bin/sf:110`, `plan-agent.sh:49`, `overseer-agent.sh:48`, `create-gate.sh:122`, `create-task.sh:138`,
+  `index.sh:128` — and the function name the diagram quotes is unchanged. Done 2026-11-21.
 
 ---
 

@@ -43,11 +43,6 @@ dbPrefix() {
         | tr -d '[:space:]'
 }
 
-requireBeadsProject() {
-    bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 \
-        || reportNoBeadsDatabase
-}
-
 requireRepo() {
     local repo="$1" prefix
     prefix="$(dbPrefix)"

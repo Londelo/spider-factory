@@ -97,10 +97,6 @@ requireEngine() {
     [[ -f "$1" ]] || reportMissingFromInstall "engine" "$1" "Re-run its CLI/install-cli.sh"
 }
 
-requireBeadsProject() {
-    bd list --limit 1 --json 2>/dev/null | jq -e 'type == "array"' >/dev/null 2>&1 || reportNoBeadsDatabase
-}
-
 requireInsideFactory() {
     case "$PWD/" in
         "$factoryRoot"/*) return 0 ;;

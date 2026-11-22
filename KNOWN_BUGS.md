@@ -596,12 +596,33 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 28. The diagram claims a finished worker is never removed from the listing
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `.claude/diagram/`.
 - **Proof:** `numberOfBusyWorkers` counts a background session only while it reports itself busy — a
   finished worker stays in the agent listing for the dashboard but holds no slot (commit `d624d49`).
 - **Fix:** bring the diagram in line and rebuild `dist/`.
-- **Notes:**
+- **Notes:** The listing claim was **already fixed before this board was written**: `d624d49` changed the
+  counter and the diagram in the same commit, and the account it gives now reads true against
+  `CLI/src/beads-loop/beads.sh:13-19` — `select(.kind == "background") | select(.status == "busy")`, and
+  `model.c4` says out loud that a finished `--bg` session is never removed from the listing, only its status
+  drops. Same shape as item 22: the board described a defect the code had already closed.
+  What *was* stale in that tier, and what this commit actually fixes, is the ghost log file. The engine seeds
+  five files (`CLI/src/beads-loop/config.sh:48` — `claims errors waiting results closes`) and item 20 dropped
+  the never-written sixth, `failures`, from the code; the diagram still seeded it, still had a `fFailures` node,
+  and still told a reader to go read it in three places. All of that is gone, and the fact it stood for is now
+  stated where it belongs — `model.c4`'s `logRun` description says no sixth file exists, that `Stop` is the only
+  event a worker binds with no `StopFailure` to bind, so a killed session writes nothing anywhere, that the tell
+  is the absence across the five, and that only the overseer's quiet-death check finds one and can only hand a
+  human `bd update <ticket> --status failed-agent`. The same correction went through `views.c4`'s log table and
+  its dead-session paragraph. Verified: `grep` over the three `.c4` files leaves three `failures` hits, all of
+  them either a view's own title or that deliberate historical sentence; `bash build.sh` reports
+  `✓ Valid (3 files)` with the same 22 nested-actor lines the untouched HEAD model produces — counted on both,
+  so nothing regressed — and `dist/index.html` contains no `fFailures` at all.
+  This commit also carries the document fallout of item 26, which the move left behind: `model.c4` and
+  `REFERENCE.md` still named `CLI/src/forge.sh` and `CLI/src/user-env.sh` in eight places, two of them live
+  source links, and `.claude/CLAUDE.md` still listed both files under `src/` in its tree, still named
+  `CLI/src/user-env.sh` as a row heading, and still told a worker's hook to source them one level up — the exact
+  instruction that now loads nothing. All of it reads `CLI/utils/` and `$here/../../utils/…` today.
 
 ### 29. `package.json` still describes the node package this stopped being
 

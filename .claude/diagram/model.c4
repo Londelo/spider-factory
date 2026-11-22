@@ -4,7 +4,7 @@ model {
   // THE MACHINE — one command in, background workers out.
   // Every value here was read off CLI/bin/sf, CLI/src/beads-loop/ (index.sh and the nine beside it),
   // CLI/utils/console.sh, CLI/utils/logging.sh,
-  // CLI/src/forge.sh, CLI/src/user-env.sh, scripts/clone-webs.sh, CLI/spider-factory.example.env,
+  // CLI/utils/forge.sh, CLI/utils/user-env.sh, scripts/clone-webs.sh, CLI/spider-factory.example.env,
   // CLI/src/agent-hooks/worker-stop.sh.
   // The cast only: the story is told by the four walkthroughs in views.c4.
   // Rules for editing these files: ./REFERENCE.md — the code is the only source of truth.
@@ -147,7 +147,7 @@ Checks 3–5 pass their own sentence to `die` directly.
 | 4 | `requireGateFlagsAreSwitches` — `SF_AGENT_FEATURE_GATES` and `SF_AGENT_EPIC_GATES`, each read by `configureFromEnvironment` | either one is anything but `0` or `1` — the line names the flag and says what each value means: `0` a human closes that gate, `1` the lead agent does. A half-open gate tier is not a state the loop will guess its way through |
 | 5 | `requireUsablePollInterval` — `SF_POLL_S` must divide 60 | the permitted list is printed: `1 2 3 4 5 6 10 12 15 20 30 60`; the waiting lines are rate-limited at one per minute, so a poll that does not divide the minute makes that cadence a lie |
 | 6 | `requireBeadsProject` — `bd list --limit 1 --json` must answer an **array** | `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the environment does not save a wrong directory |
-| 7 | `createRunLogDirectory` — `mkdir -p` the run's dir, then seed `claims errors waiting results closes failures` | fatal on purpose: a run that cannot write its logs cannot raise an alarm |
+| 7 | `createRunLogDirectory` — `mkdir -p` the run's dir, then seed `claims errors waiting results closes` | fatal on purpose: a run that cannot write its logs cannot raise an alarm |
 
 `sf` itself runs check 6 and two before it — `requireInsideFactory`, that the directory it was typed in is
 the factory root or anything under it, and `requireEngine`, that `../src/beads-loop/index.sh` is actually
@@ -161,7 +161,7 @@ there — so a broken install names itself instead of failing deep in a tick.
     knobs = knobPanel "The run's parameters (env, read once at startup)" {
       summary "The run's parameters, read once at startup out of `CLI/spider-factory.env`; what you export yourself still wins."
       description """
-Both engines source `CLI/src/user-env.sh` and call `loadSpiderFactoryEnv` as their first act. It takes only
+Both engines source `CLI/utils/user-env.sh` and call `loadSpiderFactoryEnv` as their first act. It takes only
 `SF_*=` lines out of `CLI/spider-factory.env` (`CLI/spider-factory.example.env` copied there on install), expands `$HOME` in a
 value, and **exports only what is unset** — so a value you exported yourself still beats the file.
 `SF_ENV_FILE` points it elsewhere, which is the whole test hook; no file at all is a normal state, and
@@ -189,7 +189,7 @@ is for is on the agent-command node.
 | `SF_ALLOWED_LABELS` | unset or `*` = the whole AGENT set | a comma list narrows which labels may dispatch |
 """
       link https://github.com/Londelo/spider-factory/blob/main/CLI/spider-factory.example.env "Source — CLI/spider-factory.example.env"
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/user-env.sh "Source — CLI/src/user-env.sh"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/user-env.sh "Source — CLI/utils/user-env.sh"
     }
 
     dispatcher = dispatcher "beads-loop/ — the dispatcher" {
@@ -365,13 +365,21 @@ step 1 of the tick and the only claim in the system made by status.
   logRun = logStore "~/.spider-factory/logs/<date>_<time> — one dir per run" {
     summary "One timestamped directory per run, holding every file that run writes."
     description """
-**What it is:** the central home for everything a run leaves behind. The engine seeds **six** files up
-front (`claims errors waiting results closes failures`), so a missing file and an empty file look the
+**What it is:** the central home for everything a run leaves behind. The engine seeds **five** files up
+front (`claims errors waiting results closes`), so a missing file and an empty file look the
 same and neither hides a silent failure — `closes` is written by the Stop hook, possibly long after the run
-ended, and `failures` is seeded by the engine and written by **nothing at all**: what that means for a dead
-worker is on that file's own node. Two more appear only when something writes them (`bd-stderr`, from the
-claim, and `claude-stderr`, from the capacity count), and one pair per worker (`spawn-<ticket>`,
-`done-<ticket>`).
+ended. Two more appear only when something writes them (`bd-stderr`, from the claim, and `claude-stderr`, from
+the capacity count), and one pair per worker (`spawn-<ticket>`, `done-<ticket>`).
+
+**No sixth file is seeded, and none of these five ever holds a line about a worker that died.** A sixth used to
+be, `failures`, seeded alongside the rest and written by nothing at all, so an empty one read as "no failures"
+when it meant "no such feature" — it is gone from the seed list and from the code. What it stood for has not
+gone, and the absence is a louder alarm than the file ever was: `Stop` is the only hook event a worker agent
+binds and there is no `StopFailure` to bind, so a session killed by an API error fires no hook and writes no
+line into any file in this directory. The tell is the **absence across** the five — a `claims` line, no `closes`
+line, no `done-<ticket>` marker, and a ticket left `in_progress` that no `bd ready` will ever name. The
+overseer's check for a worker that died quietly is the only thing that finds one, and all it can do is name the
+ticket and hand a human `bd update <ticket> --status failed-agent` to run.
 
 **One line format, and one owner of it** (`CLI/utils/logging.sh`), or the files cannot be read against each
 other. **Two callers source that one file, and nothing else does.** The engine sources it and keeps its nine
@@ -442,17 +450,6 @@ The quiet ticks, **one a minute per reason** (`60 / SF_POLL_S` ticks), each carr
 The Stop hook's proof of work: one line per ticket that landed, `url=<the PR>`. A **gate** close carries one
 extra key, `url=<the PR> gate=true` — the same url, because the lead agent merged that branch's own pull
 request rather than opening a new one, and the hook found it whatever state it was in.
-"""
-    }
-    fFailures = logFile "failures" {
-      summary "Seeded with the other five and written by nothing: a dead worker leaves no line here."
-      description """
-The engine creates this file at the top of every run, and **nothing has ever written a line into it**. There
-is no producer: no hook fires when a session dies, so a worker killed by an API error leaves its ticket
-`in_progress`, invisible to `bd ready`, with no line here and no `errors` line either, until a person moves
-it. The only thing that finds one is the overseer's own check for a worker that died quietly, and what it can
-do is hand a human `bd update <ticket> --status failed-agent` to run. An empty `failures` file therefore
-proves nothing at all — read it as an absence, never as an all-clear.
 """
     }
     fResults = logFile "results" {
@@ -633,14 +630,14 @@ leaves it claimed on purpose. Every id comes out of `CLI/src/create-beads/create
 **What it is:** the forge the tower publishes to. `main` at the bottom, one PR per branch above it:
 `feature/<slug>` → PR → the epic branch, `epic/<slug>` → PR → `main`.
 
-**Which forge it is, is settled three ways, in this order** (`detectForge` in `CLI/src/forge.sh`, used by both the
+**Which forge it is, is settled three ways, in this order** (`detectForge` in `CLI/utils/forge.sh`, used by both the
 loop and the Stop hook): an honest host name in the remote URL (`*gitlab*`, `*github*`); then the refs that host
 actually publishes, because only GitHub serves `refs/pull/` and only GitLab serves
 `refs/merge-requests|pipelines|environments/`; then a machine holding **exactly one** of `gh`/`glab`.
 Where all three are ambiguous the hook refuses to guess and logs `forge-unknown` — a wrong guess pushes
 a branch to the wrong forge.
 """
-    link https://github.com/Londelo/spider-factory/blob/main/CLI/src/forge.sh "Source — CLI/src/forge.sh"
+    link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/forge.sh "Source — CLI/utils/forge.sh"
   }
 
   toolbelt = layer "The commands the loop shells out to" {
@@ -709,7 +706,7 @@ Claude Code discovers `.claude/agents/` and `.claude/skills/` only from a sessio
 added directory `--agent <name>` resolves to nothing and no skill loads: the spawn comes back failed as
 `worker-not-dispatched`, and a planner cannot run at all. `--add-dir` makes `spider-factory/` a **second project
 root for discovery only** — it is **not a sandbox and not a permission grant**; it changes nothing about where the
-session works or what it may touch. The root is derived from `CLI/src/user-env.sh`'s own location, so it always
+session works or what it may touch. The root is derived from `CLI/utils/user-env.sh`'s own location, so it always
 names the checkout the code is actually running from.
 
 `SF_AGENT_COMMAND` is split on spaces, so it may carry its own arguments, and its first word is what the startup
@@ -843,7 +840,8 @@ worker to create `$SF_DONE_FILE` is its own agent file, which the Stop hook fail
 **The same file holds the hook registration.** Each of these seven agent files carries a `hooks:` block in its own
 YAML frontmatter binding `Stop` → `sf hook stop` (timeout 300) — that block, and nothing
 else, is what makes a worker's session ending finish the work. It is the only event any of them binds: there is no
-`StopFailure` event to bind, and nothing runs when a session dies on an error — see the `failures` file's own node.
+`StopFailure` event to bind, and nothing runs when a session dies on an error — see the run log's own node for
+what a dead worker leaves behind, which is nothing in any file.
 The overseer and the three plan agents carry no `hooks:` block at all,
 so their sessions fire no hook; the mechanism is on the Stop hook's node.
 

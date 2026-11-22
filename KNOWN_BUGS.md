@@ -508,7 +508,27 @@ group is why the loop has never run: the one recorded run on this machine claime
   `preflight.sh:24` `flagValue="${!flagName}"` in front of an unset variable — the loop-startup crash.
 - **Fix:** `tell` a one-line warning for any rejected `KEY=` line, and have `install-cli.sh` diff the live
   file against the example and report keys the example has and the live file lacks.
-- **Notes:** we want all ENVs plus the sf ones
+- **Notes:** Both halves done, and the note's "all ENVs plus the sf ones" is what the loader does now.
+  `user-env.sh:24` accepts any `KEY=value` — the `SF_` prefix is gone — so a non-`SF_*` key reaches the
+  environment like any other; a line that is neither blank, nor a comment, nor `KEY=value` is named on stderr
+  with its file and line number and skipped. One layer of matching quotes comes off the value, because the
+  live file writes `CLAUDE_CONFIG_DIR='…'` and a literal quote would have made the newly-accepted keys
+  useless; `$HOME` expansion still runs first, so `"$HOME/x"` arrives expanded. Proven against a temp file:
+  the bad line printed `ignoring <file>:5 — not a KEY=value line: BAD LINE HERE`, `'quoted value'` arrived as
+  `quoted value`, `"dq $HOME/x"` as `dq /home/londelo/x`, and a `PATH=` line in the file changed nothing —
+  fill-if-unset is untouched. **The warning needed one more change to exist at all:** `beads-loop/index.sh`
+  sources `user-env.sh` at `:18`, *before* `console.sh` at `:54`, and `agent-hooks/worker-stop.sh` never
+  sourced `console.sh` at all, so a bare `tell` would have died in two of the four call sites and been
+  silently absent in a third. `user-env.sh:16` now sources `CLI/utils/console.sh` itself; `tell` prints
+  unprefixed when no speaker has been named, so nothing about the other engines' output changed.
+  `install-cli.sh:42-54` gained `reportKeysMissingFromLiveEnvFile`, called from the kept-your-edits branch; run
+  against the real live file right now it names exactly the two keys this entry predicted —
+  `SF_AGENT_FEATURE_GATES SF_AGENT_EPIC_GATES` — and the zero-missing case was run too, because the script is
+  `set -euo pipefail` and a bare `(( count ))` would have aborted the installer. **One correction to this
+  entry's own Proof:** `CLI/spider-factory.env:9` still does nothing, but not because of the regex —
+  `CLAUDE_CONFIG_DIR` is already exported in the environment before the CLI starts, and the loader only fills
+  what is unset. The honest edit there is to delete the line, which is a person's call, not this commit's.
+  Done 2026-11-21.
 
 ### 25. A missing `bd` binary is reported as a missing database
 

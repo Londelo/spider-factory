@@ -39,9 +39,24 @@ EOF
     chmod +x "$launcher"
 }
 
+reportKeysMissingFromLiveEnvFile() {
+    local line key
+    local -a missing=()
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)= ]] || continue
+        key="${BASH_REMATCH[1]}"
+        grep -qsE "^[[:space:]]*${key}=" "$envFile" || missing+=("$key")
+    done < "$exampleEnvFile"
+    if (( ${#missing[@]} > 0 )); then
+        tell "your $envFile lacks ${#missing[@]} key(s) the example ships: ${missing[*]}"
+        tell "    add them by hand, or delete the file and re-run this to get the example back"
+    fi
+}
+
 installExampleEnvFile() {
     if [[ -f "$envFile" ]]; then
         envFileState="kept your edits"
+        reportKeysMissingFromLiveEnvFile
         return 0
     fi
     [[ -f "$exampleEnvFile" ]] || reportMissingFromInstall "environment example" "$exampleEnvFile"

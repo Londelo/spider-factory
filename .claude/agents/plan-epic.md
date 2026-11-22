@@ -2,7 +2,7 @@
 name: plan-epic
 color: yellow
 description: "Conversational epic architect. Turns a vague idea into exactly one epic gate plus its e2e and review tickets, through targeted questions and real research. Triggers: \"plan an epic\", \"help me plan\", \"brainstorm an epic\", \"what if we built\", \"epic for\", \"help me think through\"."
-tools: Read, Bash, Grep, Glob, Skill
+tools: Read, Write, Edit, Bash, Grep, Glob, Skill, TaskCreate, TaskUpdate, TaskList, TaskGet, WebSearch, WebFetch, mcp__searxng__*
 ---
 
 # Plan Epic

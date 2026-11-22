@@ -350,7 +350,24 @@ group is why the loop has never run: the one recorded run on this machine claime
   "web search for how similar products work". Both are mandatory-sounding and fail on first use, and the same
   file says "Never lean on training knowledge" — so the agent is left with no sanctioned research path.
 - **Fix:** add `TaskCreate`, `TaskUpdate`, `WebSearch` to `tools:`, or drop both instructions.
-- **Notes:** add all the tools, plus WebFetch plus MCP
+- **Notes:** Done as the note said — the whole set, plus `WebFetch`, plus MCP:
+  `tools: Read, Write, Edit, Bash, Grep, Glob, Skill, TaskCreate, TaskUpdate, TaskList, TaskGet, WebSearch,
+  WebFetch, mcp__searxng__*`. `Agent` is deliberately absent: only `review` spawns agents. The wildcard is
+  the documented form for a whole server, and the four names behind it were read off the live server
+  (`tools/list` on `http://localhost:3001/mcp`) — `searxng_web_search`, `searxng_search_suggestions`,
+  `searxng_instance_info`, `web_url_read`; note the last carries no `searxng_` prefix, so spelling it out by
+  hand is where a near-miss would have silently cost the tool. **Two things Londelo must fix outside this
+  repo, both verified on this machine, neither of which this commit can fix:**
+  `~/CastleLondelo/.claude_root/settings.json:21-22` sit in `permissions.deny` as `WebSearch` and `WebFetch`,
+  and a deny rule removes a tool from the pool — so those two entries
+  still resolve to nothing until those lines come out. And the four `Task*` tools are gated by model: they
+  ship only for recognised Anthropic model ids, and this session runs `calcifer`, an id Claude Code does not
+  recognise, so they are absent from the init tool list here and need `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` (or
+  `--allowedTools`) to appear. **Why this matters more than it looks:** a bad entry among good ones is
+  dropped in silence — no error, no warning, no log line — and the agent only refuses to spawn when the whole
+  list resolves to nothing, so every one of these misses has been invisible. Check the init list, not the
+  error text: `claude -p "ok" --output-format stream-json --verbose </dev/null` and read the `system`
+  message's `tools`. Done 2026-11-21.
 
 ---
 

@@ -45,5 +45,5 @@ createRunLogDirectory() {
     local logFileName
     logDir="$logRoot/$(date +%F_%H-%M-%S)"
     mkdir -p "$logDir" 2>/dev/null || die "cannot create $logDir"
-    for logFileName in claims errors waiting results closes failures; do : > "$logDir/$logFileName"; done
+    for logFileName in claims errors waiting results closes; do : > "$logDir/$logFileName"; done
 }

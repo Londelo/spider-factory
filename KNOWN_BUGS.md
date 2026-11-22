@@ -402,12 +402,19 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 20. `failures` is a log file nothing writes
 
-- **Status:** open
-- **Where:** `CLI/src/beads-loop/config.sh:47` seeds it with the other five.
+- **Status:** fixed
+- **Where:** `CLI/src/beads-loop/config.sh:48` seeds it with the other five.
 - **Proof:** grepping `failures` across `CLI/` returns that one line and nothing else; no `writeLog failures`
   exists anywhere. An overseer reads an empty one as "no failures" when it means "no such feature".
 - **Fix:** drop it from the seeded list.
-- **Notes:** verify this again
+- **Notes:** re-verified — `failures` appears once under `CLI/`, in the seed loop, and no `writeLog failures`
+  exists. Dropped from the seed, and the four places that read it went with it: `overseer.md` tails it, says
+  "six files exist from the first tick", says it is seeded and written by nothing, and says it stays empty
+  whatever happens — all four now say five files and no `failures` file at all, which is the stronger
+  version of the same alarm. `.claude/CLAUDE.md:207` corrected in the same commit. **Still stale, for the
+  docs pass:** `.claude/diagram/model.c4` has a whole `fFailures` node (`:447`) plus `:150`, `:369`, `:371`,
+  `:454`, `:846`, and `views.c4:756`, `:869`, `:1313` all describe a file that is seeded and never written.
+  Done 2026-11-21.
 
 ### 21. `lead`'s conflict rule rests on a false git claim
 
@@ -532,7 +539,8 @@ group is why the loop has never run: the one recorded run on this machine claime
   `takeLogFieldsFromEnvironment` each still have real callers.
 - `bin/sf`'s four command lists agree on exactly seven — usage, `unknownCommand`, the case arms, and the
   five engine variables in `locateEngines`. No command in help lacks an arm; no arm lacks help.
-- Nothing dead under `CLI/src/` or `CLI/utils/` except the `failures` seed (item 20).
+- Nothing dead under `CLI/src/` or `CLI/utils/` — the `failures` seed that used to be the one exception is
+  gone (item 20).
 - External commands are named correctly where they are checked; `gh`/`glab` are reached only inside the
   `$forge` branch that names them. `claude agents --json` returns exactly the fields
   `numberOfBusyWorkers` filters on.

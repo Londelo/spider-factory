@@ -204,7 +204,8 @@ the *branch*, not the ticket.
   that is the whole list. Proven, not assumed: with both `Stop` and `StopFailure` keys in one agent's frontmatter,
   `Stop` fires and `StopFailure` is refused outright as `Unknown hook event type 'StopFailure'`. So a worker
   killed by an API error leaves its ticket `in_progress`, invisible to `bd ready`, with **no log line anywhere** —
-  the engine still seeds the `failures` file and nothing has ever written to it. A gate whose lead agent died reads
+  and there is no `failures` file to read — it was seeded empty and written by nothing, so it was dropped from
+  the seeded list. A gate whose lead agent died reads
   exactly the same. The overseer's check for a worker that died quietly is the only thing that finds one, and all
   it does is name the ticket and hand a person `bd update <ticket> --status failed-agent` to run. Never add a
   `StopFailure:` block back: the harness refuses the key, and the loop's `sf hook` has no arm for it.

@@ -78,7 +78,7 @@ Everything that changes state is off this list by construction, and these you re
 ```bash
 ls -1t "${SF_LOG_ROOT:-$HOME/.spider-factory/logs}" | head
 ls -l "$run"
-tail -n 40 "$run"/claims "$run"/waiting "$run"/errors "$run"/results "$run"/closes "$run"/failures
+tail -n 40 "$run"/claims "$run"/waiting "$run"/errors "$run"/results "$run"/closes
 cat "$run"/spawn-<ticket> "$run"/done-<ticket>
 ```
 
@@ -126,11 +126,12 @@ claude logs <session>                           # what that worker has been sayi
 
 One directory per `sf loop` start. The loop prints it at startup: `beads-loop: logging to <dir>`.
 
-**Six files exist from the first tick** — `claims errors waiting results closes failures`. Anything else
+**Five files exist from the first tick** — `claims errors waiting results closes`. Anything else
 appears only when something happens to it: `spawn-<ticket>` and `done-<ticket>` per dispatched ticket
 (`/` → `+`), plus `bd-stderr` and `claude-stderr`, which are redirect targets and are *not* pre-created.
-`failures` is seeded with the other five and **written by nothing at all** — no hook fires when a session
-dies. An empty one is never an all-clear.
+There is no `failures` file: it used to be seeded empty alongside the other five and written by nothing at
+all, so it read as "no failures" when it meant "no such feature". No hook fires when a session dies, so a
+dead worker leaves no line anywhere — that absence is the alarm, not an all-clear.
 
 ## The one line format
 
@@ -192,8 +193,8 @@ The loop is alive and idle is not the same as stalled: `waiting` says which. A w
 
 ## Every alarm, and what it means
 
-Anything with a `reason=` in `errors` is a machine saying it refused to do something. `failures` stays
-empty whatever happens: nothing runs when a worker dies, so a dead one leaves no line anywhere.
+Anything with a `reason=` in `errors` is a machine saying it refused to do something. There is no `failures`
+file to read: nothing runs when a worker dies, so a dead one leaves no line anywhere.
 
 | `reason=` | What actually happened | Tell the human |
 |---|---|---|

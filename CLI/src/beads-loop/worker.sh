@@ -7,14 +7,14 @@ buildWorkerPrompt() {
     local ticketId="$1" branch="$2" doneFile="$3" agentName="$4" prTarget="$5"
     local stayOnBranchRule
     if [[ "$agentName" == "$leadAgentName" ]]; then
-        stayOnBranchRule="5. Stay on \`${branch}\`, in this folder. This ticket is a GATE: you verify the tier it
+        stayOnBranchRule="4. Stay on \`${branch}\`, in this folder. This ticket is a GATE: you verify the tier it
    stands for, and when it is proved you merge this branch's own pull request into \`${prTarget}\`.
    Never create a branch, never check one out, never rebase, and never a bare \`git commit\` or
    \`git push\` — commit with \`sf commit\` as your agent file tells you, as you go. The merge is the
    forge's own command on the pull request (\`gh pr merge\`, or \`glab mr merge\`), never a local
    \`git merge\` into \`${prTarget}\`."
     else
-        stayOnBranchRule="5. Stay on \`${branch}\`, in this folder. Never create a branch, never check one out, never merge,
+        stayOnBranchRule="4. Stay on \`${branch}\`, in this folder. Never create a branch, never check one out, never merge,
    never rebase, and never a bare \`git commit\` or \`git push\` — the branch is shared work and
    those are not a worker's calls. Commit as your agent file tells you, as you go. Whatever is
    still uncommitted when you stop becomes one last commit on this branch carrying your ticket's
@@ -27,11 +27,15 @@ You are standing in the worktree of the branch \`${branch}\`, which is shared by
 feature. Earlier tasks are already committed there — read the log before you assume the tree is clean.
 
 Rules:
-1. Keep your claim lease alive — the 5-minute lease must NEVER lapse. Run
+1. Ground every beads command before you run it. Your database is the tower's, at \`\$SF_PROJECT_DIR\`, and
+   \`bd\` finds it by walking **up** from wherever you happen to be standing, so one stray \`cd\` has you
+   reading somebody else's tower. Run \`bd where\`; if it does not name that database, run
+   \`cd '\$SF_PROJECT_DIR'\` first. Never run a beads command from anywhere else.
+2. Keep your claim lease alive — the 5-minute lease must NEVER lapse. Run
    bd heartbeat $ticketId
    between long steps. Nothing in this system reaps a lapsed lease, so nothing will tell you it lapsed —
    but \`bd reclaim\` is one command away for a person, and it hands your ticket to another worker mid-work.
-2. Do NOT close your ticket — never run \`bd close\`, whatever the outcome. Keep the lease
+3. Do NOT close your ticket — never run \`bd close\`, whatever the outcome. Keep the lease
    (bd heartbeat $ticketId) and state your proof of work in your final message: what you did and the
    test evidence that proves it. The Stop hook closes $ticketId for you once you declare done; close it
    by hand and the hook walks past it — no commit, no push, no PR, your work never lands.

@@ -463,7 +463,15 @@ group is why the loop has never run: the one recorded run on this machine claime
   commands the grounding read. No worker file or the brief tells a worker to ground with `bd where` or
   `cd "$SF_PROJECT_DIR"` — which is why item 1 has no mitigation at all.
 - **Fix:** make grounding a rule in the brief, not a warning in a skill.
-- **Notes:**
+- **Notes:** Rule 1 of the brief is now exactly that — name `$SF_PROJECT_DIR` as the only database, say `bd`
+  resolves by walking **up** from `$PWD`, run `bd where` before any beads command, and `cd '$SF_PROJECT_DIR'`
+  when it names anything else (`CLI/src/beads-loop/worker.sh:30-33`). `$SF_PROJECT_DIR` reaches the worker
+  already: the loop's own spawn exports it (`worker.sh:66`), and it is escaped in the `printf` so the worker's
+  shell expands it, not the loop — both briefs rendered and read back to confirm. The skill's paragraph stays:
+  it is `bead-read`'s own discipline, and the Fix said the rule must live in the brief, not that the warning
+  must die. **Found on the way:** the brief numbered its rules 1, 2, 5 — 3 and 4 had been deleted and nobody
+  renumbered. It now runs 1–4 with no gap, and nothing anywhere references a rule by number.
+  Done 2026-11-21.
 
 ---
 

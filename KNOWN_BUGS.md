@@ -364,15 +364,22 @@ group is why the loop has never run: the one recorded run on this machine claime
   `bd config set status.custom "failed-agent:frozen"` for a status no code path ever sets — both
   `.claude/CLAUDE.md:182` and `overseer.md:244` hand that to a human instead.
 - **Fix:** rewrite `:61-76` to say the status is a human's to set.
-- **Notes:**
+- **Notes:** `CLI/src/agent-hooks/` holds one file, `worker-stop.sh` — the Fail hook is gone, and the Stop
+  hook reads a status, it never writes one. The paragraph now says a person sets it, names the command, and
+  points at the overseer handing it to a human, which is what `.claude/CLAUDE.md:209` and `overseer.md:244`
+  already say. The two `bd config set` lines stay: registration is what lets a human set it at all.
+  Done 2026-11-21, `e504b05`.
 
 ### 18. `bead-initialize` promises a reaper that has never existed
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `.claude/skills/bead-initialize/SKILL.md:69` — "the reaper hands it to another worker to redo".
 - **Proof:** `bd reclaim` appears nowhere in the code, only in docs.
 - **Fix:** say what actually happens — the lease lapses and nothing notices.
-- **Notes:**
+- **Notes:** verified before the edit — `bd reclaim` and `reaper` appear nowhere under `CLI/`, and the only
+  claim release in the code is `releaseClaim` (`claim.sh:63`), a `bd unclaim` the loop runs on its own
+  failures. The skill now says the ticket stays `in_progress`, nothing notices, and that is why the status
+  must be set by hand. Done 2026-11-21, `5d61851`.
 
 ### 19. The worker brief promises the same phantom reaper
 

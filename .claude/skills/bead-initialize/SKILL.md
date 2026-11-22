@@ -69,9 +69,11 @@ worker's own `Stop` hook, which commits, pushes, closes and stops there. The ove
 when it finds a worker that died quietly is to name the ticket and hand that command to a human to run. An
 unregistered status is refused outright
 (`invalid status "failed-agent"`), so a dead worker's ticket stays `in_progress` — invisible to `bd ready`,
-and **nothing notices**. There is no reaper: `bd reclaim` appears nowhere in the code, and no lease is ever
-checked by anything. That is exactly why the status has to be set by hand — it is the whole of the parking,
-and nothing parks a ticket that never got it.
+and **nothing notices**. beads has a reaper, `bd reclaim`, which is exactly what it does: it finds
+`in_progress` issues whose lease expired and puts them back to ready. **Nothing in this system ever runs
+it** — the loop, the hooks and the overseer never call it, and beads does not run it for you. That is why
+the status has to be set by hand: it is the whole of the parking, and nothing parks a ticket that never got
+it.
 
 ```bash
 bd config set types.custom "gate"

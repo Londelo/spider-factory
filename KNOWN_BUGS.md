@@ -379,17 +379,26 @@ group is why the loop has never run: the one recorded run on this machine claime
 - **Notes:** verified before the edit — `bd reclaim` and `reaper` appear nowhere under `CLI/`, and the only
   claim release in the code is `releaseClaim` (`claim.sh:63`), a `bd unclaim` the loop runs on its own
   failures. The skill now says the ticket stays `in_progress`, nothing notices, and that is why the status
-  must be set by hand. Done 2026-11-21, `5d61851`.
+  must be set by hand. **This item's own Proof was half wrong, and so was the first cut of the fix:**
+  `bd reclaim --help` shows beads *does* ship a reaper — it finds `in_progress` issues whose lease expired
+  and puts them back to ready, meant to be run by a supervisor on a timer. What is true is that nothing in
+  this system ever runs it. The skill says exactly that. Done 2026-11-21, `5d61851` and the correction
+  after it.
 
 ### 19. The worker brief promises the same phantom reaper
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `CLI/src/beads-loop/worker.sh:30` — "a lapsed lease reads as death — the reaper takes your
   ticket back to ready mid-work".
 - **Proof:** there is no reaper. This is worse than the skill version because it is every worker's own
   contract, and it tells each worker that letting its lease lapse is survivable.
 - **Fix:** tell the truth about what a lapsed lease does, which is nothing.
-- **Notes:**
+- **Notes:** the same sentence sat in **eight** places, not one — the brief, all six worker agent files, and
+  `lead.md:158` — so all eight went in one commit; fixing the brief alone would have left seven copies of
+  the lie. Truth, from `bd reclaim --help`: beads ships the reaper and expects a supervisor to run it on a
+  timer; nothing here does. So a lapsed lease announces nothing and steals nothing on its own — which is
+  still not a reason to let it lapse, because a person can run `bd reclaim` at any moment and take the work
+  back mid-flight. Every one of the eight now says that, and keeps the heartbeat rule.
 
 ### 20. `failures` is a log file nothing writes
 

@@ -155,7 +155,8 @@ Then the Stop hook closes the gate for you — but only if you declared done:
    before it ever runs: the gate stays claimed and nothing lands. Your claim lease keeps your gate parked
    while you work; releasing it reads as abandonment.
 5. **Keep the lease alive** — run `bd heartbeat <gate>` between long steps and never let five minutes pass
-   in silence; a lapsed lease reads as death and the reaper takes the gate back to ready mid-merge.
+   in silence. Nothing here reaps a lapsed lease, but `bd reclaim` is one command away for a person, and it
+   hands the gate back to ready mid-merge.
 6. **Spawn nothing.** You and this one gate are the whole assignment.
 7. **Never invent a branch, a target, a test command, or a ticket.** All four are read, never guessed.
 

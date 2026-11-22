@@ -70,8 +70,8 @@ already exist, and you take those back out before you stop.
 
 You and your ticket are one and the same, and the claim on it is a **five-minute lease** only you can
 renew — run `bd heartbeat <ticket>` between long steps, and never let five minutes pass in silence. A
-lapsed lease reads as death: the reaper takes the ticket back to ready and another worker gets it
-mid-review, your trace logs still in the tree.
+lapsed lease is announced by nothing — this system never runs the reaper — but `bd reclaim` is one command
+away for a person, and it hands the ticket to another worker mid-review, your trace logs still in the tree.
 
 - **Never close anything** — not your ticket, not a ticket your review found wanting. Your findings go in
   your final message and as comments on the pull request; the Stop hook closes your ticket once you have

@@ -438,14 +438,21 @@ group is why the loop has never run: the one recorded run on this machine claime
 
 ### 22. `.claude/CLAUDE.md` states the category/template binding backwards
 
-- **Status:** open
+- **Status:** fixed
 - **Where:** `.claude/CLAUDE.md:93` — "category … the name of a `plan-task` template | `backend-logic`,
   `frontend-ux`, `unit-tests`".
 - **Proof:** the files on disk are `engineer.md`, `frontend.md`, `tester-unit.md` — named after the agent
   that runs the ticket, not the category. An agent that trusts the line goes looking for a template that is
   not there.
 - **Fix:** say the template is named after the agent.
-- **Notes:**
+- **Notes:** Already fixed, and this entry was stale. `.claude/CLAUDE.md:103` now reads "the brief file is
+  named for the **agent** that fills it, never for the category | `backend-logic` → `engineer.md`,
+  `frontend-ux` → `frontend.md`, `unit-tests` → `tester-unit.md`", which is the Fix line verbatim; it landed
+  in `e013ef6`, the section-B docs sync, after this board entry was written. Verified now, not from memory:
+  `ls .claude/shared/plan-tasks/` is exactly those three files, and every one of the seven references to
+  `plan-tasks/` across `README.md`, this file, the agent files, the skills and the diagram names an agent
+  file — `plan-task.md:81-83` is the binding table itself, and it agrees. No commit: nothing left to change.
+  Done 2026-11-21.
 
 ### 23. The one beads-cwd warning is unactioned
 

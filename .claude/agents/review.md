@@ -31,8 +31,8 @@ in chat.
 
 **The branch is the one fact you may not guess at, and you never read it off your environment.**
 `claude --bg` runs you through a shared daemon that freezes the environment at the run's first spawn, so
-`SF_BRANCH` in your shell can be another worker's branch entirely. Your ticket carries no branch of its own
-either; nothing a task carries can be trusted as much as the gate it hangs under.
+whatever your shell carries about a dispatch can be another worker's. Your ticket carries no branch of its
+own either; nothing a task carries can be trusted as much as the gate it hangs under.
 
 The branch is the folder you are standing in. The loop checked it out before it put you here, so
 `git branch --show-current` is the whole answer and the only thing to trust. If it comes back empty, or
@@ -74,18 +74,17 @@ lapsed lease is announced by nothing — this system never runs the reaper — b
 away for a person, and it hands the ticket to another worker mid-review, your trace logs still in the tree.
 
 - **Never close anything** — not your ticket, not a ticket your review found wanting. Your findings go in
-  your final message and as comments on the pull request; the Stop hook closes your ticket once you have
-  declared done, and a gate is the human's to close. Close your own ticket and the hook walks past it: no
-  push, no PR, and no `pr` written onto the ticket that proves this review ran.
+  your final message and as comments on the pull request; the Stop hook closes your ticket when your turn
+  ends, and a gate is the human's to close. Close your own ticket and the hook walks past it: no push, no
+  PR, and no `pr` written onto the ticket that proves this review ran.
 - **Write what remains** — if the brief outruns you, put a comment on the ticket naming exactly which of
   the three questions went undone and why. Never post a partial review as though it were a whole one.
 - **Spawn fixers, once each, one at a time, and file no tickets.** A defect is a comment plus one hand-off in
   Step 8 — never a ticket, and never a second hand-off. The tower's shape is somebody else's business, and nobody but the
   Stop hook closes anything, including the tickets the fixers leave alone.
-- **Declare it only when it is truly done** — as your very last action, and only when all three questions
-  are answered, the findings are posted, every one of them handed off in Step 8, and the instrumentation
-  stripped, `touch $SF_DONE_FILE`. No marker means nothing is committed, the ticket stays claimed, and the
-  gate above yours waits.
+- **Finish the work before you stop** — stopping is what finishes the ticket, so stop only when all three
+  questions are answered, the findings are posted, every one of them handed off in Step 8, and the
+  instrumentation stripped. The gate above yours waits on yours.
 
 ## Skills load when you reach for them
 
@@ -320,11 +319,8 @@ say. If the comment is not enough to fix from, it was not a finished finding: go
 detail before you spawn. Alongside it put only the url of the comment it came from, the branch it is
 standing on, and the name of the ticket this review belongs to, for context.
 
-End every prompt with the same four constraints: fix this finding and nothing beside it, commit it yourself
-with `sf commit`, touch no ticket — no `bd close`, no `bd create`, no comment on anything — and touch no
-done marker. Say that last one out loud in the prompt and name the variable: `$SF_DONE_FILE` is **yours**,
-inherited into their environment, and a fixer that finishes by touching it declares your review complete
-while you are still waiting on the fixers you have not spawned yet.
+End every prompt with the same three constraints: fix this finding and nothing beside it, commit it
+yourself with `sf commit`, and touch no ticket — no `bd close`, no `bd create`, no comment on anything.
 
 **They commit; you commit nothing.** Their `sf commit` is what lands a fix on the branch. You still never
 run `git add`, `git commit`, or `git push` — see the standing rule — and you never fix a thing they left
@@ -365,5 +361,5 @@ glab api --method PUT "projects/:id/merge_requests/<n>/discussions/$discussionId
 
 When every thread you posted is either resolved or deliberately left open, say in your final message which
 finding went to which agent and what each one came back with, which threads you resolved and which you left
-open and why, check with `git status` that the tree holds **nothing at all**, and then `touch
-$SF_DONE_FILE`.
+open and why, check with `git status` that the tree holds **nothing at all**, and then stop — stopping is
+what finishes the ticket.

@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # worker.sh — the brief a worker is handed and the spawn that hands it, sourced by beads-loop/index.sh.
-#   The worker is spawned with its cwd inside the worktree; the context file and the done marker are the
-#   two things the Stop hook reads back, so both are written before the agent starts.
+#   The worker is spawned with its cwd inside the worktree; the context file is what the Stop hook and
+#   `sf commit` read back, so it is written before the agent starts. The spawn sets no environment: a
+#   `claude --bg` session gets its environment frozen by the shared daemon at the run's first spawn, so
+#   anything the worker or its hook could read from it would be another worker's. The prompt carries every
+#   fact the worker needs as a literal, and the context file carries the same facts for the CLI to read.
 
 buildWorkerPrompt() {
-    local ticketId="$1" branch="$2" doneFile="$3" agentName="$4" prTarget="$5"
+    local ticketId="$1" branch="$2" agentName="$3" prTarget="$4"
     local stayOnBranchRule
     if [[ "$agentName" == "$leadAgentName" ]]; then
         stayOnBranchRule="4. Stay on \`${branch}\`, in this folder. This ticket is a GATE: you verify the tier it
@@ -27,29 +30,29 @@ You are standing in the worktree of the branch \`${branch}\`, which is shared by
 feature. Earlier tasks are already committed there — read the log before you assume the tree is clean.
 
 Rules:
-1. Ground every beads command before you run it. Your database is the tower's, at \`\$SF_PROJECT_DIR\`, and
-   \`bd\` finds it by walking **up** from wherever you happen to be standing, so one stray \`cd\` has you
-   reading somebody else's tower. Run \`bd where\`; if it does not name that database, run
-   \`cd '\$SF_PROJECT_DIR'\` first. Never run a beads command from anywhere else.
+1. Ground every beads command before you run it. Your database is the tower at \`$towerDir\`, and \`bd\`
+   finds it by walking **up** from wherever you happen to be standing, so one stray \`cd\` has you reading
+   somebody else's tower. Run \`bd where\`; it must name that database. When it names another one, put
+   \`-C '$towerDir'\` on every beads command you run from then on and say so in your report — never \`cd\`
+   into a tower that is not yours.
 2. Keep your claim lease alive — the 5-minute lease must NEVER lapse. Run
    bd heartbeat $ticketId
    between long steps. Nothing in this system reaps a lapsed lease, so nothing will tell you it lapsed —
    but \`bd reclaim\` is one command away for a person, and it hands your ticket to another worker mid-work.
 3. Do NOT close your ticket — never run \`bd close\`, whatever the outcome. Keep the lease
    (bd heartbeat $ticketId) and state your proof of work in your final message: what you did and the
-   test evidence that proves it. The Stop hook closes $ticketId for you once you declare done; close it
-   by hand and the hook walks past it — no commit, no push, no PR, your work never lands.
+   test evidence that proves it. Finish the work before you stop — stopping is what finishes the ticket:
+   the Stop hook closes $ticketId for you when your turn ends. Close it by hand and the hook walks past
+   it — no commit, no push, no PR, your work never lands.
 $stayOnBranchRule"
 }
-
-doneFileFor() { printf '%s' "$logDir/done-${1//\//+}"; }
 
 spawnFileFor() { printf '%s' "$logDir/spawn-${1//\//+}"; }
 
 contextFileFor() { printf '%s' "$logRoot/worker-context/${1//\//+}"; }
 
 spawnWorker() {
-    local worktreePath="$1" ticketId="$2" agentName="$3" branch="$4" prTarget="$5" label="$6" doneFile="$7" spawnFile="$8" contextFile="$9" kind="${10:-task}"
+    local worktreePath="$1" ticketId="$2" agentName="$3" branch="$4" prTarget="$5" label="$6" spawnFile="$7" contextFile="$8" kind="${9:-task}"
     mkdir -p "$(dirname "$contextFile")" 2>/dev/null
     { printf 'ticket=%s\n' "$ticketId"
       printf 'branch=%s\n' "$branch"
@@ -57,20 +60,16 @@ spawnWorker() {
       printf 'agent=%s\n' "$agentName"
       printf 'label=%s\n' "$label"
       printf 'tower=%s\n' "$towerDir"
-      printf 'done_file=%s\n' "$doneFile"
       printf 'kind=%s\n' "$kind"
     } >"$contextFile.tmp" && mv -f "$contextFile.tmp" "$contextFile"
     ( cd "$worktreePath" \
-        && SF_TICKET="$ticketId" SF_BRANCH="$branch" SF_PR_TARGET="$prTarget" \
-           SF_AGENT="$agentName" SF_LABEL="$label" \
-           SF_PROJECT_DIR="$towerDir" SF_LOG_DIR="$logDir" SF_DONE_FILE="$doneFile" \
-           $agentLaunchCommand --bg --agent "$agentName" --permission-mode bypassPermissions \
-           "$(buildWorkerPrompt "$ticketId" "$branch" "$doneFile" "$agentName" "$prTarget")" ) >"$spawnFile" 2>&1
+        && $agentLaunchCommand --bg --agent "$agentName" --permission-mode bypassPermissions \
+           "$(buildWorkerPrompt "$ticketId" "$branch" "$agentName" "$prTarget")" ) >"$spawnFile" 2>&1
 }
 
 dispatchWorker() {
     local ticketId="$1" agentName="$2" branch="$3" prTarget="$4" label="$5"
-    local worktreePath worktreeAside worktreeFailure doneFile spawnFile contextFile
+    local worktreePath worktreeAside worktreeFailure spawnFile contextFile
 
     setLogField agent "$agentName"
 
@@ -96,11 +95,9 @@ dispatchWorker() {
     [[ -n "$worktreeAside" ]] &&
         writeLog errors "reason=worktree-folder-moved-aside msg=\"$(formatMessage "$msgWorktreeFolderMovedAsideTemplate" "${worktreeAside##*/}")\""
 
-    doneFile="$(doneFileFor "$ticketId")"
     spawnFile="$(spawnFileFor "$ticketId")"
     contextFile="$(contextFileFor "$branch")"
-    rm -f "$doneFile"
-    if ! spawnWorker "$worktreePath" "$ticketId" "$agentName" "$branch" "$prTarget" "$label" "$doneFile" "$spawnFile" "$contextFile"; then
+    if ! spawnWorker "$worktreePath" "$ticketId" "$agentName" "$branch" "$prTarget" "$label" "$spawnFile" "$contextFile"; then
         writeLog errors "reason=worker-not-dispatched msg=\"$(lastLineOf "$spawnFile")\""
         releaseClaim "$ticketId"
         return 1

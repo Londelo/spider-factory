@@ -309,40 +309,53 @@ lead agent is reached by the gate dispatch, not by a key of this map.
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L21-L31 "Source — beads-loop/index.sh lines 21–31, the AGENT map and the lead agent's name"
     }
 
-    spawnEnv = knobPanel "SF_* — the environment the spawn carries" {
-      summary "The eight SF_ variables set on the worker's spawn line — the values the Stop hook needs to finish its ticket."
+    hookFields = knobPanel "SF_* — the nine log fields the Stop hook fills itself" {
+      summary "The SF_ variables the Stop hook exports inside its own process, filled off this session's dispatched claims line. The spawn sets none."
       description """
-Set on the `$SF_AGENT_LAUNCH_COMMAND --bg` line and nothing else; they are the values the finish needs, and the same
-eight names the log line carries. **The hook does not read them from here.** `claude --bg` hands the worker a
-pooled process whose environment the daemon froze at the run's first spawn, so every later session and every hook
-inherits that first worker's copy — the hook rebuilds every one of them from the dispatched claims line, the
-context file only as a fallback, and exports them into its own process before it writes anything (the run-log node
-owns that mechanism). The working directory is the one thing it does inherit true: a claimed spare is chdir'd to
-the spawn's cwd, so the hook stands in the worktree — but a worktree belongs to a branch and not to a ticket, so
-it identifies nothing. What the hook cannot rebuild, it refuses: no ticket or no run is `reason=claim-malformed`, no branch `reason=no-branch`, no target
+**The spawn writes no environment at all.** `spawnWorker` (`CLI/src/beads-loop/worker.sh`) runs the agent command
+with nothing in front of it — no `SF_TICKET=`, no `SF_BRANCH=`, none of them. `claude --bg` serves every session
+from one shared daemon that **freezes the environment at the run's first spawn**, so anything the loop set there
+would reach a later worker, and its Stop hook, as the *first* worker's values. The facts travel two other ways: to
+the **worker** as literals in its prompt — ticket id, branch, and the tower's path, plus `prTarget` in the lead
+agent's rule 4 — and to
+the **CLI** as the dispatch record the loop writes around the spawn: the worker-context file
+`<log root>/worker-context/<worktree folder name>`, written **before** the agent starts, and the
+`reason=dispatched` line in the run's `claims` file, written once its session id is known.
+
+**The fields below are the hook's own, in the hook's own process.** `adoptDispatchContext` takes the session id out
+of the hook's stdin JSON, matches it to this session's claims line, and exports each field off that line — the
+context file only as the fallback for what a thin line omits. Two shells have two environments and nothing carries
+between them: there is no cross-process persistence and no scratch file. The working directory is the one thing it
+does inherit true — a claimed spare is chdir'd to the spawn's cwd, so the hook stands in the worktree — but a
+worktree belongs to a branch and not to a ticket, so it identifies nothing. What the hook cannot rebuild, it
+refuses: no ticket or no run is `reason=claim-malformed`, no branch `reason=no-branch`, no target
 `reason=no-pr-target`, and the ticket stays claimed.
 
-| Var | Value | Who reads it |
-|---|---|---|
-| `SF_TICKET` | `the back-end ticket` | the Stop hook — what the close, the commit and every alarm are about. It is **not** the test that picks a dispatched session out of all the others: that is this session's `claims` line |
-| `SF_BRANCH` | `feature/add-record` | Stop hook: commit here, push here, refuse if `git branch --show-current` disagrees |
-| `SF_PR_TARGET` | `epic/record-box`, or `main` at the epic tier | Stop hook: the target of this branch's PR — derived off the ticket's id by the loop, carried through the claims line as `target=` |
-| `SF_AGENT` | `engineer`, or `lead` on a gate dispatch | the Stop hook, so an alarm names who was doing the work |
-| `SF_LABEL` | `backend-logic`, or `gate:<tier>` on a gate dispatch | the Stop hook, so an alarm names what chose that worker |
-| `SF_PROJECT_DIR` | the tower root, where `.beads` lives | the Stop hook — **the worktree is not the tower** |
-| `SF_LOG_DIR` | this run's log dir | the Stop hook: alarms land in `$SF_LOG_DIR/errors` |
-| `SF_DONE_FILE` | `$SF_LOG_DIR/done-<ticket with / to +>` | the worker touches it; the Stop hook is fail-closed on it |
+| Field | Value | Where the hook gets it | Who reads it |
+|---|---|---|---|
+| `SF_TICKET` | `the back-end ticket` | claims line `ticket=` | what the close, the commit and every alarm are about. It is **not** the test that picks a dispatched session out of all the others: that is the claims line itself |
+| `SF_BRANCH` | `feature/add-record` | claims line `branch=`, else context file `branch=` | commit here, push here, refuse if `git branch --show-current` disagrees |
+| `SF_PR_TARGET` | `epic/record-box`, or `main` at the epic tier | claims line `target=`, else context file `pr_target=` | the target of this branch's PR — derived off the ticket's id by the loop |
+| `SF_AGENT` | `engineer`, or `lead` on a gate dispatch | claims line `agent=`, else context file `agent=` | so an alarm names who was doing the work |
+| `SF_LABEL` | `backend-logic`, or `gate:<tier>` on a gate dispatch | claims line `label=`, else context file `label=` | so an alarm names what chose that worker |
+| `SF_PROJECT_DIR` | the tower root, where `.beads` lives | claims line `repo=`, else context file `tower=` | every `bd -C` the hook runs — **the worktree is not the tower** |
+| `SF_LOG_DIR` | this run's log dir | the claims line's `run=`, under the log root | alarms land in `$SF_LOG_DIR/errors` |
+| `SF_SESSION` | the session id | the hook's own stdin JSON, `.session_id` | the key that found the claims line, and the `--session` the close is filed under |
+| `SF_WORKTREE` | the branch's folder | claims line `worktree=` | the folder every `git -C` the hook runs stands in |
 
 `SF_LOG_QUIET=1` is exported by the Stop hook before it writes its first line: a hook must never print
-into a session. The dispatcher leaves it unset, so its own lines also go to the terminal.
+into a session. The engine leaves it unset, so its own lines also go to the terminal. Nothing else is handed to
+the worker, and the worker writes nothing to signal it is finished: what ends its turn is the `Stop` event, and the
+`claims` line is what says the turn was the loop's to begin with.
 
-**The tenth argument, `kind`, is not an environment variable.** `spawnWorker` takes it as `${10:-task}` and
-writes it into the dispatch context file beside the other seven — `ticket branch pr_target agent label tower
-done_file kind` — and the Stop hook reads it back as `SF_WORK_KIND="${claimKind:-${kind:-task}}"`, off the
-claims line first and the context file only as a fallback. It is the only thing that tells the hook it is
-finishing a **gate** rather than a task.
+**The ninth dispatch fact, `kind`, is not one of the nine log fields.** `spawnWorker` takes it as its ninth
+argument, `${9:-task}`, and writes it into the context file beside the other six — `ticket branch pr_target agent
+label tower kind`; a **gate** dispatch additionally writes `kind=gate` onto its claims line as detail. The Stop hook
+reads it back as `SF_WORK_KIND="${claimKind:-${kind:-task}}"`, off the claims line first and the context file only
+as a fallback. It is the only thing that tells the hook it is finishing a **gate** rather than a task.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/worker.sh#L46-L64 "Source — beads-loop/worker.sh lines 46–64, spawnWorker: the context file, then the env block on the --bg line"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/worker.sh#L54-L68 "Source — beads-loop/worker.sh lines 54–68, spawnWorker: the context file, then the spawn with no environment in front of it"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/agent-hooks/worker-stop.sh#L82-L117 "Source — CLI/src/agent-hooks/worker-stop.sh lines 82–117, adoptDispatchContext: the claims line becomes the hook's own nine fields"
     }
 
     claim = cliTool "bd ready --claim — the hand that takes one ticket" {
@@ -371,7 +384,7 @@ loop moves it to `in_progress` itself with `bd update <gate> --status in_progres
 step 1 of the tick and the only claim in the system made by status.
 """
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/claim.sh "Source — CLI/src/beads-loop/claim.sh, the frontier and the guards"
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/gates.sh#L13-L49 "Source — CLI/src/beads-loop/gates.sh lines 13–49, dispatchOneGate: the claim made by status"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/gates.sh#L13-L47 "Source — CLI/src/beads-loop/gates.sh lines 13–47, dispatchOneGate: the claim made by status"
     }
 
   }  // machine
@@ -383,7 +396,7 @@ step 1 of the tick and the only claim in the system made by status.
 front (`claims errors waiting results closes`), so a missing file and an empty file look the
 same and neither hides a silent failure — `closes` is written by the Stop hook, possibly long after the run
 ended. Two more appear only when something writes them (`bd-stderr`, from the claim, and `claude-stderr`, from
-the capacity count), and one pair per worker (`spawn-<ticket>`, `done-<ticket>`).
+the capacity count), and one per worker (`spawn-<ticket>`).
 
 **No sixth file is seeded, and none of these five ever holds a line about a worker that died.** A sixth used to
 be, `failures`, seeded alongside the rest and written by nothing at all, so an empty one read as "no failures"
@@ -391,9 +404,18 @@ when it meant "no such feature" — it is gone from the seed list and from the c
 gone, and the absence is a louder alarm than the file ever was: `Stop` is the only hook event a worker agent
 binds and there is no `StopFailure` to bind, so a session killed by an API error fires no hook and writes no
 line into any file in this directory. The tell is the **absence across** the five — a `claims` line, no `closes`
-line, no `done-<ticket>` marker, and a ticket left `in_progress` that no `bd ready` will ever name. The
+line, and a ticket left `in_progress` that no `bd ready` will ever name. The
 overseer's check for a worker that died quietly is the only thing that finds one, and all it can do is name the
 ticket and hand a human `bd update <ticket> --status failed-agent` to run.
+
+**Beside the run dirs, not inside one: `<log root>/worker-context/<worktree folder name>`.** This is the other half
+of the dispatch record and the only state in the system that is neither the database nor a log line. The loop writes
+it before the agent starts, one file per **branch** (the folder name is the branch with `/` → `+`), holding
+`ticket= branch= pr_target= agent= label= tower= kind=`; a second dispatch onto the same branch replaces it, and the
+Stop hook deletes it the moment the ticket closes. It is not seeded, not per run, and never read by a tick — only by
+the hook, as the fallback for what a thin claims line omits, and by `sf commit`, which reads its `agent=` key to
+name the commit subject. Nothing under it is safe to delete mid-run: a missing file plus a thin claims line is
+`reason=no-context`, and the ticket stays claimed.
 
 **One line format, and one owner of it** (`CLI/utils/logging.sh`), or the files cannot be read against each
 other. **Two callers source that one file, and nothing else does.** The engine sources it and keeps its nine
@@ -401,16 +423,17 @@ fields in **process memory** for the whole run, setting them as the tick goes. T
 file and fills the same nine fields from its own environment on every line, through
 `takeLogFieldsFromEnvironment`.
 
-Those nine come from **one variable per key**: `SF_LOG_RUN` (falling back to the name of the log directory),
-`SF_PROJECT_DIR`, `SF_TICKET`, `SF_LABEL`, `SF_AGENT`, `SF_BRANCH`, `SF_PR_TARGET`, `SF_SESSION`,
-`SF_WORKTREE`. Export them once in your own process and every line after carries them; one you never set comes
-out `-`. Nothing carries from one process to the next — two shells are two environments — so the hook sets them
-where it sets everything else: off the dispatched claims line it just matched to this session, with the dispatch
-context file as the fallback for what a thin line omits — it cannot inherit them from the worker, because
-`claude --bg` runs the worker in a pooled process whose environment the daemon froze at the run's first spawn.
-The loop does set most of the same names on the `--bg` line itself (the eight on the spawn node) —
-see that node for what they are for. The directory the lines land in is `SF_LOG_DIR`, falling back to
-`SF_LOG_ROOT` and then the default.
+For a caller with no process memory of its own those nine come from **one variable per key**: `SF_LOG_RUN`
+(falling back to the name of the log directory), `SF_PROJECT_DIR`, `SF_TICKET`, `SF_LABEL`, `SF_AGENT`,
+`SF_BRANCH`, `SF_PR_TARGET`, `SF_SESSION`, `SF_WORKTREE`. Export them once in your own process and every line
+after carries them; one you never set comes out `-`. Nothing carries from one process to the next — two shells are
+two environments — so the hook fills them off the dispatched claims line it just matched to this session, with the
+dispatch context file as the fallback for what a thin line omits (the nine, and where each one comes from, are on
+the hook-fields node). It cannot inherit them from the worker: the spawn hands the session **no environment at
+all**, because `claude --bg` runs every session through a pooled daemon that froze the environment at the run's
+first spawn. The engine exports none of them either — it keeps its own nine in process memory with `setLogField`.
+The directory the lines land in is `$logDir`: the engine's own, and the hook rebuilds it from `SF_LOG_DIR`, then
+`SF_LOG_ROOT`, then the default.
 
 ```
 <TAG padded to 8> <ISO time>\trun=… repo=… ticket=… label=… agent=… branch=… target=… session=… worktree=… <detail>
@@ -495,19 +518,10 @@ That one worker's raw spawn output, which holds its session id (`backgrounded ·
 only for the run's final worker — the one thing a human needs to attach to, read, or stop.
 """
     }
-    fDone = logFile "done-<ticket>" {
-      summary "The worker's own marker saying its brief is complete; the Stop hook is fail-closed on it."
-      description """
-The worker's own declaration that its brief is complete, created by `touch \"$SF_DONE_FILE\"` as its very
-last action — an instruction that lives only in the worker's own agent file, never in the loop's brief (the
-workers layer owns what that brief does and does not say). The engine `rm -f`s it before spawning, so a marker
-can only mean *this* session; the Stop hook refuses to land anything without it.
-"""
-    }
   }
 
   stopHook = hook "worker-stop.sh — the Stop hook, fail-closed" {
-    summary "The closer, registered by each worker agent's own frontmatter: commit, push, the branch's PR, close — eighteen refusals first."
+    summary "The closer, registered by each worker agent's own frontmatter: commit, push, the branch's PR, close — seventeen refusals first."
     description """
 **What it is:** the closer, and **it runs**. It sits at `CLI/src/agent-hooks/worker-stop.sh`, an engine beside every
 other one that `bin/sf` locates and execs, and implements the whole
@@ -526,14 +540,19 @@ hook input's `.cwd` is the worktree and is real, a claimed spare being chdir'd t
 belongs to a branch and not to a ticket, so it identifies no worker.
 
 ```
-worker says it is done → `sf commit` onto its feature's branch → push → the branch's PR →
+the worker's session ends (`Stop`) → `sf commit` onto its feature's branch → push → the branch's PR →
 write the PR url onto the ticket's pr metadata → close it
 ```
 
-It refuses **eighteen** ways, each one an `errors` line then `exit 0` with the ticket untouched, in the order the
+It refuses **seventeen** ways, each one an `errors` line then `exit 0` with the ticket untouched, in the order the
 code checks them —
-they are walked one by one in the second walkthrough. The gate of the whole design is `not-declared-done`:
-no marker, no commit, no push, no PR, no close.
+they are walked one by one in the second walkthrough. Nothing anywhere says a worker's brief is finished: there is no
+marker, no declaration, no signal of the worker's own that the hook could check. The `Stop` event is the only thing
+that says a turn ended, and the dispatched `claims` line is the only thing that says the turn was the loop's to
+begin with — once this session is matched to that line, landing the work is what the hook does. What that costs is
+the honesty of the stop: a worker that quits early still gets its commit, its push, its PR and its closed ticket,
+carrying whatever it managed, so the worker's final message and the diff are the only things a person has to judge
+the tier by. That is why the contract's last bullet is about when it is honest to stop.
 
 **It writes its own lines.** The script sources `CLI/utils/logging.sh` — the one definition of a line — directly,
 the way the engine does, and nothing else sources it. Its own `logLine <tag> [detail…]` sets the directory from
@@ -558,7 +577,7 @@ inside the tower's own folders, and the loop only ever runs a tower from inside 
 it by `gh pr list --head <branch> --base <target> --state open` and reuses it — which is why the branch, not
 the ticket, is the identity of the work.
 
-**Two paths, decided by one key.** Everything above the `SF_WORK_KIND` test is shared: guard, marker, branch,
+**Two paths, decided by one key.** Everything above the `SF_WORK_KIND` test is shared: guard, branch,
 commit, push, forge. A claim whose `kind=gate` (read off the dispatched claims line, falling back to the
 context file, defaulting to `task`) then takes a different road: it looks the branch's PR up **at any state**
 — `gh pr list … --state all` / `glab mr list … --all`, not `--state open` — because the lead agent has just
@@ -576,14 +595,20 @@ through the forge, and a second PR off a merged branch is a lie about work nobod
     description """
 **What it is:** `.claude/agents/overseer.md`, run in the **foreground** by `sf overseer` →
 `CLI/src/overseer-agent.sh`, which execs `$SF_AGENT_LAUNCH_COMMAND` — your `SF_AGENT_COMMAND` plus the flags every
-spawn carries, since it too stands in a tower and not in the factory — with the `overseer` agent and
-`--disallowedTools 'Bash(sf:*)'`. The `PATH` guard below still checks the plain `SF_AGENT_COMMAND`. Foreground is
+spawn carries, since it too stands in a tower and not in the factory — with the `overseer` agent,
+`--disallowedTools 'Bash(sf:*)'`, and a short **launch brief prepended to your prompt**. The `PATH` guard below still checks the plain `SF_AGENT_COMMAND`. Foreground is
 the whole difference from a worker: a worker is spawned `--bg`
 with nobody watching and reports through the log; the overseer talks back to you, and anything you type after
-the command goes to it as the prompt.
+the command goes to it as the prompt — after that brief, which it cannot lose.
+
+**Two of its facts come from that brief, never from its own environment.** The engine bakes the **log root** and
+the **agent command** into the prompt it hands over — `overseer-agent.sh` interpolates them off its own
+`SF_LOG_ROOT` and `SF_AGENT_COMMAND` — and `overseer.md` writes them as `<log root>` and `<agent command>`
+throughout. The watcher is a session like any other: whatever its shell happens to carry about a run can belong to
+a different one.
 
 **It reads three things and mutates nothing:** the beads database of the directory it was started in, the run
-logs under `SF_LOG_ROOT`, and git. It knows how a tower got where it is — what each plan agent writes, tier by
+logs under `<log root>`, and git. It knows how a tower got where it is — what each plan agent writes, tier by
 tier, what a gate is, what should be running next — which is what lets it tell a real fault from a tier simply
 waiting on a human.
 
@@ -612,7 +637,7 @@ that read and write it are in the toolbelt; what lives here is the **state**, an
 
 | Fact | Where it lives | Who reads it |
 |---|---|---|
-| `branch` | on a **gate only** — the epic gate and each feature gate carry their own, written once by the `plan-*` agent that owns the tier. No task, suite or review carries one | the loop, through `readFieldOf <gate> branch`, on the gate the ticket's id names — then handed down as `SF_BRANCH`; nothing parses text for it |
+| `branch` | on a **gate only** — the epic gate and each feature gate carry their own, written once by the `plan-*` agent that owns the tier. No task, suite or review carries one | the loop, through `readFieldOf <gate> branch`, on the gate the ticket's id names — then written into the dispatch record, the claims line's `branch=` with the context file's `branch=` beside it, which is where the Stop hook reads it back; nothing parses text for it |
 | `pr` | the url, written by the loop (onto the epic gate) or the Stop hook (onto any ticket whose work landed) — never by a plan agent | a human, and the hook when it looks for the PR already on a branch |
 
 **Everything else about a ticket's git world is derived, never stored.** An id reads
@@ -671,7 +696,7 @@ a branch to the wrong forge.
 | `bd show --json <id>` | read one ticket back — its status, its title (`--long`, the commit message), its `issue_type` (is this row a gate?), and a gate's `branch` |
 | `bd update <id> --set-metadata k=v` | **merges** — which is why writing `pr` never disturbs the plan's `branch` |
 | `bd update <id> --status <s> --if-status <from>` | **the gate claim**, and the only conditional write in the system: `moveGateTo <gate> in_progress open` is the take, `moveGateTo <gate> open in_progress` is the put-back, and a non-zero exit (the gate was no longer in `<from>`) is the `gate-claim-lost` alarm. A gate never reaches `bd ready`, so this is the only way it moves |
-| `bd close <id> --session <id> --reason …` | only the Stop hook, only on the done marker — a task or a gate, never by the worker itself |
+| `bd close <id> --session <id> --reason …` | only the Stop hook, only once this session's dispatch is on the `claims` line — a task or a gate, never by the worker itself |
 | `bd list --include-gates --ready --type gate --limit 0 --json` | the ready gates, `.id` alone — the only listing that shows a gate at all, and the input to `dispatchReadyGates`. The tier is not on the row; `gateTierOf` reads it off the id's kind word |
 | `CLI/src/create-beads/create-gate.sh <repo> [<epicGateId>]` then `bd create -t gate --id <what it printed> --metadata '{"branch":…}'` | a plan agent mints a gate id and nothing else: no gate id is ever typed. With an epic gate id in hand it numbers the next feature, with none it mints the epic and its one uuid |
 | `CLI/src/create-beads/create-task.sh <repo> <gateId> [suite\|review]` then `bd create -t task -l <label> --id <what it printed>` | a plan agent mints a task id and nothing else: a gate carries **zero** labels and the `branch` key alone, a task exactly one dispatching label and **no metadata at all**. `.1` and `.2` are fixed to a gate's suite and review, and asking for a second one refuses; above `.2` it takes
@@ -698,13 +723,18 @@ the watcher — take the launch form, and every other call stays on the plain na
 - `$SF_AGENT_LAUNCH_COMMAND --bg --agent <agent> --permission-mode bypassPermissions \"<the brief>\"` —
   the worker spawn, run with `cd` **inside** the branch's worktree, and deliberately **no `-w`** —
   `claude --worktree` only ever *creates* one, and this branch already owns its own. The lead agent's gate spawn
-  is the same call with `--agent lead` and the same brief word for word: `buildWorkerPrompt` builds a lead variant
-  of the stay-on-branch rule into `$stayOnBranchRule` and never interpolates it, so a gate session is handed
-  nothing a worker is not. What that brief actually says is on the workers layer.
+  is the same call with `--agent lead`, and the brief is the same `buildWorkerPrompt` with one branch of one
+  variable: `$stayOnBranchRule` is rule 4, chosen by `[[ "$agentName" == "$leadAgentName" ]]`, and the lead variant
+  is the only text that names the target or says `sf commit` outright. Nothing else is added, so a gate session is
+  handed nothing a worker is not. What that brief actually says is on the workers layer.
 - `$SF_AGENT_LAUNCH_COMMAND --agent <planner> \"<prompt>\"` — the three plan agents, foreground, through
   `CLI/src/plan-agent.sh`, which is what `sf plan:epic`, `sf plan:feature` and `sf plan:task` run.
-- `$SF_AGENT_LAUNCH_COMMAND --agent overseer --disallowedTools 'Bash(sf:*)'` — the reader, foreground, through
-  `CLI/src/overseer-agent.sh`.
+- `$SF_AGENT_LAUNCH_COMMAND --agent overseer --disallowedTools 'Bash(sf:*)' \"<launch brief> <your prompt>\"` — the
+  reader, foreground, through `CLI/src/overseer-agent.sh`. The engine prepends a one-sentence brief naming the run
+  logs' directory and the command that lists background sessions, both interpolated off the engine's own
+  `SF_LOG_ROOT` and `SF_AGENT_COMMAND`, and tells the watcher to take those two from the brief and never off its own
+  environment. It is the only spawn that hands a session a fact this way; the worker's facts ride in its prompt and
+  the dispatch record.
 - `$SF_AGENT_COMMAND agents --json` — the capacity count, recounted fresh every tick: background
   sessions reporting `status: busy` whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower.
   All three tests are load-bearing. A finished `--bg` session is never removed from this listing — it stays
@@ -752,7 +782,10 @@ The loop owns the folders, because a worktree belongs to a **branch**, not to a 
   The tower's own working tree is never touched and its HEAD never moves.
 - **Nothing else here commits.** `git add -A`, `git commit -m \"agent:branch:message\"` and
   `git push -u origin <branch>` all live inside `sf commit` (`CLI/src/commit.sh`) — the only way anything
-  commits in this repo. The agent is `SF_AGENT`, `manual` when a person typed it; the branch is
+  commits in this repo. The agent is the one the loop dispatched onto **this folder**: `commit.sh` loads the
+  environment only to find the log root, then reads the `agent=` key of that folder's dispatch context file,
+  `<log root>/worker-context/<worktree folder name>` — so the name is a fact about the folder, not about the shell
+  that typed the command, and no dispatch record means `manual`, a person standing in a terminal. The branch is
   `git symbolic-ref --short HEAD`, and a detached HEAD is refused because a branch it cannot name is a
   subject it cannot write.
 """
@@ -784,7 +817,8 @@ git -C <tower> fetch --quiet origin    before each lookup
 A feature branch starts where it is going to land. The worker is spawned with its cwd **inside** this folder,
 and it lands its own finished pieces here as it goes — `sf commit`, one commit per piece (the rule is on the
 workers layer) — never a bare `git commit` or `git push`, never a branch of its own, so two hands never write
-one branch. The tower root (where `.beads` lives) is `SF_PROJECT_DIR`: **the worktree is not the tower**.
+one branch. The tower root (where `.beads` lives) is never inherited from this folder either: it reaches the worker
+as a literal path in its prompt and sits in the dispatch record as `tower=`. **The worktree is not the tower.**
 """
     }
 
@@ -794,7 +828,7 @@ one branch. The tower root (where `.beads` lives) is `SF_PROJECT_DIR`: **the wor
     summary "Closes the gates and nothing else — until a tier's flag hands that gate to the lead agent."
     description """
 **What it is:** the one who closes a **gate**, unless that tier's switch says otherwise. A *task* is closed by
-the Stop hook, once its worker touches the done marker — the human never reaches for a task, and a worker that
+the Stop hook, when its worker's session ends — the human never reaches for a task, and a worker that
 closes its own ticket is a bug, because the hook walks past an already-closed ticket and lands nothing. The
 human reads the worker's report, verifies the branch and the PR, and closes the gate above it. There is **no
 `human` agent** — the person enters through gates, and nothing is ever spawned for them. A claimable ticket
@@ -825,14 +859,18 @@ the pull request: the ticket is where a worker leaves what the next reader canno
 
 **The contract is in the agent file.** Every tower agent carries a `## The contract` section — keep the
 five-minute lease alive with `bd heartbeat <ticket>` between long steps, never close your own ticket (the Stop
-hook closes it once you declare done, and a ticket already closed makes the hook walk past it, landing nothing),
-write what remains as a comment, spawn nothing, and `touch $SF_DONE_FILE` as the very last action and only
-when the brief is genuinely complete. **Six of the seven say spawn nothing** — `engineer`, `frontend` and the
-three testers each carry that bullet verbatim, and the lead carries it as hard rule 6. **`review` is the one
+hook closes it when your turn ends, and a ticket already closed makes the hook walk past it, landing nothing),
+write what remains as a comment, spawn nothing, and **finish the work before you stop** — stopping is what finishes
+the ticket, so stop only when you would hand the brief to a human as it stands. There is no declaration of
+completion to make and nothing to touch at the end: the session ending *is* the hand-off, which is why the contract
+spends its last bullet on when it is honest to stop rather than on how to signal that you are done.
+**Six of the seven say spawn nothing** — `engineer`, `frontend` and the three testers each carry that bullet
+verbatim, and the lead carries it as hard rule 6. **`review` is the one
 exception**: its own contract says *spawn fixers, once each, one at a time, and file no tickets*, and it is
 the only agent file in the tower whose `tools:` line carries `Agent`. The round is on its node. The `lead`
 agent states the same rules inside its own steps and hard rules rather than in a section of that name — `bd
-heartbeat <gate>`, never `bd close` not even its own, spawn nothing, `touch $SF_DONE_FILE` last. No skill holds
+heartbeat <gate>`, never `bd close` not even its own, spawn nothing, and never invent a branch, a target, a test
+command, or a ticket. No skill holds
 these rules, and the agent file is the **only** place most of them are written at all — the brief the loop
 sends is not a copy of this contract.
 
@@ -840,23 +878,29 @@ sends is not a copy of this contract.
 argument the spawn passes after the flags, and it is short: the ticket id, a `FIRST:` line ordering the worker to
 read `bd show --json <ticket>` in full as its complete brief, one paragraph saying this folder is the worktree of
 a branch shared by every task of the feature so earlier commits may already be sitting there, and then exactly
-**four** numbered rules, running **1, 2, 3, 4** with no gaps — ground every beads command before you run it; keep
+**four** numbered rules, running **1, 2, 3, 4** with no gaps. Every fact in it is a **literal** interpolated into
+that one `printf` — the ticket id, the branch, the tower's path, and for the lead agent its `prTarget` — because the
+spawn hands the session no environment to read any of them off. A worker's brief never names the pull request's
+target: `prTarget` is interpolated only into the lead variant of rule 4. The four are: ground every beads command before you run it; keep
 the five-minute lease alive with `bd heartbeat <ticket>`; never run `bd close`,
-because the Stop hook closes the ticket once you declare done and closing it by hand makes the hook walk past it;
+because the Stop hook closes the ticket when your turn ends and closing it by hand makes the hook walk past it —
+that same rule 3 is where the brief says *finish the work before you stop*, because stopping is what finishes the
+ticket;
 and stay on `${branch}`, in this folder — never create a branch, never check one out, never merge, never rebase,
 never a bare `git commit` or `git push`, and commit as your agent file tells you as you go, because whatever is
 still uncommitted when you stop becomes one last commit on the branch carrying your ticket's title.
 **Rule 1 is the one that guards the database**, and it is there because `bd` finds its database by walking **up**
-from wherever the session happens to be standing: the rule names `$SF_PROJECT_DIR` as the tower's database, orders
-the worker to run `bd where`, and to `cd '$SF_PROJECT_DIR'` first if that does not name it — one stray `cd` and the
+from wherever the session happens to be standing: the rule names the tower's path **as a literal** — the same path
+the dispatch record carries under `tower=` — and orders the worker to run `bd where` and make it name that database.
+When it names another one, the remedy the rule gives is `-C '<tower>'` on every beads command from then on, said out
+loud in the report; **never** `cd` into a tower that is not its own. One stray `cd` and the
 worker is reading somebody else's tower, claiming and closing tickets in a tower it was never dispatched into.
 Rule 4 is the only part that differs by agent — for the
 **lead** it says this ticket is a GATE, that you verify the tier it stands for and then merge this branch's own
 pull request into its target with the forge's own command (`gh pr merge` / `glab mr merge`) and never a local
 `git merge` into the target — built as `$stayOnBranchRule` and interpolated into the one `printf`, which is
-closed and parses. What the brief still never says: the write-what-remains rule, any ban on spawning, and the
-done marker itself — so the prompt is no safety net for any of them, and the only thing anywhere that tells a
-worker to create `$SF_DONE_FILE` is its own agent file, which the Stop hook fails closed on.
+closed and parses. What the brief still never says: the write-what-remains rule and any ban on spawning — so the
+prompt is no safety net for either of them, and both live only in the worker's own agent file.
 
 **The same file holds the hook registration.** Each of these seven agent files carries a `hooks:` block in its own
 YAML frontmatter binding `Stop` → `sf hook stop` (timeout 300) — that block, and nothing
@@ -867,10 +911,11 @@ The overseer and the three plan agents carry no `hooks:` block at all,
 so their sessions fire no hook; the mechanism is on the Stop hook's node.
 
 **The five that build, commit as they go.** `engineer`, `frontend`, `tester-unit`, `tester-feature` and
-`tester-e2e` each carry a `## Commit As You Go` section running `SF_AGENT=<agent> sf commit <what you just
-did>` after every major change that stands on its own — one commit per piece, so the pull request shows the
-work as it happens instead of one blob at the end. The name is passed rather than inherited, so a worker run
-outside the loop still commits named for itself. `lead` and `review` have no such section: `review` commits
+`tester-e2e` each carry a `## Commit As You Go` section running a bare `sf commit <what you just did>` after every
+major change that stands on its own — one commit per piece, so the pull request shows the work as it happens
+instead of one blob at the end. **Nothing prefixes that command with an agent name**, and no agent file does: the
+name in the `agent:branch:message` subject is read off the dispatch record for the folder the commit stands in, not
+out of the shell that typed it — which is exactly why the command is bare. `lead` and `review` have no such section: `review` commits
 nothing at all — its fixes reach the branch only through its fixers' own `sf commit`, never its own — and the
 lead commits only what it had to resolve where the target moved under the branch.
 """
@@ -935,8 +980,8 @@ that uses them.
 
 **Its branch is the folder it stands on; its base is read through `bd`.** The loop checked the branch out and put
 the session inside it, so `git branch --show-current` is the whole answer and the only thing it trusts — never
-`$SF_BRANCH`, which the pooled daemon froze at the run's first spawn and which can be another worker's branch
-entirely. It never reviews a branch against itself: it diffs against the **epic gate's** `branch` metadata, read
+anything its own shell carries about a dispatch: `claude --bg` runs it through the shared daemon that froze the
+environment at the run's first spawn, so whatever is in there can be another worker's branch entirely. It never reviews a branch against itself: it diffs against the **epic gate's** `branch` metadata, read
 off `<repo>-epic-<uuid>-0` with `bd show --json`, and against `main` when its own hierarchy starts at `0`.
 **An empty `git diff --stat` is a finding, never a pass** — either the base resolved wrong or the branch holds
 nothing; it says which, and stops rather than reviewing an empty diff.
@@ -958,17 +1003,13 @@ nothing it does not already say, putting alongside it only the url of the commen
 standing on, and the name of the review ticket, for context. A comment that is not enough to fix from was never
 a finished finding: the missing detail goes back onto the pull request before the spawn.
 
-**Every prompt ends with the same four constraints:** fix this finding and nothing beside it; commit it
-yourself with `sf commit`; touch no ticket — no `bd close`, no `bd create`, no comment on anything; and
-**touch no done marker**. Review says that last one out loud and **names the variable**, because
-`$SF_DONE_FILE` is **review's own** — the loop sets it once on the worker's spawn line, and an `Agent` spawn
-inherits review's environment — so a fixer that finishes by touching it declares the review complete while
-review is still waiting on the fixers it has not spawned yet, and the hook would then commit, push and close a
-half-finished round. Because the spawns are sequential, the **first** fixer to finish is enough to do it.
-Nothing in `CLI/` can tell which session created the marker, so the brief that reaches the fixer is the only
-defence; the five fixer files keep their own `touch $SF_DONE_FILE` rule untouched, because outside review each
-of them is the session that owns its marker. Then review re-runs no step, reads no fixer's diff, spawns no
-second round, and never fixes what a fixer left broken.
+**Every prompt ends with the same three constraints:** fix this finding and nothing beside it; commit it
+yourself with `sf commit`; and touch no ticket — no `bd close`, no `bd create`, no comment on anything. **They
+commit; review commits nothing.** A fixer's `sf commit` is what lands a fix on the branch; review never runs
+`git add`, `git commit`, or `git push`, and never fixes what a fixer left broken. Each fixer is a session of its
+own, and each one's own `Stop` event is what finishes it — review's turn ends only when review itself stops, so a
+fixer reporting back can never close the review ticket out from under it. Then review re-runs no step, reads no
+fixer's diff, and spawns no second round.
 
 **Then it closes out its own threads.** Once the last fixer has reported, review takes each finding back to the
 thread it posted it in and resolves it — the ones whose fix landed, and only those. The resolve calls live in
@@ -995,7 +1036,7 @@ out with its numbers: every ticket that blocks the gate is closed; this tier's r
 every finding is answered on the branch; the project's own test command exits `0` **with a count above zero**
 (the epic tier runs the end-to-end command too); the pull request's pipeline is green, where queued and skipped
 are not green. Any one of them failing means it says *this gate is not proved*, comments the gate naming what is
-missing, and touches no marker — the gate stays claimed and a human is told why.
+missing, and stops there — the gate stays claimed and a human is told why.
 
 **Merge, and only now** — `gh pr merge` / `glab mr merge` on that branch's PR into its **`prTarget`**, which
 Step 1 derived off the gate's own id: the epic gate's `branch`, or `main` when the gate is the epic gate. The
@@ -1528,7 +1569,7 @@ worker that died quietly is the only thing that finds one, and all it can do is 
         summary "The session's claims line carries no ticket or no run, so the hook cannot tell what it stands for."
         description """
 The hook finds this session's line in the run's `claims` file and reads its `key=value` fields off it. A line
-with no `ticket=` or no `run=` is unreadable — no ticket, no run directory, no done marker — so the hook stops
+with no `ticket=` or no `run=` is unreadable — no ticket, no run directory — so the hook stops
 with the ticket still `in_progress`. It is the first refusal in the file, and only a session the loop did
 dispatch can reach it: a session with **no** claims line exits quietly one line earlier, which is how every
 session the loop never started leaves.
@@ -1573,33 +1614,24 @@ anything else (`not-found`, `open`) is an alarm.
       }
       noBranchHook = alarm "ERROR reason=no-branch" {
         #staysClaimed
-        summary "The spawn carried no branch, so the hook refuses to file work anywhere."
+        summary "The dispatch record carries no branch, so the hook refuses to file work anywhere."
         description """
-`SF_BRANCH` was not on the spawn line — so the loop never got as far as deriving the branch off the ticket's id.
+Neither the session's claims line (`branch=`) nor that worktree's dispatch context file (`branch=`) names a branch,
+so there is no branch to file on — the loop never got as far as deriving one off the gate the ticket's id names, and
+that gate carries no `branch` key. The spawn is nowhere in this: it sets no environment, so the value the hook is
+missing is one it would have exported for itself. Only the function's **name** still says spawn —
+`requireSpawnEnvironment` — and its `msg=` names the dispatch record and the gate that should have carried the key.
+The name is history; the check is the record's.
 """
       }
       noPrTarget = alarm "ERROR reason=no-pr-target" {
         #staysClaimed
-        summary "The spawn carried no pull-request target, so the hook refuses to aim blind."
+        summary "The dispatch record carries no pull-request target, so the hook refuses to aim blind."
         description """
-`SF_PR_TARGET` was not on the spawn. The loop derived that
-target off the ticket's epic gate — the gate its uuid names, `main` when the owner is the epic gate
-itself — and carried it through the claims line as `target=` and the spawn as `SF_PR_TARGET`; the hook reads the
-claims line first and the spawn variable after it. An absent target means the hook would be aiming blind, and it
-refuses to.
-"""
-      }
-      notDeclaredDone = alarm "ERROR reason=not-declared-done" {
-        #staysClaimed
-        summary "The worker never touched its done marker: no commit, no push, no pull request, no close."
-        description """
-**The gate.** `$SF_DONE_FILE` does not exist: the session ended without saying, out loud, in the one place both
-programs read, that its brief is finished. The session ending is not that statement — the marker is.
-
-No commit, no push, no PR, no close. The ticket stays claimed so its lease parks it off the frontier and every
-task chained behind it waits. That is the whole safety of a shared branch: a half-finished task cannot slide its
-neighbours sideways. And the converse is the one failure this model cannot undo on its own — a worker that touches
-the marker early files half a task onto a branch its siblings are queued behind.
+The loop derived that target off the ticket's epic gate — the gate its uuid names, `main` when the owner is the epic
+gate itself — and wrote it into the dispatch record: the claims line's `target=`, with the context file's
+`pr_target=` as the fallback. Neither carried it, so the hook would be aiming blind, and it refuses to. The spawn set
+no environment, so nothing ever "was not on the spawn": the record is the only place this value was ever written.
 """
       }
       wrongBranch = alarm "ERROR reason=wrong-branch want=<b> got=<d>" {
@@ -1607,8 +1639,8 @@ the marker early files half a task onto a branch its siblings are queued behind.
         summary "The worker changed branch anyway, so the hook will not file its work under this ticket."
         description """
 The worker was told never to change branches; if it did anyway, this is the last place that can refuse to file
-its work under the wrong ticket's name. `git branch --show-current` must equal `SF_BRANCH` exactly — a detached
-tree reads as `got=\"detached\"`.
+its work under the wrong ticket's name. `git branch --show-current` must equal the branch off the dispatch record
+exactly — a detached tree reads as `got=\"detached\"`.
 """
       }
       noTitle = alarm "ERROR reason=ticket-has-no-title" {
@@ -1636,7 +1668,8 @@ is **still dirty** after `sf commit` returned.
         #staysClaimed
         summary "Pushing the branch to the remote failed; its output is quoted on the line."
         description """
-`git push -u origin <SF_BRANCH>` failed; the first 160 characters of its output are the `msg=`.
+`git push -u origin <branch>` failed, the branch being the one off this session's dispatch record; the first 160
+characters of its output are the `msg=`.
 """
       }
       forgeUnknown = alarm "ERROR reason=forge-unknown remote=<url>" {
@@ -1663,7 +1696,7 @@ The forge settled, its CLI is not installed. Same reason as the up-front check, 
 Reached only when the claim's `kind` is `gate`. The gate path never opens a pull request — the lead agent was sent
 to **merge** one, so the hook only looks the branch's PR up at any state, `--state all` on GitHub and `--all` on
 GitLab, against that branch and its `prTarget`. Nothing matches: there was nothing for the lead agent to merge,
-and it declared done anyway. The gate stays claimed and the tier behind it waits.
+and the lead agent's session ended anyway. The gate stays claimed and the tier behind it waits.
 
 This is the reason that does not exist on the task path, and the two are not the same failure: `pr-not-created`
 means the hook could not raise a pull request, this means one was never there to merge. Only two things ever open

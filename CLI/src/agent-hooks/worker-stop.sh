@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # worker-stop.sh — the Stop hook that finishes a dispatched worker's ticket: guard, commit through
-# `sf commit`, push, the branch's PR, annotate, close. FAIL-CLOSED on $SF_DONE_FILE — no marker, nothing
-# lands, the ticket stays claimed, ERROR reason=not-declared-done (.claude/CLAUDE.md
-# §The dispatcher). Registered as the `Stop` hook in the frontmatter of the seven worker agents, which
-# reaches this file as `sf hook stop`; nothing else calls it. The hook finds its worker by SESSION
-# ID, never by cwd: `claude --bg` hands the worker a pooled process whose environment was frozen by the
-# daemon at its first spawn, so the `SF_*` reaching this hook is whatever the first worker of the run had.
+# `sf commit`, push, the branch's PR, annotate, close. The Stop event itself is the only signal that a
+# worker finished: a session whose dispatch is on the claims line is authority to land the work
+# (.claude/CLAUDE.md §The dispatcher). Registered as the `Stop` hook in the frontmatter of the seven
+# worker agents, which reaches this file as `sf hook stop`; nothing else calls it. The hook finds its
+# worker by SESSION ID, never by cwd: `claude --bg` hands the worker a pooled process whose environment
+# was frozen by the daemon at its first spawn, and the spawn writes no environment at all, so nothing in
+# this shell says anything about the session it runs for.
 # The cwd is not frozen — a claimed spare is chdir'd to the spawn's cwd, so `$PWD` and the hook input's
 # `cwd` are the worktree — but a worktree belongs to a branch and not to a ticket, so it names nothing
-# here. The record of the dispatch is the claims line the loop
-# wrote at $SF_LOG_ROOT/<run>/claims — ticket, branch, target, worktree and run all come off that line, and
-# $SF_DONE_FILE is rebuilt from it as $SF_LOG_ROOT/<run>/done-<ticket>. The dispatch context under
-# $SF_LOG_ROOT/worker-context/, keyed by the worktree's folder name (`/` as `+`), is read only as a fallback
-# for what a thin claims line omits. A session with no dispatched claims line is a human's: it leaves at
-# once, silently, and writes nothing anywhere.
+# here. The record of the dispatch is the claims line the loop wrote at $SF_LOG_ROOT/<run>/claims —
+# ticket, branch, target, worktree and run all come off that line. The dispatch context under
+# $SF_LOG_ROOT/worker-context/, keyed by the worktree's folder name (`/` as `+`), is read only as a
+# fallback for what a thin claims line omits. A session with no dispatched claims line is a human's: it
+# leaves at once, silently, and writes nothing anywhere.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -81,7 +81,7 @@ claimField() {
 
 adoptDispatchContext() {
     hookInput="$(cat)"
-    local sessionId claimLine claimTicket claimBranch claimTarget claimWorktree claimRun claimAgent claimLabel claimRepo claimKind contextFile
+    local sessionId claimLine claimTicket claimBranch claimTarget claimWorktree claimRun claimAgent claimLabel claimRepo claimKind contextFile contextLine contextKind
     sessionId="$(jq -r '.session_id // empty' <<<"$hookInput" 2>/dev/null)"
     claimLine="$(dispatchLineForSession "$sessionId")"
     [[ -n "$claimLine" ]] || exit 0
@@ -103,16 +103,17 @@ adoptDispatchContext() {
     if [[ ! -r "$contextFile" ]] && { [[ -z "$claimBranch" ]] || [[ -z "$claimTarget" ]]; }; then
         alarmAndExit "reason=no-context worktree=$(basename "$claimWorktree") msg=\"a worker stopped in a loop worktree with no dispatch context; nothing landed and the ticket stays claimed\""
     fi
-    [[ -r "$contextFile" ]] && source "$contextFile"
+    contextLine=""
+    [[ -r "$contextFile" ]] && contextLine="$(cat "$contextFile")"
+    contextKind="$(claimField kind "$contextLine")"
     export SF_TICKET="$claimTicket" \
-        SF_BRANCH="${claimBranch:-${branch:-}}" \
-        SF_PR_TARGET="${claimTarget:-${pr_target:-}}" \
-        SF_AGENT="${claimAgent:-${agent:-}}" \
-        SF_LABEL="${claimLabel:-${label:-}}" \
-        SF_PROJECT_DIR="${claimRepo:-${tower:-}}" \
+        SF_BRANCH="${claimBranch:-$(claimField branch "$contextLine")}" \
+        SF_PR_TARGET="${claimTarget:-$(claimField pr_target "$contextLine")}" \
+        SF_AGENT="${claimAgent:-$(claimField agent "$contextLine")}" \
+        SF_LABEL="${claimLabel:-$(claimField label "$contextLine")}" \
+        SF_PROJECT_DIR="${claimRepo:-$(claimField tower "$contextLine")}" \
         SF_LOG_DIR="$claimsRoot/$claimRun" \
-        SF_DONE_FILE="$claimsRoot/$claimRun/done-${claimTicket//\//+}" \
-        SF_WORK_KIND="${claimKind:-${kind:-task}}"
+        SF_WORK_KIND="${claimKind:-${contextKind:-task}}"
 }
 
 adoptDispatchContext
@@ -158,16 +159,10 @@ requireTicketStillInWork() {
 
 requireSpawnEnvironment() {
     if [[ -z "$branch" ]]; then
-        alarmAndExit "reason=no-branch msg=\"SF_BRANCH was not on the spawn; the loop reads it off the gate the ticket's id names, so that gate carries no 'branch' key\""
+        alarmAndExit "reason=no-branch msg=\"no branch on the dispatch record for this worktree; the loop reads it off the gate the ticket's id names, so that gate carries no 'branch' key\""
     fi
     if [[ -z "$prTarget" ]]; then
-        alarmAndExit "reason=no-pr-target msg=\"SF_PR_TARGET was not on the spawn; the loop reads the target off the ticket's epic gate, and says main when the ticket sits under the epic itself\""
-    fi
-}
-
-requireWorkerDeclaredDone() {
-    if [[ ! -e "${SF_DONE_FILE:-/nonexistent-sf-done-file}" ]]; then
-        alarmAndExit "reason=not-declared-done msg=\"the worker stopped without touching its done file; nothing was committed and the ticket stays open — the tasks behind it wait\""
+        alarmAndExit "reason=no-pr-target msg=\"no pull-request target on the dispatch record for this worktree; the loop derives it off the ticket's epic gate, and says main when the ticket sits under the epic itself\""
     fi
 }
 
@@ -264,7 +259,6 @@ requireTools
 readHookInput
 requireTicketStillInWork
 requireSpawnEnvironment
-requireWorkerDeclaredDone
 requireWorkOnItsOwnBranch
 
 title="$(ticketTitleOf)"

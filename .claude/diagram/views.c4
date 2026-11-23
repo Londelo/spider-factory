@@ -187,7 +187,7 @@ gates wait for a person. The database is all the loop ever reads.
       machine.preflight,
       machine.dispatcher,
       machine.agentMap,
-      machine.spawnEnv,
+      machine.hookFields,
       machine.claim,
       beads,
       tower.*,
@@ -361,16 +361,18 @@ you can still attach to it, read it, or stop it later.
 """
     }
 
-    machine.dispatcher -> machine.spawnEnv "pass it which ticket this is" {
-      title "Hand the worker its settings before it starts"
+    machine.dispatcher -> machine.hookFields "write the dispatch down instead of exporting it" {
+      title "The worker is handed no environment; the record is what carries it"
       notes """
-Eight settings go in with the session: which ticket, which branch, which target, which worker and label, where
-the tower is, where the run's log is, where the done marker goes. The hook that finishes the work does not read
-them from here — it rebuilds every one from this session's claims line, because the background session is pooled
-and the daemon froze its environment at the run's first spawn. The folder it stands in is the worktree and is
-real, but a folder belongs to a branch and not to a ticket, so it names no worker. What the hook cannot rebuild it
-refuses, and the ticket stays claimed.
-The eight are listed on the node itself.
+Nothing is exported onto the session — `claude --bg` serves every session off one shared daemon that froze the
+environment at the run's first spawn, so anything set here would reach a later worker as the *first* worker's
+values. What the loop writes instead is the dispatch record: the worker-context file for that worktree, before the
+agent starts, and the `reason=dispatched` claims line once the session id is known. The hook that finishes the work
+rebuilds every one of its fields from that record, in its own process. The folder it stands in is the worktree and
+is real, but a folder belongs to a branch and not to a ticket, so it names no worker. What the hook cannot rebuild
+it refuses, and the ticket stays claimed.
+What the worker does get is every fact as a literal in its prompt; the fields and where each one comes from are on
+the node itself.
 """
     }
 
@@ -379,16 +381,22 @@ The eight are listed on the node itself.
       notes """
 The whole prompt is short: the ticket id, an order to read that ticket back in full as its complete brief, a
 paragraph saying this folder is the worktree of a branch every task of the feature shares, and then exactly four
-numbered rules, **1 to 4 with no gaps** — ground every beads command before you run it, because `bd` finds its
-database by walking **up** from wherever you are standing, so run `bd where` and `cd '$SF_PROJECT_DIR'` if it names
-somebody else's tower; keep the lease alive with a heartbeat; never close your own ticket, because the hook below
-closes it once you say you are done; and stay on this branch in this folder, committing as you go and leaving nothing
+numbered rules, **1 to 4 with no gaps**. Every fact in it — the ticket, the branch, the tower's path, and the
+pull request's target in the lead agent's rule 4 — is a literal interpolated into that one `printf`, because the
+session was handed no environment to read any of them off. Ground every beads command before you run it, because `bd` finds its
+database by walking **up** from wherever you are standing, so the rule names the tower by a literal path and orders
+`bd where` to make it name that database — and when it names another one, the remedy is `-C '<tower>'` on every
+beads command from then on, said out loud in the report, **never** a `cd` into a tower that is not yours; keep the
+lease alive with a heartbeat; never close your own ticket, because the hook below
+closes it when your turn ends — and that same rule tells you to finish the work before you stop, because stopping is
+what finishes the ticket; and stay on this branch in this folder, committing as you go and leaving nothing
 for a bare `git commit` or `git push`.
-What is still nowhere in this prompt — saying what is left, starting no other workers, and the done marker
-itself — lives only in the worker's own agent file, which the session loaded when it started. What the brief
+What is still nowhere in this prompt — saying what is left, and starting no other workers — lives only in the
+worker's own agent file, which the session loaded when it started. What the brief
 sends, line by line, is on the workers layer.
 The lead agent's brief is the same four rules, its fourth rewritten for a gate: verify the tier, then merge this
-branch's own pull request through the forge.
+branch's own pull request into the named target through the forge — that rule is the only place the target is ever
+written into a brief, and the only place it names `sf commit` outright.
 """
     }
 
@@ -401,23 +409,24 @@ Closing is somebody else's job.
 """
     }
 
-    workers.engineer -> stopHook "touch the done marker, then stop" {
-      title "The worker's last act is to say it is finished"
+    workers.engineer -> stopHook "stop" {
+      title "The worker stops, and stopping is the whole signal that its turn is over"
       notes """
-The loop deleted the marker before this session started, so only this session could have made it.
-This agent's own `hooks:` frontmatter binds its `Stop` event to `sf hook stop`, so simply ending the session is
-what runs the hook — the mechanism is on the hook node itself.
-If the marker exists, the hook runs — what it does is the next three arrows.
-If it does not, the hook commits nothing, pushes nothing, opens nothing and closes nothing.
+There is nothing to declare and nothing to touch: the worker simply ends its session. This agent's own `hooks:`
+frontmatter binds its `Stop` event to `sf hook stop`, so ending the session is what runs the hook — the mechanism is
+on the hook node itself. The Stop event is the only thing anywhere that says this turn ended; what says the turn was
+the loop's to begin with is this session's `reason=dispatched` line in the run's `claims` file, which the hook
+matches on the session id it reads from its own stdin. A session with no such line is a human's and leaves silently.
+Once the line is found, the hook lands the work — what it does is the next three arrows.
 """
     }
 
-    stopHook -> toolbelt.gitCli "commit and push, only on that marker" {
+    stopHook -> toolbelt.gitCli "commit and push, once the dispatch is on the claims line" {
       title "Check first, then commit and push"
       notes """
 If any of these is untrue, the hook refuses and says which:
 - the ticket is still in progress
-- the branch and the pull request target arrived with the session
+- the branch and the pull request target are on this session's dispatch record
 - the folder is really on the branch it thinks it is
 Then `sf commit` files the ticket's title as the commit — usually there is nothing left to stage, the worker
 committed as it went — and the hook pushes the branch itself.
@@ -458,7 +467,7 @@ Otherwise write the url, then close. That close is what lets the next ticket in 
       title "What the first loop showed, six more times, said three ways"
       notes """
 Everything you just watched still happens on every round, and is not said again below: the label picks the
-worker, the branch gets its folder, the pull request is found or made, the worker touches the done marker, the
+worker, the branch gets its folder, the pull request is found or made, the worker stops, the
 hook commits, pushes, writes the url and closes. Neither gate comes up in this list — `bd ready` never shows a
 gate, and with both tier switches off (the default) a person closes them. Below is only the bare three: which
 ticket comes up next, who its label belongs to, what that worker does.
@@ -571,9 +580,10 @@ switch on, the lead agent does.
 One spawn per finding, **one at a time, in sequence**, one round only, routed by what the fix has to touch —
 never two fixers on the branch together, since they share one working tree and one branch. Each prompt is that
 finding's own PR comment pasted in verbatim. The fixers commit their own fixes with `sf commit`; review still
-commits nothing, re-runs nothing, and spawns no second round. The four constraints every prompt ends with — the
-last being touch no done marker, because `$SF_DONE_FILE` is review's own and the first fixer to touch it closes
-the review ticket mid-round — are on the node.
+commits nothing, re-runs nothing, and spawns no second round. The three constraints every prompt ends with — fix
+this and nothing beside it, commit it yourself with `sf commit`, touch no ticket — are on the node. Each fixer is a
+session of its own, so each one's own `Stop` event is what finishes it; review's ticket closes only when review
+itself stops.
 Once every spawn has reported, review resolves the threads whose fixes landed and leaves open the ones whose
 fixer came back wrong or disputed the finding; an open thread is what still needs you.
 """
@@ -640,7 +650,8 @@ gate to `in_progress` itself, guarded so a second loop cannot take it too, and s
 The tier is the set of tickets that block this gate, read back off the graph. Four checks, each with its number
 said out loud: every one of them closed, the review actually ran and its findings answered on the branch, the
 project's own test command green with its count read from the output, the pull request's pipeline green.
-Any one missing: no done marker, the gate stays claimed, and a human is told which one.
+Any one missing: the honest answer is *this gate is not proved*, the gate gets a comment naming what is missing,
+and the lead agent stops there — the gate stays claimed and a human is told which check failed.
 """
     }
 
@@ -663,9 +674,12 @@ The lead agent reads the pull request back and confirms it says merged. It close
 """
     }
 
-    workers.leadAgent -> stopHook "touch the done marker, then stop" {
+    workers.leadAgent -> stopHook "stop" {
       title "The hook closes the gate, and opens no pull request"
       notes """
+The lead agent reports one line per ticket and stops; it never runs `bd close`, and a gate it closes by hand makes
+the hook walk past it. Its `hooks:` frontmatter fires `sf hook stop` on that `Stop` event, and the gate's own
+`reason=dispatched kind=gate` claims line is what tells the hook this session was the loop's.
 The claim said `kind=gate`, so the hook takes its other road: commit and push, find this branch's pull request
 **at any state** (the lead agent has just merged it), write the url on the gate, close the gate, log
 `closes url=… gate=true`. If the branch has no pull request at all it refuses instead — there was nothing to
@@ -783,6 +797,17 @@ the gate.
 """
     }
 
+    machine.dispatcher -> logRun "and one file per branch, beside the run folders, not inside one" {
+      title "The dispatch record is the only state that is neither the database nor a log line"
+      notes """
+`<log root>/worker-context/<worktree folder name>` is written before the agent starts and keyed by **branch**, not
+by run: `ticket= branch= pr_target= agent= label= tower= kind=`. Two readers, both on the other side of the spawn —
+the Stop hook, as the fallback for what a thin claims line omits, and `sf commit`, for the `agent=` in its subject.
+The hook deletes it when the ticket closes; a second dispatch onto the same branch overwrites it. It is never seeded
+and never read by a tick, and it is the one thing under the log root that is not safe to delete mid-run.
+"""
+    }
+
     machine.dispatcher -> logRun.fWaiting "WAITING" {
       title "The quiet ticks: alive, with nothing to do"
       notes """
@@ -826,19 +851,13 @@ One file per ticket instead of one shared file, so it is still findable hours la
 """
     }
 
-    workers.engineer -> logRun.fDone "done-<ticket>" {
-      title "The worker's own word that it finished"
+    machine.dispatcher -> logRun "one tick, the three files it touches" {
+      title "One ticket's whole life is three files"
       notes """
-Made by the worker as its very last action, and deleted by the loop before the worker starts. The hook commits
-nothing without it.
-"""
-    }
-
-    machine.dispatcher -> logRun "one tick, the four files it touches" {
-      title "One ticket's whole life is four files"
-      notes """
-The spawn file appears when the worker starts, the done file when it declares itself finished, then a claims
-line and a closes line. Search the ticket id across the folder and the whole life reads in one screen.
+The spawn file appears when the worker starts, then a claims line when it is dispatched, then a closes line when
+its Stop hook lands the work. There is no marker file: nothing the worker writes marks its turn finished, so the
+claims line is the only record that this session was the loop's. Search the ticket id across the folder and the
+whole life reads in one screen.
 """
     }
 
@@ -871,7 +890,7 @@ many tickets it claimed is the number that says whether the run did anything at 
 | Is it failing? | `errors` — empty means nothing is failing |
 | Why nothing claimed? | `waiting` — the reason, and how many workers are busy |
 | Did this ticket ship? | `claims`, then `closes`, then its `spawn-<ticket>` |
-| Why did this worker die? | **nothing records it** — no hook fires when a session dies, so there is no line anywhere, and no sixth file seeded to hold one. The tell is the absence: a `claims` line, no `closes` line, no `done-<ticket>` marker, and a ticket still `in_progress` that no `bd ready` will ever name. Ask the overseer; it runs that check and hands you `bd update <ticket> --status failed-agent` to run yourself |
+| Why did this worker die? | **nothing records it** — no hook fires when a session dies, so there is no line anywhere, and no sixth file seeded to hold one. The tell is the absence: a `claims` line, no `closes` line, and a ticket still `in_progress` that no `bd ready` will ever name. Ask the overseer; it runs that check and hands you `bd update <ticket> --status failed-agent` to run yourself |
 | Why won't my gate dispatch? | nothing at all is the tier's own switch being off; otherwise `waiting` for `gate_unworkable gate=<id> step=<why>`, then `errors` for `gate-claim-lost` and `worktree-failed step=gate` — all three name the gate, not a ticket |
 | Why is a ticket claimed and never worked? | `errors` for `no-epic-gate` or `gate-unworkable` — both print `ticket=<id>`, and both leave it claimed on purpose |
 """
@@ -882,7 +901,10 @@ many tickets it claimed is the number that says whether the run did anything at 
       title "Or ask the reader instead of reading the files yourself"
       notes """
 `sf overseer` runs it in the foreground, over the tower in the folder you are standing in, and anything you
-type after the command goes to it as the prompt. It reads those same log files, the database and git, and
+type after the command goes to it as the prompt — **after a short launch brief the engine prepends**, which names the
+run logs' directory and the command that lists background sessions. Those two are the watcher's only facts about the
+run, and it is told to take them from that brief and never off its own environment; like any `claude` session it could
+be carrying somebody else's. It reads those same log files, the database and git, and
 answers the three questions above: is the loop alive, how far along is the tower, what is wrong.
 """
     }
@@ -1106,19 +1128,19 @@ gate the line names the gate instead of a ticket, and what goes back is its stat
 """
     }
 
-    // ═ PART C — the Stop hook refuses eighteen times, in code order
+    // ═ PART C — the Stop hook refuses seventeen times, in code order
 
     stopHook -> alarms.stopAlarms.claimMalformedHook "ERROR reason=claim-malformed" {
-      title "1 of 18 · the first refusal in the file"
+      title "1 of 17 · the first refusal in the file"
       notes """
 This session's line in the run's `claims` file carries no ticket or no run, so the hook cannot tell what it
-stands for: no ticket, no run directory, no done marker. Only a session the loop did dispatch can reach this
+stands for: no ticket, no run directory. Only a session the loop did dispatch can reach this
 line — one with **no** claims line at all exits quietly one step earlier.
 """
     }
 
     stopHook -> alarms.stopAlarms.noContextHook "ERROR reason=no-context worktree=<dir>" {
-      title "2 of 18"
+      title "2 of 17"
       notes """
 The dispatch context file for that worktree is unreadable **and** the claims line carries no branch or no
 target to fall back on — the two are each other's backup, and with neither there is nothing to commit, push
@@ -1127,7 +1149,7 @@ or file. The ticket stays claimed.
     }
 
     stopHook -> alarms.stopAlarms.missingToolHook "ERROR reason=missing-tool tool=git" {
-      title "3 of 18 · the ticket stays claimed"
+      title "3 of 17 · the ticket stays claimed"
       notes """
 Checked before anything else the hook does, but after the check that this is a dispatched worker at all — a
 session the loop never started exits quietly instead of alarming about somebody else's project.
@@ -1135,15 +1157,15 @@ session the loop never started exits quietly instead of alarming about somebody 
     }
 
     stopHook -> alarms.stopAlarms.noWorktreeHook "ERROR reason=no-worktree" {
-      title "4 of 18"
+      title "4 of 17"
       notes """
-The hook was not told which folder the work is in, and it will not guess from its own location — guessing here
-means committing whatever happens to be lying around.
+This session's claims line names no worktree that exists, so the folder the work sits in is unknown, and the hook
+will not guess it from the hook input's cwd — guessing here means committing whatever happens to be lying around.
 """
     }
 
     stopHook -> alarms.stopAlarms.ticketNotInWork "ERROR reason=ticket-not-in-work state=open" {
-      title "5 of 18 · and silent when the ticket is already closed"
+      title "5 of 17 · and silent when the ticket is already closed"
       notes """
 The ticket is not in progress. If it is closed this is a second stop in a session that already shipped, and the
 hook leaves quietly — committing onto a shared branch twice is exactly what it is there to prevent.
@@ -1151,30 +1173,24 @@ hook leaves quietly — committing onto a shared branch twice is exactly what it
     }
 
     stopHook -> alarms.stopAlarms.noBranchHook "ERROR reason=no-branch" {
-      title "6 of 18"
+      title "6 of 17"
       notes """
-The branch never reached the session, so the loop never got as far as reading it off the claim.
+Neither the claims line's `branch=` nor that worktree's dispatch context file carries a branch, so the loop never got
+as far as deriving one off the gate the ticket's id names. Nothing was ever "not on the spawn" — the spawn sets no
+environment, and the record is the only place this value was ever written.
 """
     }
 
     stopHook -> alarms.stopAlarms.noPrTarget "ERROR reason=no-pr-target" {
-      title "7 of 18"
+      title "7 of 17"
       notes """
-The pull request's target never reached the session. The hook will not open a pull request into a guess.
-"""
-    }
-
-    stopHook -> alarms.stopAlarms.notDeclaredDone "ERROR reason=not-declared-done" {
-      title "8 of 18 · the gate of the whole design"
-      notes """
-The done marker is not there: the session ended without saying, in the one place both programs read, that its
-work is finished. No commit, no push, no pull request, no close. The ticket stays claimed, which parks it off
-the queue, and everything chained behind it waits.
+The claims line's `target=` is empty and so is the context file's `pr_target=`, so the hook would be opening a pull
+request into a guess. It refuses.
 """
     }
 
     stopHook -> alarms.stopAlarms.wrongBranch "ERROR reason=wrong-branch want=feature/add-record" {
-      title "9 of 18"
+      title "8 of 17"
       notes """
 The folder is not on the branch it should be — the worker was told never to change branches, and this is the
 last place that can refuse to file the work under the wrong ticket's name.
@@ -1182,7 +1198,7 @@ last place that can refuse to file the work under the wrong ticket's name.
     }
 
     stopHook -> alarms.stopAlarms.noTitle "ERROR reason=ticket-has-no-title" {
-      title "10 of 18"
+      title "9 of 17"
       notes """
 The commit message is the ticket's title, so a ticket with no title cannot be filed — it would be an anonymous
 commit on a shared branch.
@@ -1190,7 +1206,7 @@ commit on a shared branch.
     }
 
     stopHook -> alarms.stopAlarms.commitFailed "ERROR reason=commit-failed" {
-      title "11 of 18 · and an empty tree is NOT this"
+      title "10 of 17 · and an empty tree is NOT this"
       notes """
 The commit itself failed. A review or test ticket landing nothing is normal and is skipped quietly, so this line
 means a genuine failure.
@@ -1198,7 +1214,7 @@ means a genuine failure.
     }
 
     stopHook -> alarms.stopAlarms.pushFailed "ERROR reason=push-failed" {
-      title "12 of 18"
+      title "11 of 17"
       notes """
 The push failed and its output is quoted in the alarm. The commit stays where it is and the ticket stays
 claimed — nothing is rolled back, because a local commit is evidence, not a mistake to hide.
@@ -1206,7 +1222,7 @@ claimed — nothing is rolled back, because a local commit is evidence, not a mi
     }
 
     stopHook -> alarms.stopAlarms.forgeUnknown "ERROR reason=forge-unknown remote=<url>" {
-      title "13 of 18 · reached only after the commit and the push"
+      title "12 of 17 · reached only after the commit and the push"
       notes """
 It could not tell whether this is GitHub or GitLab, and it refuses to guess: a wrong guess pushes a branch to
 the wrong forge.
@@ -1214,7 +1230,7 @@ the wrong forge.
     }
 
     stopHook -> alarms.stopAlarms.forgeToolMissing "ERROR reason=missing-tool tool=gh forge=github" {
-      title "14 of 18 · same reason as alarm 3, different tool"
+      title "13 of 17 · same reason as alarm 3, different tool"
       notes """
 It knows the forge now, but that forge's command line tool is not installed. The forge name on the line is how
 you tell this from the up-front check.
@@ -1222,17 +1238,17 @@ you tell this from the up-front check.
     }
 
     stopHook -> alarms.stopAlarms.prNotFoundGate "ERROR reason=pr-not-found forge=github" {
-      title "15 of 18 · the gate path's own refusal"
+      title "14 of 17 · the gate path's own refusal"
       notes """
 Reached only when the claim is a gate, and this path never opens a pull request — the lead agent was sent to
 **merge** one. So the hook only looks that branch's pull request up, at any state, and finds nothing: there was
-nothing to merge and the lead agent declared done anyway. Not the same failure as the next one, which is the hook
+nothing to merge and the lead agent's session ended anyway. Not the same failure as the next one, which is the hook
 failing to raise a pull request of its own.
 """
     }
 
     stopHook -> alarms.stopAlarms.prNotCreated "ERROR reason=pr-not-created forge=github" {
-      title "16 of 18"
+      title "15 of 17"
       notes """
 Looking for an existing pull request and making a new one both failed, or the tool printed an error quoting some
 other address — only something that reads like a pull request number counts as one.
@@ -1240,7 +1256,7 @@ other address — only something that reads like a pull request number counts as
     }
 
     stopHook -> alarms.stopAlarms.ticketNotAnnotated "ERROR reason=ticket-not-annotated pr=<url>" {
-      title "17 of 18 · the work is out there, the ticket cannot say where"
+      title "16 of 17 · the work is out there, the ticket cannot say where"
       notes """
 Writing the pull request url onto the ticket failed, so the hook stops rather than close a ticket whose pull
 request nobody could find again.
@@ -1248,7 +1264,7 @@ request nobody could find again.
     }
 
     stopHook -> alarms.stopAlarms.closeFailed "ERROR reason=close-failed pr=<url>" {
-      title "18 of 18 · everything else already succeeded"
+      title "17 of 17 · everything else already succeeded"
       notes """
 The commit, the push and the pull request are all out there with no record in the tower. The ticket tool will
 not close a ticket unless the closer is who it says it is — the loop claimed this one, so the hook passes the

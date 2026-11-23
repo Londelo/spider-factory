@@ -12,7 +12,7 @@ moveGateTo() { bd -C "$towerDir" update "$1" --status "$2" --if-status "$3" >/de
 
 dispatchOneGate() {
     local gateId="$1" tier="$2"
-    local gateBranch gatePrTarget worktreePath worktreeAside worktreeFailure doneFile spawnFile contextFile
+    local gateBranch gatePrTarget worktreePath worktreeAside worktreeFailure spawnFile contextFile
 
     resolveTicketBranches "$gateId" || { waiting gate_unworkable "gate=$gateId step=$branchResolveFailure"; return 1; }
     gateBranch="$branch"
@@ -33,12 +33,10 @@ dispatchOneGate() {
         return 1
     fi
     setLogField worktree "$worktreePath"
-    doneFile="$(doneFileFor "$gateId")"
     spawnFile="$(spawnFileFor "$gateId")"
     contextFile="$(contextFileFor "$gateBranch")"
-    rm -f "$doneFile"
     if ! spawnWorker "$worktreePath" "$gateId" "$leadAgentName" "$gateBranch" "$gatePrTarget" \
-            "gate:$tier" "$doneFile" "$spawnFile" "$contextFile" gate; then
+            "gate:$tier" "$spawnFile" "$contextFile" gate; then
         moveGateTo "$gateId" open in_progress
         writeLog errors "reason=worker-not-dispatched gate=$gateId msg=\"$(lastLineOf "$spawnFile")\""
         return 1

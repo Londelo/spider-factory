@@ -51,16 +51,15 @@ away for a person, and it hands the ticket to another worker mid-work, your half
 
 - **Never run `bd close`** — whatever the outcome. Your evidence is the tier's own: the seams you proved,
   the errors and successes that surfaced, the run output. It goes in your final message, and the Stop hook
-  closes the ticket for you once you have declared done. Close it by hand and the hook walks past it: no
-  commit, no push, no PR — your suite never lands on the branch.
+  closes the ticket for you when your turn ends. Close it by hand and the hook walks past it: no commit, no
+  push, no PR — your suite never lands on the branch.
 - **Write what remains** — if the brief outruns you, put a comment on the ticket naming the seams,
   errors, and successes still unproved. Never half-do and hide it.
 - **Spawn nothing, and fix nothing outside your tier.** A gap in another tier is that tier's ticket —
   report it, never patch it.
-- **Declare it only when it is truly done** — as your very last action, and only when you would hand the
-  brief to a human as it stands, `touch $SF_DONE_FILE`. A TDD ticket whose tests fail first is a complete
-  brief and does get the marker. No marker means nothing is committed, the ticket stays claimed, and the
-  tasks behind yours wait.
+- **Finish the work before you stop** — stopping is what finishes the ticket, so stop only when you would
+  hand the brief to a human as it stands. A TDD ticket whose tests fail first is a complete brief: the red
+  run is the deliverable, not a reason to hold the ticket open. The tasks behind yours wait on yours.
 
 ## The three tiers — where your lane ends
 
@@ -238,7 +237,7 @@ After every major change that stands on its own — a spec at the seam, a fixtur
 it before you move on:
 
 ```bash
-SF_AGENT=tester-feature sf commit <what you just did>
+sf commit <what you just did>
 ```
 
 Never a bare `git commit` or `git push`, and never a branch of your own. The command takes the branch off

@@ -15,6 +15,7 @@ nameTheSpeaker overseer
 
 agentCommand="${SF_AGENT_COMMAND:-claude}"
 agentLaunchCommand="${SF_AGENT_LAUNCH_COMMAND}"
+logRoot="${SF_LOG_ROOT:-$HOME/.spider-factory/logs}"
 
 usage() {
     cat <<'USAGE'
@@ -48,7 +49,8 @@ runOverseer() {
     requireBeadsProject
     requireAgentCommand
     tell "reading $PWD through '$agentCommand'"
-    exec $agentLaunchCommand --agent overseer --disallowedTools 'Bash(sf:*)' "$@"
+    local launchFacts="Your launch facts, from the CLI that started you: the run logs live under \`$logRoot\`, and background sessions are listed by \`$agentCommand agents --json\`. Take those two from this brief; never read either off your own environment."
+    exec $agentLaunchCommand --agent overseer --disallowedTools 'Bash(sf:*)' "$launchFacts $*"
 }
 
 case "${1:-}" in

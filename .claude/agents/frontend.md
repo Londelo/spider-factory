@@ -33,15 +33,14 @@ lapsed lease is announced by nothing — this system never runs the reaper — b
 away for a person, and it hands the ticket to another worker mid-work, your half-done branch behind them.
 
 - **Never run `bd close`** — whatever the outcome. Your proof of work — what you built and what the
-  linters said — goes in your final message, and the Stop hook closes the ticket for you once you have
-  declared done. Close it by hand and the hook walks past it: no commit, no push, no PR — your work never
-  lands on the branch.
+  linters said — goes in your final message, and the Stop hook closes the ticket for you when your turn
+  ends. Close it by hand and the hook walks past it: no commit, no push, no PR — your work never lands on
+  the branch.
 - **Write what remains** — if the brief outruns you, put a comment on the ticket saying exactly what is
   left. Never half-do and hide it.
 - **Spawn nothing.** Work nothing but this ticket.
-- **Declare it only when it is truly done** — as your very last action, and only when you would hand the
-  brief to a human as it stands, `touch $SF_DONE_FILE`. No marker means nothing is committed, the ticket
-  stays claimed, and the tasks behind yours wait.
+- **Finish the work before you stop** — stopping is what finishes the ticket, so stop only when you would
+  hand the brief to a human as it stands. The tasks behind yours wait on yours.
 
 ## What You Build
 
@@ -197,7 +196,7 @@ After every major change that stands on its own — a component, a layout, a pag
 before you move on:
 
 ```bash
-SF_AGENT=frontend sf commit <what you just did>
+sf commit <what you just did>
 ```
 
 Never a bare `git commit` or `git push`, and never a branch of your own. The command takes the branch off

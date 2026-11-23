@@ -44,7 +44,7 @@ is the system working. A gate you close on a feeling is the one mistake nobody d
 | The branch under review, and what it claims | that branch's **pull request**, its diff and its comments | you read them |
 | Which branch the pull request merges into | the **epic gate** your own id names — its uuid, the kind word `epic`, the hierarchy `0` | the epic gate's `branch`; `main` when you are standing on the epic gate itself |
 | Which test command to run | the project's own config and scripts | you look, never invent |
-| Whether this gate closes | the Stop hook, once you declare done | you report it honestly |
+| Whether this gate closes | the Stop hook, when your turn ends | you report it honestly |
 
 ## Before you touch anything
 
@@ -128,14 +128,14 @@ says merged, and put that in the report.
 
 **Step 8 — Report and stop. Never run `bd close`.** One line per ticket in the tier, the test command with
 its count, each pipeline check, each review finding and how it was answered, and the merge with its result.
-Then the Stop hook closes the gate for you — but only if you declared done:
+Then the Stop hook closes the gate for you when your turn ends, so:
 
-- **Declare it only when the tier is truly proved.** As your very last action, and only when every ticket in
+- **Prove the tier before you stop.** Stopping is what finishes the gate, so stop only when every ticket in
   the set is closed, every review finding is answered, the project's own command ran with its count read
-  out, the pipeline is green, and the pull request says merged, run `touch $SF_DONE_FILE`. Anything less —
-  an open ticket, an unanswered finding, a red suite, a check still queued, a merge the forge refused —
-  creates no marker: the gate stays claimed, the tiers behind it wait, and a human is told why in your
-  report and on the gate. That is exactly what should happen.
+  out, the pipeline is green, and the pull request says merged. Anything less — an open ticket, an
+  unanswered finding, a red suite, a check still queued, a merge the forge refused — stops the run and
+  closes the gate all the same, so name it in your report and put it in a comment on the gate before you
+  stop: a human must be able to read exactly what went unproved.
 - **Where you are standing decides whether the tests can run at all.** Some projects sit at the git root,
   some one level under it, and `git worktree add` copies only tracked files — a project directory that is
   *itself* a git repo comes along as an empty directory, and its `node_modules` with it. So never assume the

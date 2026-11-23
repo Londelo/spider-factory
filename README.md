@@ -107,13 +107,16 @@ sf hook stop           # the worker's Stop hook — you never type this: each wo
    review, phased by dependency. `sf plan:task` lays one feature's chain: logic, its unit tests, its UI.
    Every id is minted by `CLI/src/create-beads/` — a hand-typed id reaches no gate.
 2. **Run the loop.** `sf loop` claims what is ready, derives the branch and the PR target off the ticket's
-   own id, builds the worktree, and spawns the worker inside it. Every line it logs prints to your screen
-   as it goes.
-3. **Workers commit as they go** with `sf commit`, and declare themselves done with a marker file. No worker
-   ever closes its own ticket — finishing it is the job of the one script in `CLI/src/agent-hooks/`: commit, push,
-   open the PR, close. No marker, nothing lands. Each of the seven worker agents registers that script on its own
-   Stop event, from the `hooks:` block in its own frontmatter, so a worker's session
-   ending is what finishes its ticket. `Stop` is the only event there is, so a worker killed mid-turn is nobody's
+   own id, builds the worktree, and spawns the worker inside it — a fresh session told every one of those facts
+   in its prompt and handed no environment, with the same facts written down beside the run as the dispatch
+   record the CLI reads back. Every line it logs prints to your screen as it goes.
+3. **Workers commit as they go** with `sf commit` — bare, no name typed: it signs the commit off that dispatch
+   record, and as `manual` when nobody was dispatched — and finish the work before they stop. No worker ever closes
+   its own ticket — finishing it is the job of the one script in `CLI/src/agent-hooks/`: commit, push, open the
+   PR, close. Each of the seven worker agents registers that script on its own Stop event, from the `hooks:`
+   block in its own frontmatter, so the session ending is itself the authority to land the work — it is the only
+   signal that a worker finished. Stop early and the ticket closes with whatever it managed, so the honest report
+   and the diff are what you judge. `Stop` is the only event there is, so a worker killed mid-turn is nobody's
    to find — `sf overseer` is the only thing that looks. How a hook knows which ticket it stands for is
    [`.claude/CLAUDE.md`](./.claude/CLAUDE.md)'s to say.
 4. **You close the gates** when a tier is proved, then run the loop again for the next tier. `sf overseer`

@@ -590,7 +590,8 @@ finding's own PR comment pasted in verbatim. The fixers commit their own fixes w
 commits nothing, re-runs nothing, and spawns no second round. The three constraints every prompt ends with — fix
 this and nothing beside it, commit it yourself with `sf commit`, touch no ticket — are on the node. Each fixer is a
 session of its own, so each one's own `Stop` event is what finishes it; review's ticket closes only when review
-itself stops.
+itself stops. A fixer has no ticket of its own, so the report section its own agent file carries stays shut — the
+fix it commits is its report.
 Once every spawn has reported, review resolves the threads whose fixes landed and leaves open the ones whose
 fixer came back wrong or disputed the finding; an open thread is what still needs you.
 """

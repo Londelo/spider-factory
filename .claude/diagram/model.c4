@@ -1024,7 +1024,10 @@ standing on, and the name of the review ticket, for context. A comment that is n
 a finished finding: the missing detail goes back onto the pull request before the spawn.
 
 **Every prompt ends with the same three constraints:** fix this finding and nothing beside it; commit it
-yourself with `sf commit`; and touch no ticket — no `bd close`, no `bd create`, no comment on anything. **They
+yourself with `sf commit`; and touch no ticket — no `bd close`, no `bd create`, no comment on anything. A fixer
+has no ticket of its own, so the `## Report On The Ticket` section its own agent file carries **stays shut** —
+the fix it commits is its report, and the hook finds no `reason=dispatched` line for a session the loop never
+spawned, so it closes nothing. **They
 commit; review commits nothing.** A fixer's `sf commit` is what lands a fix on the branch; review never runs
 `git add`, `git commit`, or `git push`, and never fixes what a fixer left broken. Each fixer is a session of its
 own, and each one's own `Stop` event is what finishes it — review's turn ends only when review itself stops, so a
@@ -1648,9 +1651,8 @@ anything else (`not-found`, `open`) is an alarm.
 Neither the session's claims line (`branch=`) nor that worktree's dispatch context file (`branch=`) names a branch,
 so there is no branch to file on — the loop never got as far as deriving one off the gate the ticket's id names, and
 that gate carries no `branch` key. The spawn is nowhere in this: it sets no environment, so the value the hook is
-missing is one it would have exported for itself. Only the function's **name** still says spawn —
-`requireSpawnEnvironment` — and its `msg=` names the dispatch record and the gate that should have carried the key.
-The name is history; the check is the record's.
+missing is one it would have exported for itself. The check is `requireDispatchRecord`, and its `msg=` names the
+dispatch record and the gate that should have carried the key.
 """
       }
       noPrTarget = alarm "ERROR reason=no-pr-target" {

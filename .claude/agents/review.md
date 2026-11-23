@@ -328,6 +328,7 @@ standing on, and the name of the ticket this review belongs to, for context.
 
 End every prompt with the same three constraints: fix this finding and nothing beside it, commit it
 yourself with `sf commit`, and touch no ticket — no `bd close`, no `bd create`, no comment on anything.
+A fixer has no ticket of its own, so its report section stays shut: the fix it commits is its report.
 
 **They commit; you commit nothing.** Their `sf commit` is what lands a fix on the branch. You still never
 run `git add`, `git commit`, or `git push` — see the standing rule — and you never fix a thing they left

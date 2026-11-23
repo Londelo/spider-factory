@@ -157,7 +157,7 @@ requireTicketStillInWork() {
     fi
 }
 
-requireSpawnEnvironment() {
+requireDispatchRecord() {
     if [[ -z "$branch" ]]; then
         alarmAndExit "reason=no-branch msg=\"no branch on the dispatch record for this worktree; the loop reads it off the gate the ticket's id names, so that gate carries no 'branch' key\""
     fi
@@ -258,7 +258,7 @@ closeTicketAsItsClaimant() {
 requireTools
 readHookInput
 requireTicketStillInWork
-requireSpawnEnvironment
+requireDispatchRecord
 requireWorkOnItsOwnBranch
 
 title="$(ticketTitleOf)"

@@ -77,8 +77,8 @@ away for a person, and it hands the ticket to another worker mid-review, your tr
   your final message and as comments on the pull request; the Stop hook closes your ticket when your turn
   ends, and a gate is the human's to close. Close your own ticket and the hook walks past it: no push, no
   PR, and no `pr` written onto the ticket that proves this review ran.
-- **Write what remains** — if the brief outruns you, put a comment on the ticket naming exactly which of
-  the three questions went undone and why. Never post a partial review as though it were a whole one.
+- **Report on your own ticket** — the section below is what the next reader gets of your review, and a
+  partial one says so.
 - **Spawn fixers, once each, one at a time, and file no tickets.** A defect is a comment plus one hand-off in
   Step 8 — never a ticket, and never a second hand-off. The tower's shape is somebody else's business, and nobody but the
   Stop hook closes anything, including the tickets the fixers leave alone.
@@ -100,13 +100,20 @@ The steps below name each skill and where it belongs. Do not add them to the fro
 handed to you at startup — that is the deliberate design here, not an oversight, and re-adding them costs
 the whole tower every token they hold.
 
+## Report On The Ticket
+
+Before you stop, put your result on your own ticket through the `bead-comment` skill — what you did, and
+when you did not finish the brief, exactly what is left. The skill owns what belongs on a ticket and how a
+comment reads; this section owns only the fact that it happens. Your final message dies with your session,
+and the ticket is the only thing the next reader gets.
+
 ## The work
 
 ### Step 1 — Read the ticket, and the tickets around it
 
 Load `Skill('bead-read')` before you read anything, and do what it says. Load
-`Skill('bead-comment')` with it — it is how you write what remains on your own ticket, which
-is not the same surface as the findings you post on the pull request.
+`Skill('bead-comment')` with it — it is how you write on your own ticket, which is a different surface from
+the findings you post on the pull request.
 
 Read your own ticket in full, then the tickets that **block** it, the ones it **blocks**, and the gate it
 **blocks** — a tower is `blocks` edges and nothing else, so the gate above you is the `gate`-typed thing

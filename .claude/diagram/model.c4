@@ -551,8 +551,11 @@ marker, no declaration, no signal of the worker's own that the hook could check.
 that says a turn ended, and the dispatched `claims` line is the only thing that says the turn was the loop's to
 begin with — once this session is matched to that line, landing the work is what the hook does. What that costs is
 the honesty of the stop: a worker that quits early still gets its commit, its push, its PR and its closed ticket,
-carrying whatever it managed, so the worker's final message and the diff are the only things a person has to judge
-the tier by. That is why the contract's last bullet is about when it is honest to stop.
+carrying whatever it managed, so the diff, the worker's final message and whatever it wrote on its own ticket before
+it stopped are the only things a person has to judge the tier by. The final message dies with the session; the
+comment on the ticket is the part of that report that outlives it — the duty itself is the workers layer's, not this
+hook's, and this hook neither writes one nor checks that one exists. That is why the contract's last bullet is about
+when it is honest to stop.
 
 **It writes its own lines.** The script sources `CLI/utils/logging.sh` — the one definition of a line — directly,
 the way the engine does, and nothing else sources it. Its own `logLine <tag> [detail…]` sets the directory from
@@ -830,8 +833,9 @@ as a literal path in its prompt and sits in the dispatch record as `tower=`. **T
 **What it is:** the one who closes a **gate**, unless that tier's switch says otherwise. A *task* is closed by
 the Stop hook, when its worker's session ends — the human never reaches for a task, and a worker that
 closes its own ticket is a bug, because the hook walks past an already-closed ticket and lands nothing. The
-human reads the worker's report, verifies the branch and the PR, and closes the gate above it. There is **no
-`human` agent** — the person enters through gates, and nothing is ever spawned for them. A claimable ticket
+human reads the worker's report — which is the comment the worker left on its own ticket, since the final message
+it was typed into died with that worker's session — verifies the branch and the PR, and closes the gate above it.
+There is **no `human` agent** — the person enters through gates, and nothing is ever spawned for them. A claimable ticket
 assigned to a human is a model bug.
 
 Both gates are the human's by default: `SF_AGENT_FEATURE_GATES=0` and `SF_AGENT_EPIC_GATES=0`, and a gate stays
@@ -853,25 +857,36 @@ cannot fake understanding.
   workers = layer "The workers" {
     summary "The seven workers: six are reached by a label, the seventh — the lead — only by a gate."
     description """
-**Every worker reads its ticket and writes on it.** All seven load `bead-read` to take in the brief and
-`bead-comment` to write what remains onto the ticket — which is a third surface, beside the final message and
-the pull request: the ticket is where a worker leaves what the next reader cannot infer from the diff.
+**Every worker reports on its own ticket before it stops.** All seven agent files carry the same section, `## Report
+On The Ticket`, word for word identical across the seven: before it stops, the worker puts its **result** on its own
+ticket through the `bead-comment` skill — what it did, and when the brief outran it, exactly what is left. The
+section owns only the fact that it happens; what belongs on a ticket and how a comment reads is the skill's, and the
+section deliberately restates none of those rules. This is why the section exists: the final message dies with the
+session, so the ticket — with the branch and its pull request — is what the next reader actually has. The ticket is a
+third surface beside the final message and the pull request, and the only one of the three that carries the worker's
+own account of the whole brief. Six of the seven preload `bead-read` and `bead-comment` in their `skills:`
+frontmatter; `review` preloads nothing and loads both at its Step 1, and it is the one worker with **two** comment
+surfaces — its own ticket, and the pull request its findings go on.
 
-**The contract is in the agent file.** Every tower agent carries a `## The contract` section — keep the
-five-minute lease alive with `bd heartbeat <ticket>` between long steps, never close your own ticket (the Stop
-hook closes it when your turn ends, and a ticket already closed makes the hook walk past it, landing nothing),
-write what remains as a comment, spawn nothing, and **finish the work before you stop** — stopping is what finishes
-the ticket, so stop only when you would hand the brief to a human as it stands. There is no declaration of
-completion to make and nothing to touch at the end: the session ending *is* the hand-off, which is why the contract
-spends its last bullet on when it is honest to stop rather than on how to signal that you are done.
+**The contract is in the agent file.** Every worker but the lead carries a `## The contract` section, and each of
+those six runs **four** bullets, all of them beside the standing instruction to keep the five-minute lease alive
+with `bd heartbeat <ticket>` between long steps: never close your own ticket (the Stop hook
+closes it when your turn ends, and a ticket already closed makes the hook walk past it, landing nothing); **report
+on your own ticket**, one line pointing at the `## Report On The Ticket` section below it, because that section is
+what the next reader gets of the work; spawn nothing; and **finish the work before you stop** — stopping is what
+finishes the ticket, so stop only when you would hand the brief to a human as it stands. The comment duty is a named
+section, not a bullet: the bullet only points at it, and the section itself restates none of the skill's rules.
+There is no declaration of completion to make and nothing to touch at the end: the session ending *is* the
+hand-off, which is why the contract spends its last bullet on when it is honest to stop rather than on how to
+signal that you are done.
 **Six of the seven say spawn nothing** — `engineer`, `frontend` and the three testers each carry that bullet
 verbatim, and the lead carries it as hard rule 6. **`review` is the one
 exception**: its own contract says *spawn fixers, once each, one at a time, and file no tickets*, and it is
 the only agent file in the tower whose `tools:` line carries `Agent`. The round is on its node. The `lead`
 agent states the same rules inside its own steps and hard rules rather than in a section of that name — `bd
 heartbeat <gate>`, never `bd close` not even its own, spawn nothing, and never invent a branch, a target, a test
-command, or a ticket. No skill holds
-these rules, and the agent file is the **only** place most of them are written at all — the brief the loop
+command, or a ticket; it carries the report section too, with no bullet pointing at it, having no contract section
+to hold one. No skill holds these rules, and the agent file is the **only** place most of them are written at all — the brief the loop
 sends is not a copy of this contract.
 
 **What the loop's brief actually sends.** `buildWorkerPrompt` (`CLI/src/beads-loop/worker.sh`) builds the one
@@ -899,7 +914,8 @@ Rule 4 is the only part that differs by agent — for the
 **lead** it says this ticket is a GATE, that you verify the tier it stands for and then merge this branch's own
 pull request into its target with the forge's own command (`gh pr merge` / `glab mr merge`) and never a local
 `git merge` into the target — built as `$stayOnBranchRule` and interpolated into the one `printf`, which is
-closed and parses. What the brief still never says: the write-what-remains rule and any ban on spawning — so the
+closed and parses. What the brief still never says: the report-on-the-ticket section — no line of it orders the
+worker to comment its result on its ticket — and any ban on spawning; so the
 prompt is no safety net for either of them, and both live only in the worker's own agent file.
 
 **The same file holds the hook registration.** Each of these seven agent files carries a `hooks:` block in its own
@@ -923,7 +939,9 @@ lead commits only what it had to resolve where the target moved under the branch
       summary "Business logic, endpoints, hooks, types, error factories; never tests, JSX or CSS."
       description """
 **Label `backend-logic` → `engineer`.** Business logic, endpoints, hooks, types, error factories.
-Never writes tests, JSX or CSS. Skills: `bead-read` and the four standards; the worker contract lives in the agent file itself.
+Never writes tests, JSX or CSS. Preloaded skills: `bead-read`, `bead-comment` and the four standards; the worker
+contract, and the `## Report On The Ticket` section that files its result on the ticket, both live in the agent file
+itself.
 """
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/engineer.md "Source — .claude/agents/engineer.md"
     }
@@ -971,12 +989,14 @@ change sits in (entry → exit, following imports), instruments it with trace lo
 instrumented code, posts **each finding as its own PR comment**, pinned to the line it belongs to and complete
 enough to fix from, then one summary comment with the whole picture. Files no tickets, **creates no files at
 all** — not a findings file, not a report, not notes, nothing new ever appears in that worktree — and commits or
-pushes nothing: its findings live on the pull request and in its final message and nowhere else. The only writes
-it makes are the trace logs of Step 4, into files that already exist, sitting in its own working tree;
+pushes nothing: its **findings** live on the pull request and in its final message and nowhere else — never on its
+own ticket, which is a different surface and carries something else, its result, the way every other worker's does.
+The only writes it makes are the trace logs of Step 4, into files that already exist, sitting in its own working tree;
 `sf commit` runs `git add -A`, so anything left there rides onto the branch it is judging, which is why it
 **strips them back out before it stops** and checks with `git status` that the tree holds nothing at all.
-Nothing is preloaded — `bead-read`, the standards and `pr-comments` load on demand at the step
-that uses them.
+Nothing is preloaded — `bead-read` and `bead-comment` together at Step 1, the four standards at Step 6, and
+`pr-comments` at Step 7 all load on demand at the step that uses them. Step 1 loads `bead-comment` for exactly one reason, and says so: it is how review writes on **its
+own** ticket, which is not the surface its findings go on.
 
 **Its branch is the folder it stands on; its base is read through `bd`.** The loop checked the branch out and put
 the session inside it, so `git branch --show-current` is the whole answer and the only thing it trusts — never
@@ -1037,6 +1057,13 @@ every finding is answered on the branch; the project's own test command exits `0
 (the epic tier runs the end-to-end command too); the pull request's pipeline is green, where queued and skipped
 are not green. Any one of them failing means it says *this gate is not proved*, comments the gate naming what is
 missing, and stops there — the gate stays claimed and a human is told why.
+
+**Its report goes on the gate, not only in its message.** Step 8 is one line per ticket in the tier, the test
+command with its count, each pipeline check, each review finding and how it was answered, and the merge with its
+result — and the `## Report On The Ticket` section the lead carries like every other worker makes it file that same
+report on its own gate through `bead-comment` before it stops, because its final message dies with its session and
+the gate is the only thing the person closing it will still be able to read. Preloaded skills: `bead-read` and
+`bead-comment`.
 
 **Merge, and only now** — `gh pr merge` / `glab mr merge` on that branch's PR into its **`prTarget`**, which
 Step 1 derived off the gate's own id: the epic gate's `branch`, or `main` when the gate is the epic gate. The
@@ -1252,7 +1279,9 @@ blocks:   the feature gate (its tier) and the unit-tests ticket
 3. reject: empty title, title > 120 chars, duplicate slug, missing body
 
 **Files:** `src/records/validate-record.ts`, `src/records/types.ts`, `src/records/ports.ts`
-**Done means:** report in the final message; the Stop hook files it, not you.
+**Done means:** the work committed on the branch, and your result commented on this ticket — the final message is
+the live report, the ticket is what outlives the session, and the duty itself is the agent file's
+`## Report On The Ticket`, not this description's. The Stop hook files it, not you.
 """
       }
       unitA = ticket "unit-tests" {

@@ -52,9 +52,9 @@ the row disagrees with, and that disagreement is the `reason=gate-unworkable` al
 comes from a parenthood link, because there is none.
 
 Nothing else is read at runtime. No stdout, no chat summary, no memory of a previous session survives
-the handoff — **the ticket is the brief, and the report you write on it (or in your final message) is
-the only proof of work anyone sees.** A worker never closes its own ticket, so the report — not a
-`bd close` — is where the proof lands. So reading it is not a preamble to the work, it *is* how you
+the handoff — **the ticket is the brief, and the report you write on it is the only proof of work anyone
+sees,** because your final message dies with your session. A worker never closes its own ticket, so the
+report — not a `bd close` — is where the proof lands. So reading it is not a preamble to the work, it *is* how you
 are told what to do: read it, re-read it after anything changed, and never act on a remembered
 version of it.
 

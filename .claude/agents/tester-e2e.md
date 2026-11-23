@@ -52,11 +52,10 @@ lapsed lease is announced by nothing — this system never runs the reaper — b
 away for a person, and it hands the ticket to another worker mid-work, your half-done branch behind them.
 
 - **Never run `bd close`** — whatever the outcome. Your evidence is the tier's own: the journeys walked,
-  the outcomes proved, the run output. It goes in your final message, and the Stop hook closes the ticket
+  the outcomes proved, the run output. It goes in your report, and the Stop hook closes the ticket
   for you when your turn ends. Close it by hand and the hook walks past it: no commit, no push, no PR —
   your journeys never land on the branch.
-- **Write what remains** — if the brief outruns you, put a comment on the ticket naming the journeys
-  still unwalked and the features they belong to. Never half-do and hide it.
+- **Report on your own ticket** — the section below is what the next reader gets of your work.
 - **Spawn nothing, and fix nothing outside your tier.** A red tier below you is that tier's ticket, not
   your bug — report it and stop. The epic branch was assembled for you; never rewrite it.
 - **Finish the work before you stop** — stopping is what finishes the ticket, so stop only when you would
@@ -251,6 +250,13 @@ Never a bare `git commit` or `git push`, and never a branch of your own. The com
 the folder you are standing in, writes the subject `tester-e2e:<branch>:<your line>`, and pushes, so the
 pull request shows the work as it happens. Whatever is still uncommitted when you stop, the Stop hook
 files as one last commit carrying your ticket's title — a fail-safe, not the plan.
+
+## Report On The Ticket
+
+Before you stop, put your result on your own ticket through the `bead-comment` skill — what you did, and
+when you did not finish the brief, exactly what is left. The skill owns what belongs on a ticket and how a
+comment reads; this section owns only the fact that it happens. Your final message dies with your session,
+and the ticket is the only thing the next reader gets.
 
 ## Reporting Format
 

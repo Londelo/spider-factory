@@ -391,9 +391,10 @@ lease alive with a heartbeat; never close your own ticket, because the hook belo
 closes it when your turn ends — and that same rule tells you to finish the work before you stop, because stopping is
 what finishes the ticket; and stay on this branch in this folder, committing as you go and leaving nothing
 for a bare `git commit` or `git push`.
-What is still nowhere in this prompt — saying what is left, and starting no other workers — lives only in the
-worker's own agent file, which the session loaded when it started. What the brief
-sends, line by line, is on the workers layer.
+What is still nowhere in this prompt — putting its result on its own ticket, saying what is left, and starting no
+other workers — lives only in the worker's own agent file, which the session loaded when it started: the
+`## Report On The Ticket` section is what makes the worker comment its result before it stops, and no line of the
+brief orders it. What the brief sends, line by line, is on the workers layer.
 The lead agent's brief is the same four rules, its fourth rewritten for a gate: verify the tier, then merge this
 branch's own pull request into the named target through the forge — that rule is the only place the target is ever
 written into a brief, and the only place it names `sf commit` outright.
@@ -404,7 +405,11 @@ written into a brief, and the only place it names `sf commit` outright.
       title "The engineer writes the code and leaves the ticket open"
       notes """
 The engineer writes files into the branch's folder and lands each finished piece there with `sf commit`,
-heartbeats so its claim holds, reports in its final message, and leaves the ticket open.
+heartbeats so its claim holds, and leaves the ticket open.
+It reports twice, and only one of those reports outlives it: the final message is the live one, and the
+`## Report On The Ticket` section makes it comment its result — what it did, and what is still left when the brief
+outran it — onto **this** ticket through `bead-comment` before it stops. That comment, this branch, and its pull
+request are all the next reader gets.
 Closing is somebody else's job.
 """
     }
@@ -565,8 +570,10 @@ The three questions it answers are on the node.
     workers.reviewAgent -> tower.featA.featureReviewA "the reviewer reviews the branch, findings on PR 2" {
       title "What it writes is what you read before closing"
       notes """
-Comments on the pull request, and its final message — no tickets filed, nothing committed, and **no file
-created in the tree at all**. Which branch it is standing on, what it diffs that branch against, and what it
+Its **findings** go on pull request 2 as comments, and its **result** goes on this ticket through `bead-comment`,
+the way every other worker's does — two surfaces, and the findings never cross onto the ticket. Its final message
+is the third of them and the only one that dies with the session. No tickets filed, nothing committed, and **no
+file created in the tree at all**. Which branch it is standing on, what it diffs that branch against, and what it
 does with its own threads once the fixes land are all on its node.
 Closing it is the last close under this gate, and that is what makes the gate ready: you close it, or with its
 switch on, the lead agent does.
@@ -605,7 +612,8 @@ first: see ACT V.
     human -> tower.featA "read PR 2, close the feature gate" {
       title "You read pull request 2 and close the gate"
       notes """
-Read pull request 2, and if the branch is right, close the feature gate.
+Read pull request 2, and read what each worker left on its own ticket — that comment is the report, the message it
+was typed into died with the session — and if the branch is right, close the feature gate.
 Closing this gate IS the feature landing in the epic branch — that is what the merge is, and there is no ticket
 for it anywhere in the tower.
 """
@@ -678,7 +686,10 @@ The lead agent reads the pull request back and confirms it says merged. It close
       title "The hook closes the gate, and opens no pull request"
       notes """
 The lead agent reports one line per ticket and stops; it never runs `bd close`, and a gate it closes by hand makes
-the hook walk past it. Its `hooks:` frontmatter fires `sf hook stop` on that `Stop` event, and the gate's own
+the hook walk past it. Its `## Report On The Ticket` section has already put that same report on the gate through
+`bead-comment` — the person reading the closed gate later is reading a comment, not a session that ended — and where
+the tier went unproved, Step 8 demands the reason be a comment on the gate before the stop, never only a sentence in
+the message. Its `hooks:` frontmatter fires `sf hook stop` on that `Stop` event, and the gate's own
 `reason=dispatched kind=gate` claims line is what tells the hook this session was the loop's.
 The claim said `kind=gate`, so the hook takes its other road: commit and push, find this branch's pull request
 **at any state** (the lead agent has just merged it), write the url on the gate, close the gate, log
@@ -744,7 +755,7 @@ merges `epic/record-box` into `main` through the forge, and its Stop hook closes
 | Who | What they did |
 |---|---|
 | the loop | published the epic branch and its pull request, made 2 folders (one per branch), started 7 workers, closed 7 tickets |
-| you | planned all 9 tickets, read the 2 pull requests, closed the 2 gates |
+| you | planned all 9 tickets, read the 2 pull requests and the reports the workers left on their tickets, closed the 2 gates |
 
 Both gates being yours is the default: with `SF_AGENT_FEATURE_GATES` and `SF_AGENT_EPIC_GATES` both `0`, nothing
 ever dispatches a gate. Turn one on and its row moves — the loop started 9 workers and closed 9 tickets, and you

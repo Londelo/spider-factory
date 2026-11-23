@@ -115,8 +115,10 @@ sf hook stop           # the worker's Stop hook — you never type this: each wo
    its own ticket — finishing it is the job of the one script in `CLI/src/agent-hooks/`: commit, push, open the
    PR, close. Each of the seven worker agents registers that script on its own Stop event, from the `hooks:`
    block in its own frontmatter, so the session ending is itself the authority to land the work — it is the only
-   signal that a worker finished. Stop early and the ticket closes with whatever it managed, so the honest report
-   and the diff are what you judge. `Stop` is the only event there is, so a worker killed mid-turn is nobody's
+   signal that a worker finished. Before it stops a worker also puts its result — and exactly what it did not
+   finish — on its own ticket through the `bead-comment` skill, so what you judge is the ticket, the commits and
+   the pull request, never a final message that died with the session. Stop early and the ticket closes with
+   whatever it managed. `Stop` is the only event there is, so a worker killed mid-turn is nobody's
    to find — `sf overseer` is the only thing that looks. How a hook knows which ticket it stands for is
    [`.claude/CLAUDE.md`](./.claude/CLAUDE.md)'s to say.
 4. **You close the gates** when a tier is proved, then run the loop again for the next tier. `sf overseer`

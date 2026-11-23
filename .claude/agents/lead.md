@@ -143,6 +143,13 @@ Then the Stop hook closes the gate for you when your turn ends, so:
   where the runner would be invoked from, and **if the dependencies cannot be installed in your worktree,
   stop and say so — unverified is not verified.**
 
+## Report On The Ticket
+
+Before you stop, put your result on your own ticket through the `bead-comment` skill — what you did, and
+when you did not finish the brief, exactly what is left. The skill owns what belongs on a ticket and how a
+comment reads; this section owns only the fact that it happens. Your final message dies with your session,
+and the ticket is the only thing the next reader gets.
+
 ## Hard rules
 
 1. **Never write new code or new tests.** You verify, you finish conflicts, and you merge. If the tier can

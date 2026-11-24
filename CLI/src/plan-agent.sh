@@ -8,11 +8,11 @@ set -uo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$here/../utils/console.sh"
 source "$here/../utils/user-env.sh"
+source "$here/../utils/spawn.sh"
 loadSpiderFactoryEnv
 nameTheSpeaker plan-agent
 
 agentCommand="${SF_AGENT_COMMAND:-claude}"
-agentLaunchCommand="${SF_AGENT_LAUNCH_COMMAND}"
 
 declare -A planAgentOf=(
     [epic]=plan-epic
@@ -49,7 +49,7 @@ runPlanAgent() {
     requireBeadsProject
     requireAgentCommand
     tell "running the $agentName planner through '$agentCommand' in $PWD"
-    exec $agentLaunchCommand --agent "$agentName" "$@"
+    runForegroundAgent "$agentName" "$@"
 }
 
 unknownPlanKind() {

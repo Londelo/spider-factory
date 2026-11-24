@@ -44,7 +44,6 @@ pollSeconds=0
 maximumTicketsDone=0
 logRoot=""
 agentCommand=""
-agentLaunchCommand=""
 agentHandlesFeatureGates=0
 agentHandlesEpicGates=0
 waitingLineCadence=0
@@ -54,6 +53,7 @@ claimedThisRun=0
 source "$utilsDir/console.sh"
 source "$utilsDir/logging.sh"
 source "$utilsDir/forge.sh"
+source "$utilsDir/spawn.sh"
 source "$loopDir/logs.sh"
 source "$loopDir/config.sh"
 source "$loopDir/preflight.sh"
@@ -129,6 +129,7 @@ requireBeadsProject
 createRunLogDirectory
 resolveTowerPaths
 seedStartingLogFields "$logDir" "$towerDir"
+requireAgentDefinitionsResolve
 configureWaitingLineCadence
 installInterruptTrap
 announceRunLogDirectory

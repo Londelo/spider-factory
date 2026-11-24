@@ -8,7 +8,6 @@ configureFromEnvironment() {
     maximumTicketsDone="${SF_MAX_TICKETS:-0}"
     logRoot="${SF_LOG_ROOT:-$HOME/.spider-factory/logs}"
     agentCommand="${SF_AGENT_COMMAND:-claude}"
-    agentLaunchCommand="${SF_AGENT_LAUNCH_COMMAND}"
     agentHandlesFeatureGates="${SF_AGENT_FEATURE_GATES:-0}"
     agentHandlesEpicGates="${SF_AGENT_EPIC_GATES:-0}"
 }

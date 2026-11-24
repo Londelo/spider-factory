@@ -62,14 +62,21 @@ spawnWorker() {
       printf 'tower=%s\n' "$towerDir"
       printf 'kind=%s\n' "$kind"
     } >"$contextFile.tmp" && mv -f "$contextFile.tmp" "$contextFile"
-    ( cd "$worktreePath" \
-        && $agentLaunchCommand --bg --agent "$agentName" --permission-mode bypassPermissions \
-           "$(buildWorkerPrompt "$ticketId" "$branch" "$agentName" "$prTarget")" ) >"$spawnFile" 2>&1
+    spawnFailure=""
+    spawnBackgroundAgent "$agentName" "$worktreePath" \
+        "$(buildWorkerPrompt "$ticketId" "$branch" "$agentName" "$prTarget")" "$spawnFile" || {
+        spawnFailure="launcher-failed"
+        return 1
+    }
+    checkBackgroundAgentLoaded "$agentName" "$(getSpawnedAgent "$spawnFile")" || {
+        spawnFailure="agent-not-loaded"
+        return 1
+    }
 }
 
 dispatchWorker() {
     local ticketId="$1" agentName="$2" branch="$3" prTarget="$4" label="$5"
-    local worktreePath worktreeAside worktreeFailure spawnFile contextFile
+    local worktreePath worktreeAside worktreeFailure spawnFailure spawnFile contextFile
 
     setLogField agent "$agentName"
 
@@ -98,6 +105,11 @@ dispatchWorker() {
     spawnFile="$(spawnFileFor "$ticketId")"
     contextFile="$(contextFileFor "$branch")"
     if ! spawnWorker "$worktreePath" "$ticketId" "$agentName" "$branch" "$prTarget" "$label" "$spawnFile" "$contextFile"; then
+        if [[ "$spawnFailure" == "agent-not-loaded" ]]; then
+            writeLog errors "reason=agent-not-loaded msg=\"$agentLoadFailure\""
+            releaseClaim "$ticketId"
+            die "the $agentName agent never loaded for $ticketId — $agentLoadFailure. The run stops here: every worker left in it would be the same worker without an agent."
+        fi
         writeLog errors "reason=worker-not-dispatched msg=\"$(lastLineOf "$spawnFile")\""
         releaseClaim "$ticketId"
         return 1

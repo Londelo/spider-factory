@@ -28,6 +28,8 @@ engine, the one command engine that runs no agent and writes nothing), `CLI/src/
 `CLI/utils/console.sh` (every word any of them says to a
 terminal, the four reused refusals, and the one `requireBeadsProject` probe every command that needs a tower calls), `CLI/utils/logging.sh` (the one definition of a log line, sourced by the
 engine and by the Stop hook and by nothing else), `CLI/utils/forge.sh`,
+`CLI/utils/spawn.sh` (the one place a claude session gets started and an agent's existence is proved, sourced by
+the engine and by both foreground engines),
 `CLI/utils/user-env.sh`, `scripts/clone-webs.sh`, `CLI/src/create-beads/*`, `CLI/install-cli.sh`,
 `CLI/uninstall-cli.sh`,
 `CLI/spider-factory.example.env`, `webs/webs.example.yml`, `CLI/src/agent-hooks/worker-stop.sh`
@@ -37,7 +39,8 @@ reaches it as `sf hook stop`; there is no hooks.json and no `.claude/settings.js
 `.claude/agents/*`, `.claude/skills/*`.
 
 The layout behind that list: `CLI/src/` holds what `bin/sf` runs plus the concern files under each command,
-`CLI/utils/` the bash more than one command sources (`console.sh`, `logging.sh`, `forge.sh`, `user-env.sh`),
+`CLI/utils/` the bash more than one command sources (`console.sh`, `logging.sh`, `forge.sh`, `spawn.sh`,
+`user-env.sh`),
 and `scripts/` what npm runs.
 A file that moves breaks every link and every path that named it — grep the whole `.claude/diagram/` directory
 for the old path, not just the node you came to fix.

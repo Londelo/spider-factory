@@ -253,8 +253,8 @@ If a number is typed wrong, the run stops there — it never quietly substitutes
 """
     }
 
-    machine.dispatcher -> machine.preflight "before the first tick: seven checks" {
-      title "Seven checks, and six of them stop the run"
+    machine.dispatcher -> machine.preflight "before the first tick: eight checks" {
+      title "Eight checks, and seven of them stop the run"
       notes """
 Before the first tick, if any of these is untrue the run refuses to start:
 - the tools it needs are on the path
@@ -262,6 +262,8 @@ Before the first tick, if any of these is untrue the run refuses to start:
 - both gate switches are exactly `0` or `1` — a half-written switch is not guessed at
 - this folder answers a ticket list
 - it can create a log folder
+- every agent the worker map can name has its file under `.claude/agents/`, frontmatter and all — read once, so a
+  worker is never spawned with no agent to load
 If only the label list is wrong, the run starts anyway and dispatches nobody — the one that bites.
 """
       navigateTo everyFailure
@@ -374,6 +376,19 @@ it refuses, and the ticket stays claimed.
 What the worker does get is every fact as a literal in its prompt; the fields and where each one comes from are on
 the node itself.
 """
+    }
+
+    machine.dispatcher -> toolbelt.claudeCli "prove the session came up as that agent" {
+      title "A worker with no agent does not fail, so the spawn is checked"
+      notes """
+The launcher's word proves nothing: it exits `0` whether or not the name resolved, and its "no agent named" warning
+prints on perfectly good spawns whenever its own cwd is not the factory root. So the session is watched instead — it
+has to still be alive a few seconds in **and** name `@engineer` in its own header, because a session spawned with a
+name that resolves to nothing comes up working and runs as the default template.
+If it never proves itself: the claim goes back, `ERROR reason=agent-not-loaded` is written with what the watcher
+saw, and **the run stops** — every other worker in this run would be the same worker with no agent.
+"""
+      navigateTo everyFailure
     }
 
     toolbelt.claudeCli -> workers.engineer "the rules arrive with the brief" {
@@ -649,7 +664,8 @@ branch and pull-request
 target come from that same id, same arithmetic as any ticket; a gate whose id reaches no usable branch writes a
 waiting line, `gate_unworkable gate=<id> step=<why>`, rather than guessing. It then moves the
 gate to `in_progress` itself, guarded so a second loop cannot take it too, and starts the session with
-`agent=lead`, `label=gate:feature`.
+`agent=lead`, `label=gate:feature` — the same spawn as any worker, so the same proof: a lead session that never
+names `@lead` puts the gate back `open`, writes `ERROR reason=agent-not-loaded gate=<id>`, and ends the run.
 """
     }
 
@@ -1039,6 +1055,17 @@ thing this design refuses to be.
 """
     }
 
+    machine.dispatcher -> alarms.startupAlarms.agentDefinitionMissing "no agent named 'engineer' · exit 1" {
+      title "A worker the map can name has no agent file, and the run will not start"
+      notes """
+The last of the eight, and the only one that leaves a line behind: `reason=agent-definition-missing agent=<name>` is
+in `errors` before the run dies, because by then the log folder exists. A worker spawned without its agent does not
+fail — it comes up as the default template and works somebody's ticket under nobody's contract, and the launcher
+exits `0` either way — so the file is read, not the launcher trusted. The same read runs again inside every spawn,
+so a file deleted mid-run dies at the next one.
+"""
+    }
+
     machine.dispatcher -> alarms.startupAlarms.labelsStarved "SF_ALLOWED_LABELS=<typo> — the run starts and does nothing" {
       title "The one startup mistake that does NOT stop the run"
       notes """
@@ -1155,10 +1182,23 @@ the branch is built fresh. The line is written and the worker is spawned anyway:
     machine.dispatcher -> alarms.tickAlarms.workerNotDispatched "ERROR reason=worker-not-dispatched · put it back" {
       title "The worker never started, so the ticket goes straight back"
       notes """
-The start command failed and the reason is in that worker's own spawn file — this is also what an agent name
-with no file behind it looks like, including a lead agent whose file is missing. Nothing was ever started to work
+The start command itself failed, and the reason is in that worker's own spawn file. This is the launcher refusing,
+not the agent missing — a name with no file behind it is stopped before the spawn, and a session that came up
+without becoming its agent is the failure one step below. Nothing was ever started to work
 this ticket, so unlike every other tick failure it is returned at once, and the next tick may well succeed. On a
 gate the line names the gate instead of a ticket, and what goes back is its status, to `open`.
+"""
+    }
+
+    machine.dispatcher -> alarms.tickAlarms.agentNotLoaded "ERROR reason=agent-not-loaded · put it back, then the run dies" {
+      title "The session started, but never proved itself the agent it named"
+      notes """
+The spawn succeeded and the proof did not: watched for half a minute, the session was never both still alive a few
+seconds in and naming `@<agent>` in its own header. `msg=` says which of four shapes it was — no session id at all, a session
+that died inside the settle window, a session that ran the whole budget without ever naming the agent, or one that
+never appeared in the listing. Then the claim goes back and the run ends, both on purpose: the fault is the factory's
+agent directory, not this ticket, so the next tick would die the same death. A gate reads the same with `gate=<id>`,
+the gate put back to `open` first.
 """
     }
 

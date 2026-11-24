@@ -10,11 +10,11 @@ set -uo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$here/../utils/console.sh"
 source "$here/../utils/user-env.sh"
+source "$here/../utils/spawn.sh"
 loadSpiderFactoryEnv
 nameTheSpeaker overseer
 
 agentCommand="${SF_AGENT_COMMAND:-claude}"
-agentLaunchCommand="${SF_AGENT_LAUNCH_COMMAND}"
 logRoot="${SF_LOG_ROOT:-$HOME/.spider-factory/logs}"
 
 usage() {
@@ -50,7 +50,7 @@ runOverseer() {
     requireAgentCommand
     tell "reading $PWD through '$agentCommand'"
     local launchFacts="Your launch facts, from the CLI that started you: the run logs live under \`$logRoot\`, and background sessions are listed by \`$agentCommand agents --json\`. Take those two from this brief; never read either off your own environment."
-    exec $agentLaunchCommand --agent overseer --disallowedTools 'Bash(sf:*)' "$launchFacts $*"
+    runForegroundAgent overseer --disallowedTools 'Bash(sf:*)' "$launchFacts $*"
 }
 
 case "${1:-}" in

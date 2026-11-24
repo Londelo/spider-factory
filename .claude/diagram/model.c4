@@ -4,7 +4,8 @@ model {
   // THE MACHINE — one command in, background workers out.
   // Every value here was read off CLI/bin/sf, CLI/src/beads-loop/ (index.sh and the nine beside it),
   // CLI/utils/console.sh, CLI/utils/logging.sh,
-  // CLI/utils/forge.sh, CLI/utils/user-env.sh, scripts/clone-webs.sh, CLI/spider-factory.example.env,
+  // CLI/utils/forge.sh, CLI/utils/spawn.sh, CLI/utils/user-env.sh, scripts/clone-webs.sh,
+  // CLI/spider-factory.example.env,
   // CLI/src/agent-hooks/worker-stop.sh.
   // The cast only: the story is told by the four walkthroughs in views.c4.
   // Rules for editing these files: ./REFERENCE.md — the code is the only source of truth.
@@ -135,12 +136,12 @@ says so out loud instead of cloning nothing quietly. The run exits non-zero only
     }
 
     preflight = noteDoc "The checks — everything that must hold before the first tick" {
-      summary "The seven checks that must hold before the first tick; six of them refuse the run outright."
+      summary "The eight checks that must hold before the first tick; seven of them refuse the run outright."
       description """
 In the order the code runs them — the bootstrap at the bottom of `CLI/src/beads-loop/index.sh`, which calls
-them one after another; checks 2–5 live in `preflight.sh` beside it, check 6 is `requireBeadsProject`, which lives
+them one after another; checks 2–5 and 8 live in `preflight.sh` beside it, check 6 is `requireBeadsProject`, which lives
 in `CLI/utils/console.sh` beside `die` and is the one beads probe every command runs, checks 1 and 7 in `config.sh`.
-Six of the seven
+Seven of the eight
 end the run through `die` — `beads-loop: <what is wrong>` on stderr, exit 1 — and no tick ever happens; a run that
 cannot report on itself is not a run. `die` is not theirs: it lives in `CLI/utils/console.sh`, the one file in the CLI
 that writes to a terminal — every engine, `bin/sf`, `CLI/utils/user-env.sh` and both installers source it and each
@@ -150,7 +151,9 @@ can name a line of the parameters file it refuses to read. Check 2 refuses throu
 check 6 through `reportNoBeadsDatabase`; that second sentence is the one `sf`, `plan-agent.sh` and
 `overseer-agent.sh` refuse with too, and `reportMissingFromInstall` (a file the install should have put down) and
 `reportAgentCommandNotOnPath` (the first word of `SF_AGENT_COMMAND`) are the other two reused refusals.
-Checks 3–5 pass their own sentence to `die` directly.
+Checks 3–5 pass their own sentence to `die` directly; check 8 passes the sentence
+`requireAgentDefinition` wrote for it, and is the only one that gets a log line first — it runs after check 7, so
+the run's `errors` file exists by then and `reason=agent-definition-missing` is on its way before the run dies.
 
 | # | Check | Refuses when |
 |---|---|---|
@@ -161,13 +164,15 @@ Checks 3–5 pass their own sentence to `die` directly.
 | 5 | `requireUsablePollInterval` — `SF_POLL_S` must divide 60 | the permitted list is printed: `1 2 3 4 5 6 10 12 15 20 30 60`; the waiting lines are rate-limited at one per minute, so a poll that does not divide the minute makes that cadence a lie |
 | 6 | `requireBeadsProject` — `requireBeadsToolsOnPath` first, then `bd list --limit 1 --json` must answer an **array** | a missing `bd` or `jq` is named as a missing binary, never as a missing database; then `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the environment does not save a wrong directory |
 | 7 | `createRunLogDirectory` — `mkdir -p` the run's dir, then seed `claims errors waiting results closes` | fatal on purpose: a run that cannot write its logs cannot raise an alarm |
+| 8 | `requireAgentDefinitionsResolve` — `requireAgentDefinition` over every value of the `AGENT` map plus `lead`, deduped | one of them has no file at `<factory>/.claude/agents/<agent>.md`, or a file whose frontmatter does not open with `---`, close with `---`, and carry a `description:` line. the whole worker set is read once here, before anything is claimed; the per-spawn proof on the agent-command node still runs every time |
 
 `sf` itself runs check 6 and two before it — `requireInsideFactory`, that the directory it was typed in is
 the factory root or anything under it, and `requireEngine`, that `../src/beads-loop/index.sh` is actually
 there — so a broken install names itself instead of failing deep in a tick.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L122-L135 "Source — beads-loop/index.sh lines 122–135, the bootstrap that runs them in order"
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/preflight.sh#L5-L43 "Source — beads-loop/preflight.sh lines 5–43, checks 2–6"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L122-L136 "Source — beads-loop/index.sh lines 122–136, the bootstrap that runs them in order"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/preflight.sh#L5-L45 "Source — beads-loop/preflight.sh lines 5–45, checks 2–5 and 8"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/spawn.sh#L29-L39 "Source — CLI/utils/spawn.sh lines 29–39, requireAgentDefinition, the file check check 8 runs"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/console.sh "Source — CLI/utils/console.sh, die, the four reused refusals and the one beads probe"
     }
 
@@ -194,8 +199,8 @@ is for is on the agent-command node.
 
 | Knob | Default | What it does |
 |---|---|---|
-| `SF_AGENT_COMMAND` | `claude` | the command that runs an agent — **the knob you edit**, and the one `CLI/spider-factory.example.env` documents; split on spaces, so it may carry its own arguments. Read directly by the worker count and by the startup `PATH` check; every actual spawn goes through the launch command below |
-| `SF_AGENT_LAUNCH_COMMAND` | *(not a setting)* | `$SF_AGENT_COMMAND --add-dir <factory root>`, exported by `loadSpiderFactoryEnv` on every load and overwritten each time — what the worker spawn, the three planners and the overseer actually exec. Listed here because it is `SF_*` and because editing it does nothing |
+| `SF_AGENT_COMMAND` | `claude` | the command that runs an agent — **the knob you edit**, and the one `CLI/spider-factory.example.env` documents; split on spaces, so it may carry its own arguments. Read directly by the worker count, by the startup `PATH` check, and by the two reads that prove a live session (`agents --json --all`, then `logs <session>`); every actual spawn goes through the launch command below |
+| `SF_AGENT_LAUNCH_COMMAND` | *(not a setting)* | `$SF_AGENT_COMMAND --add-dir <factory root>`, exported by `loadSpiderFactoryEnv` on every load and overwritten each time — what `CLI/utils/spawn.sh` runs and nothing else — `spawnBackgroundAgent` for the worker and a gate's lead, `runForegroundAgent` for the three planners and the overseer. Listed here because it is `SF_*` and because editing it does nothing |
 | `SF_AGENT_FEATURE_GATES` | `0` | does the **lead agent** close a feature gate for you. `0` = a human closes it; `1` = the loop dispatches the lead agent at a ready feature gate. Anything else and the run refuses to start |
 | `SF_AGENT_EPIC_GATES` | `0` | the same switch for the epic gate alone — one flag per tier, because a feature gate and the epic gate are different amounts of trust |
 | `SF_MAX_PARALLEL` | `4` | workers running at once; the count is recounted from `$SF_AGENT_COMMAND agents --json` every tick, and a session counts only while it reports itself `busy` — a finished worker holds no slot |
@@ -225,8 +230,9 @@ message, so no call site carries a sentence · `tower-id.sh` the id grammar and 
 and its PR · `beads.sh` every beads read that is not a claim · `claim.sh` the frontier, the guards a claim must
 pass, the waiting line · `worker.sh` the prompt, the spawn, the dispatch · `gates.sh` the gate side of the tick.
 Every function named below lives in one of these. **What the run says to the terminal is nobody's business
-here:** that is `CLI/utils/console.sh`, sourced from `../utils/` beside `logging.sh` (`forge.sh` stays beside
-`index.sh` in `CLI/src/`), which `index.sh` names `beads-loop` — the startup announcement and the closing
+here:** that is `CLI/utils/console.sh`, sourced from `../utils/` beside `logging.sh`, `forge.sh` and `spawn.sh`
+(with `user-env.sh`, everything `index.sh` pulls in from outside the directory), which `index.sh` names
+`beads-loop` — the startup announcement and the closing
 summary are its `announceRunLogDirectory` and `reportStopped`, and every other word a run says is a log line
 first, which `writeLog` also echoes while the loop runs.
 
@@ -241,7 +247,7 @@ One tick, in the order the code runs it (`tick()`, `index.sh`):
 | 5 | derive the branch and the PR target off the **id** | `resolveTicketBranches <id>` — `splitTowerId` reads `<repo>-<kind>-<uuid>-<hierarchy>` off the right; the uuid names the tower, the kind word swapped to `feature` with the hierarchy cut at the last dot is the feature gate whose `branch` the work lands on, the kind word swapped to `epic` at hierarchy `0` the epic gate whose `branch` is `prTarget`; `prTarget` is `main` when the owner is the epic gate itself. Nothing is walked and no key on the ticket is read | `no-epic-gate ticket=…` (id does not read the grammar · `step=not-below-a-gate` · `gate=<the epic it names>`), `gate-unworkable ticket=…` (`owner-carries-no-branch` · `epic-carries-no-branch`), left claimed |
 | 6 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
 | 7 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
-| 8 | spawn | `$SF_AGENT_LAUNCH_COMMAND --bg --agent <agent> --permission-mode bypassPermissions` — your `SF_AGENT_COMMAND` plus the flags every spawn carries (`--add-dir <factory root>`), the bare agent name, a project-level agent in `.claude/agents/` | `worker-not-dispatched`, `bd unclaim` |
+| 8 | spawn, then **prove it** | `spawnWorker` writes the dispatch context file, then hands the whole spawn to `spawnBackgroundAgent` in `CLI/utils/spawn.sh`: `$SF_AGENT_LAUNCH_COMMAND --bg --agent <agent> --permission-mode bypassPermissions` — your `SF_AGENT_COMMAND` plus the flags every spawn carries (`--add-dir <factory root>`) and the one this form alone carries (`--permission-mode bypassPermissions`, which the foreground spawns never get), the bare agent name, a project-level agent in `.claude/agents/`. `checkBackgroundAgentLoaded` then has to prove the session actually came up as that agent — the two proofs are on the agent-command node | launcher exits non-zero: `worker-not-dispatched`, `bd unclaim`, the tick moves on. Never proved: `agent-not-loaded`, `bd unclaim`, and **the run dies** |
 | 9 | one log line, move on | `writeLog claims \"reason=dispatched\"` | — |
 
 **One pair of hands per branch is the tower's job, not the loop's.** Every ticket below a feature gate sits on
@@ -261,7 +267,7 @@ ready list until its lead agent dies.
 | derive the gate's branch and target | `resolveTicketBranches <gate>` — the gate's own `branch`, and the epic gate's `branch` (or `main`) as the target | waiting `gate_unworkable gate=… step=…` |
 | **claim it** | `bd update <gate> --status in_progress --if-status open` | `gate-claim-lost`, no lead agent spawned |
 | make the branch's folder | `ensureWorktree gateBranch gatePrTarget` | `worktree-failed step=gate`, and the gate is put back `open` |
-| spawn the **lead agent** | `--agent lead`, the bare name; label on the line is `gate:<tier>` | `worker-not-dispatched gate=…`, the gate put back `open` |
+| spawn the **lead agent**, then **prove it** | the same `spawnWorker` call with `kind=gate`, so the same `spawnBackgroundAgent` and the same proof; `--agent lead`, the bare name; label on the line is `gate:<tier>` | `worker-not-dispatched gate=…`, the gate put back `open`, the tick moves on · `agent-not-loaded gate=…`, the gate put back `open`, and **the run dies** |
 | one log line | `writeLog claims \"reason=dispatched kind=gate gate=… tier=…\"` | — |
 
 **What it never does:** it never polls a worker, never reads worker output, never merges, never ends
@@ -314,8 +320,10 @@ lead agent is reached by the gate dispatch, not by a key of this map.
     hookFields = knobPanel "SF_* — the nine log fields the Stop hook fills itself" {
       summary "The SF_ variables the Stop hook exports inside its own process, filled off this session's dispatched claims line. The spawn sets none."
       description """
-**The spawn writes no environment at all.** `spawnWorker` (`CLI/src/beads-loop/worker.sh`) runs the agent command
-with nothing in front of it — no `SF_TICKET=`, no `SF_BRANCH=`, none of them. `claude --bg` serves every session
+**The spawn writes no environment at all.** `spawnWorker` (`CLI/src/beads-loop/worker.sh`) hands the whole brief to
+`spawnBackgroundAgent` (`CLI/utils/spawn.sh`) and that runs the agent command with nothing in front of it — no
+`SF_TICKET=`, no `SF_BRANCH=`, none of them; the function takes a working directory, a prompt and a spawn file, and
+has no environment parameter to pass one through. `claude --bg` serves every session
 from one shared daemon that **freezes the environment at the run's first spawn**, so anything the loop set there
 would reach a later worker, and its Stop hook, as the *first* worker's values. The facts travel two other ways: to
 the **worker** as literals in its prompt — ticket id, branch, and the tower's path, plus `prTarget` in the lead
@@ -356,7 +364,7 @@ label tower kind`; a **gate** dispatch additionally writes `kind=gate` onto its 
 reads it back as `SF_WORK_KIND="${claimKind:-${kind:-task}}"`, off the claims line first and the context file only
 as a fallback. It is the only thing that tells the hook it is finishing a **gate** rather than a task.
 """
-      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/worker.sh#L54-L68 "Source — beads-loop/worker.sh lines 54–68, spawnWorker: the context file, then the spawn with no environment in front of it"
+      link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/worker.sh#L54-L75 "Source — beads-loop/worker.sh lines 54–75, spawnWorker: the context file, then the spawn through spawnBackgroundAgent with no environment in front of it, then the proof"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/agent-hooks/worker-stop.sh#L82-L117 "Source — CLI/src/agent-hooks/worker-stop.sh lines 82–117, adoptDispatchContext: the claims line becomes the hook's own nine fields"
     }
 
@@ -373,7 +381,7 @@ same statement, stamps an assignee, moves it to `in_progress`, and starts a **fi
 | one ticket per call | and the tick makes exactly **one** of them: read the claim, dispatch or refuse, and the tick is over — there is no second claim waiting behind it |
 | an **empty** answer is not an error | that is a waiting line: `frontier_empty` if nothing is waiting elsewhere, `tower_stalled waiting=N` if work exists behind a blocker |
 | the lease is the only watchdog | a lapsed lease parks the ticket `in_progress` and off the frontier — nothing in this repo runs `bd reclaim`, so sweeping claims back is a human's act |
-| `bd unclaim` puts a claim back | `releaseClaim` is one line, called from **two** places: the epic branch and its PR could not be published · the spawn died. Everything else that refuses — a mislabelled ticket, an id that reaches no gate, a worktree that could not be made — leaves the claim where it is, on purpose |
+| `bd unclaim` puts a claim back | `releaseClaim` is one line, called from **three** places: the epic branch and its PR could not be published · the launcher died · the session came up but never proved itself an agent. Everything else that refuses — a mislabelled ticket, an id that reaches no gate, a worktree that could not be made — leaves the claim where it is, on purpose |
 
 A claim is a JSON object, and **two** fields decide everything downstream: `.id` (which two gates it sits
 under, and therefore which branch the work lands on and which its pull request aims at — `resolveTicketBranches`
@@ -599,9 +607,12 @@ through the forge, and a second PR off a merged branch is a lie about work nobod
     summary "`sf overseer`: reads this directory's tower and its run logs and reports back to you, foreground. `sf` is denied to it outright."
     description """
 **What it is:** `.claude/agents/overseer.md`, run in the **foreground** by `sf overseer` →
-`CLI/src/overseer-agent.sh`, which execs `$SF_AGENT_LAUNCH_COMMAND` — your `SF_AGENT_COMMAND` plus the flags every
-spawn carries, since it too stands in a tower and not in the factory — with the `overseer` agent,
-`--disallowedTools 'Bash(sf:*)'`, and a short **launch brief prepended to your prompt**. The `PATH` guard below still checks the plain `SF_AGENT_COMMAND`. Foreground is
+`CLI/src/overseer-agent.sh`, which calls `runForegroundAgent` (`CLI/utils/spawn.sh`) — that reads
+`.claude/agents/overseer.md` and refuses to start a session without it, then `exec`s `$SF_AGENT_LAUNCH_COMMAND` —
+your `SF_AGENT_COMMAND` plus the flags every spawn carries, since it too stands in a tower and not in the factory —
+with the `overseer` agent, `--disallowedTools 'Bash(sf:*)'`, and a short **launch brief prepended to your prompt**.
+The `PATH` guard below still checks the plain `SF_AGENT_COMMAND`, and the `exec` means there is no after: the file
+check is the only proof this engine can have. Foreground is
 the whole difference from a worker: a worker is spawned `--bg`
 with nobody watching and reports through the log; the overseer talks back to you, and anything you type after
 the command goes to it as the prompt — after that brief, which it cannot lose.
@@ -803,13 +814,16 @@ an unregistered type, it **accepts and hides it**, so a broken gate and a workin
     }
 
     claudeCli = cliTool "$SF_AGENT_COMMAND (claude) — the command every agent runs through" {
-      summary "The command every agent runs through, and the launch form composed off it for every spawn — which of the two a call uses is not interchangeable."
+      summary "The command every agent runs through; the launch form off it is what CLI/utils/spawn.sh spawns with, and it proves every one of those spawns."
       description """
 `SF_AGENT_COMMAND`, default `claude` — the one command every agent in the system runs through, so
 pointing it at your own build moves all of them. `loadSpiderFactoryEnv` composes a second name off it,
 `SF_AGENT_LAUNCH_COMMAND` = `$SF_AGENT_COMMAND --add-dir <factory root>`, and **which of the two a call uses is
-not interchangeable**: the three sites that have to *resolve an `--agent`* — the worker spawn, the three planners,
-the watcher — take the launch form, and every other call stays on the plain name.
+not interchangeable**: every call that has to *resolve an `--agent`* takes the launch form, and every other call
+stays on the plain name. And there is exactly one file that runs the launch form — **`CLI/utils/spawn.sh`**, which
+is why that rule cannot be broken by accident: `spawnBackgroundAgent` is the `--bg` pair below, `runForegroundAgent`
+is the two foreground ones, neither of them starts a session until `requireAgentDefinition` has read the agent file,
+and no call site anywhere composes the command itself.
 
 - `$SF_AGENT_LAUNCH_COMMAND --bg --agent <agent> --permission-mode bypassPermissions \"<the brief>\"` —
   the worker spawn, run with `cd` **inside** the branch's worktree, and deliberately **no `-w`** —
@@ -817,11 +831,15 @@ the watcher — take the launch form, and every other call stays on the plain na
   is the same call with `--agent lead`, and the brief is the same `buildWorkerPrompt` with one branch of one
   variable: `$stayOnBranchRule` is rule 4, chosen by `[[ "$agentName" == "$leadAgentName" ]]`, and the lead variant
   is the only text that names the target or says `sf commit` outright. Nothing else is added, so a gate session is
-  handed nothing a worker is not. What that brief actually says is on the workers layer.
+  handed nothing a worker is not. **This is the only spawn in the whole CLI that carries `--permission-mode`:**
+  both forms below run without it, so the asymmetry is the file's — a session `--bg`'d by `spawnBackgroundAgent`
+  never stops to ask, a foreground one can. What that brief actually says is on the workers layer.
 - `$SF_AGENT_LAUNCH_COMMAND --agent <planner> \"<prompt>\"` — the three plan agents, foreground, through
-  `CLI/src/plan-agent.sh`, which is what `sf plan:epic`, `sf plan:feature` and `sf plan:task` run.
+  `runForegroundAgent` from `CLI/src/plan-agent.sh`, which is what `sf plan:epic`, `sf plan:feature` and
+  `sf plan:task` run.
 - `$SF_AGENT_LAUNCH_COMMAND --agent overseer --disallowedTools 'Bash(sf:*)' \"<launch brief> <your prompt>\"` — the
-  reader, foreground, through `CLI/src/overseer-agent.sh`. The engine prepends a one-sentence brief naming the run
+  reader, foreground, through `runForegroundAgent` from `CLI/src/overseer-agent.sh`. The engine prepends a
+  one-sentence brief naming the run
   logs' directory and the command that lists background sessions, both interpolated off the engine's own
   `SF_LOG_ROOT` and `SF_AGENT_COMMAND`, and tells the watcher to take those two from the brief and never off its own
   environment. It is the only spawn that hands a session a fact this way; the worker's facts ride in its prompt and
@@ -838,17 +856,36 @@ the watcher — take the launch form, and every other call stays on the plain na
 **Why the launch form adds a directory.** A worker's cwd is a git worktree, and the planners and the overseer run
 inside a tower project — so in every one of those sessions the project root is the tower, never the factory, and
 Claude Code discovers `.claude/agents/` and `.claude/skills/` only from a session's own project roots. Without the
-added directory `--agent <name>` resolves to nothing and no skill loads: the spawn comes back failed as
-`worker-not-dispatched`, and a planner cannot run at all. `--add-dir` makes `spider-factory/` a **second project
+added directory `--agent <name>` resolves to nothing and no skill loads — and the launcher does not say so: the
+launch succeeds, the session comes up, and it comes up as the **default template**. What catches it is the proof
+below (`agent-not-loaded` for a worker or a gate, and nothing at all for a foreground engine, which is why the
+file check runs before the exec and not after). `--add-dir` makes `spider-factory/` a **second project
 root for discovery only** — it is **not a sandbox and not a permission grant**; it changes nothing about where the
 session works or what it may touch. The root is derived from `CLI/utils/user-env.sh`'s own location, so it always
 names the checkout the code is actually running from.
 
+**How a spawn is proved to have become the agent it named.** Two reads, both in `CLI/utils/spawn.sh`, both on the
+plain name, and both needed. `agentSessionState` asks `${SF_AGENT_COMMAND:-claude} agents --json --all` for the
+session's `state`; `agentSessionNamesAgent` asks `logs <session>` for its header, strips the ANSI, and requires a
+token exactly equal to `@<agent>`. Neither alone is enough. **The state lies on its own:** a session spawned with a
+name that resolves to nothing comes up `working` and only dies seconds later, so `working` is provisional until it
+has held — `checkBackgroundAgentLoaded` polls once a second for 30s and accepts only a session still alive past a
+5s settle *and* naming the agent in its header. **The header is the only thing that says which agent the session
+actually became**, because nothing in `agents --json` carries the agent at all. A session already `failed` or
+`stopped` fails at once, and an empty session id fails at once. The function never dies: the caller already holds a
+claimed ticket, and it must be handed back before anything ends.
+
+**What the launcher's own words are worth: nothing.** `claude` prints a "no agent named X, starting with the
+default template" warning whenever its cwd is not the factory root, because the launcher resolves `--agent` against
+`$PWD` alone while the session resolves it against the added factory root too — so the warning rides along on
+perfectly good spawns, and a name with no file behind it prints the same words. Its exit status is `0` either way.
+Read neither: existence is the agent file before the spawn, and the state plus the header after it.
+
 `SF_AGENT_COMMAND` is split on spaces, so it may carry its own arguments, and its first word is what the PATH checks
-look for. **Every place the plain name survives is a read, never a spawn:** `beads.sh`'s `agents --json` (the
-`--add-dir` flag is variadic and would swallow the `agents` positional as a second directory), the loop's startup
-`requireToolsOnPath`, the `requireAgentCommand` each of the two foreground engines runs before it execs, and bare
-`sf`'s own `exec`.
+look for. **Every place the plain name survives is a read, never a spawn:** `beads.sh`'s `agents --json` and
+`spawn.sh`'s `agents --json --all` and `logs <session>` (the `--add-dir` flag is variadic and would swallow the
+`agents` / `logs` positional as a second directory), the loop's startup `requireToolsOnPath`, the
+`requireAgentCommand` each of the two foreground engines runs before it execs, and bare `sf`'s own `exec`.
 
 Workers run `bypassPermissions` unattended, so this loop only ever belongs in a repo you fully trust.
 """
@@ -1204,7 +1241,10 @@ write no file anywhere. Never assume the three are symmetric — a step, a brief
 breaks on whichever of them lacks the tool.
 
 Each is one foreground command — `sf plan:epic`, `sf plan:feature`, `sf plan:task` — and anything you type
-after it goes to the planner as the prompt. What runs them is on the agent-command node.
+after it goes to the planner as the prompt. What runs them is on the agent-command node: the engine checks the
+tower, checks the command is on `PATH`, then hands the agent name to `runForegroundAgent`, which will not start a
+session for a planner whose file is not under `.claude/agents/`. A foreground engine gets no proof after the fact —
+it `exec`s away its own process — so that file check is the whole of it.
 """
     planEpic = planner "plan-epic" {
       summary "A vague idea into exactly one epic gate plus its end-to-end and review tickets."
@@ -1509,6 +1549,26 @@ environment does not save a wrong directory. `sf` runs the same probe before it 
 alarm, and a silent dispatcher is the one thing this design refuses to be.
 """
       }
+      agentDefinitionMissing = alarm "startup: no agent named '<name>'" {
+        #fatal
+        summary "An agent in the worker set has no file, or a file with no usable frontmatter. The run exits before its first tick."
+        description """
+`requireAgentDefinitionsResolve` runs `requireAgentDefinition` over every value of the `AGENT` map plus `lead`,
+deduped — seven files, six of them off the map, because `review` answers two labels. Each must exist at
+`<factory>/.claude/agents/<agent>.md`, and its frontmatter must open with `---`, close with `---`, and carry a
+`description:` line; a file that fails either test is refused by name and path, never by a stack trace.
+
+Two things make this check worth running once up front instead of leaving to the spawn. A worker spawned without
+its agent does not fail — it comes up as the **default template** and does somebody's work under the wrong
+contract — and the launcher's exit status is `0` either way, so nothing at the spawn moment distinguishes them.
+And it is the **last** of the eight checks, the only one running after the run's log folder exists, so it is the
+only one that leaves a line behind: `reason=agent-definition-missing agent=<name> msg=\"<the sentence>\"` in
+`errors`, written before the `die`.
+
+The same predicate runs inside every spawn, on both the background and the foreground path — so a name added to
+the map without its file dies at startup, and a file deleted mid-run dies at the next spawn.
+"""
+      }
       labelsStarved = alarm "not fatal: SF_ALLOWED_LABELS names nothing the map holds" {
         #fatal
         summary "The allowed labels name nothing the map holds: not fatal, but the tower never moves."
@@ -1653,14 +1713,40 @@ and the worker **is** spawned: nothing was deleted, and the kept folder is named
         summary "The spawn came back failed; the one alarm that puts the ticket straight back."
         description """
 `$SF_AGENT_LAUNCH_COMMAND --bg` came back non-zero; the last line of that worker's `spawn-<ticket>` file is quoted
-in `msg=`. An agent name with no file behind it lands here, and so does a session that could not discover
-`.claude/agents/` at all — which is what the launch command's `--add-dir <factory root>` exists to prevent.
+in `msg=`. This is the **launcher** refusing — the command itself, before any session existed. It is no longer where
+a missing agent file lands: `requireAgentDefinition` reads that file before the spawn is attempted, and a session
+that came up without becoming the agent it named is the alarm below.
 `bd unclaim` — unlike every other tick alarm, this one puts the ticket **straight back**, because nothing was
 ever spawned to work it and the next tick may well succeed.
 
 On a **gate** dispatch the line carries `gate=<id>` instead of a ticket, and the put-back is `moveGateTo <gate>
 open in_progress` — the gate returns to `open`, off the ready list no longer, so the next tick may reach it
 again.
+"""
+      }
+      agentNotLoaded = alarm "ERROR reason=agent-not-loaded" {
+        #unclaimed
+        summary "The session came up but never proved itself the agent it named: the claim goes back and the run dies."
+        description """
+The spawn succeeded and the proof failed. `checkBackgroundAgentLoaded` (`CLI/utils/spawn.sh`) watched this
+session for 30s and never saw it both **alive past a 5s settle** and **naming `@<agent>` in its `logs` header**;
+what it saw is quoted in `msg=`, and the four shapes it can see are four different diagnoses:
+
+| `msg=` says | what happened |
+|---|---|
+| `no session id — the launcher claimed to background a session and named none` | the launcher printed no `backgrounded · <id>` to read off its own spawn file |
+| `session <id> died with state=failed before it settled — the agent file exists, so the session refused to load it` | it came up and died inside the settle window |
+| `session <id> ran as state=<x> for 30s but never named @<agent> in its header — the launcher fell back to the default template` | the session worked, on somebody else's contract — the one outcome no other check in the system can see |
+| `session <id> never appeared in 'agents --all' — the <agent> agent never started` | there was no session to watch at all |
+
+Then, in this order: the line to `errors`, `bd unclaim` to put the ticket back, and **`die`** —
+`the <agent> agent never loaded for <ticket> — <why>. The run stops here: every worker left in it would be the
+same worker without an agent.` The ticket is returned and the run ends, both on purpose: the cause is the factory's
+agent directory, not this ticket, so the next tick would die the same death, and a dispatcher that quietly
+continued would spend the rest of the run spawning workers with no agent.
+
+A **gate** dispatch reads the same way with `gate=<id>` in place of a ticket, the gate put back to `open` first,
+and the sentence ending `every gate left in it would be the same gate without an agent`.
 """
       }
       gateClaimLost = alarm "ERROR reason=gate-claim-lost gate=<id>" {

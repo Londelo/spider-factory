@@ -12,7 +12,7 @@ moveGateTo() { bd -C "$towerDir" update "$1" --status "$2" --if-status "$3" >/de
 
 dispatchOneGate() {
     local gateId="$1" tier="$2"
-    local gateBranch gatePrTarget worktreePath worktreeAside worktreeFailure spawnFile contextFile
+    local gateBranch gatePrTarget worktreePath worktreeAside worktreeFailure spawnFailure spawnFile contextFile
 
     resolveTicketBranches "$gateId" || { waiting gate_unworkable "gate=$gateId step=$branchResolveFailure"; return 1; }
     gateBranch="$branch"
@@ -38,6 +38,10 @@ dispatchOneGate() {
     if ! spawnWorker "$worktreePath" "$gateId" "$leadAgentName" "$gateBranch" "$gatePrTarget" \
             "gate:$tier" "$spawnFile" "$contextFile" gate; then
         moveGateTo "$gateId" open in_progress
+        if [[ "$spawnFailure" == "agent-not-loaded" ]]; then
+            writeLog errors "reason=agent-not-loaded gate=$gateId msg=\"$agentLoadFailure\""
+            die "the $leadAgentName agent never loaded for gate $gateId — $agentLoadFailure. The run stops here: every gate left in it would be the same gate without an agent."
+        fi
         writeLog errors "reason=worker-not-dispatched gate=$gateId msg=\"$(lastLineOf "$spawnFile")\""
         return 1
     fi

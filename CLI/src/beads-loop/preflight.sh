@@ -9,6 +9,16 @@ requireToolsOnPath() {
     done
 }
 
+requireAgentDefinitionsResolve() {
+    local agentName refusal
+    for agentName in $(printf '%s\n' "${AGENT[@]}" "$leadAgentName" | sort -u); do
+        if ! refusal="$(requireAgentDefinition "$agentName" 2>&1)"; then
+            writeLog errors "reason=agent-definition-missing agent=$agentName msg=\"$refusal\""
+            die "$refusal"
+        fi
+    done
+}
+
 requireNumericSettingsFromEnvironment() {
     local settingName
     for settingName in maximumParallelWorkers pollSeconds maximumTicketsDone; do

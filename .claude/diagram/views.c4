@@ -223,13 +223,13 @@ launcher after moving the repo; `CLI/uninstall-cli.sh` takes that launcher off a
 """
     }
 
-    human -> machine.sfCli "sf · or one of its seven commands" {
+    human -> machine.sfCli "sf · or one of its eight commands" {
       title "Everything the machine can do goes through one command"
       notes """
-Seven commands, each one an engine file beside it — the seven are listed on the node itself. Bare `sf` opens a
+Eight commands, each one an engine file beside it — the eight are listed on the node itself. Bare `sf` opens a
 session at the factory root and is the only arm that answers from anywhere: every other one first refuses
 unless you are standing in the factory or anything nested under it, and names the root it wants. A word that is
-not one of the seven is refused by name rather than guessed at. Before any engine runs it checks that the engine
+not one of the eight is refused by name rather than guessed at. Before any engine runs it checks that the engine
 file is there; for `loop` it also checks this folder answers a ticket list.
 """
     }
@@ -775,7 +775,7 @@ closed nothing.
   dynamic view theLogs {
     title "Spider Factory/Walkthrough/3 · The run log — who writes what, and how to read a tower that is not moving"
 
-    include human, machine.dispatcher, beads, workers.engineer, stopHook, overseerAgent, logRun, logRun.*
+    include human, machine.dispatcher, beads, workers.engineer, stopHook, overseerAgent, towerView, logRun, logRun.*
 
     // ═ ACT I — one directory per run, and one line format that never varies
 
@@ -927,6 +927,28 @@ answers the three questions above: is the loop alive, how far along is the tower
 `sf` is denied to it outright and its own file carries no Write, Edit or Agent tools — so it names the fault
 and the command that fixes it, and you are the one who runs it. A reader that could mutate would be a second
 loop nobody dispatched.
+"""
+    }
+
+    human -> towerView "sf tower · or see the whole tower at once" {
+      title "Or ask the database for a picture instead of a report"
+      notes """
+`sf tower` runs no agent and answers no question: two `bd` reads and one jq program, and the whole database comes
+back as one tree — every task inside its feature, every feature inside its epic, in the order the loop takes them.
+Each line carries the order its own epic's tickets actually closed, so **a number out of step with the page is the
+order having gone wrong**. It claims, closes, commits and pushes nothing, so looking at a moving tower costs
+nothing. The columns, the glyphs and the tallies are on the node.
+"""
+    }
+
+    towerView -> beads "two reads, and the database never notices" {
+      title "The other reader: no logs, no git, no session"
+      notes """
+Where the overseer reads the logs, git and the database and answers in prose, this one reads the database alone and
+answers with a tree — `bd export` for every row of every status, `bd ready` for which open rows the frontier has
+taken. Nothing is written, so the next tick sees exactly the tower this one printed. An id that parses as no tower
+is listed last under `unfiled` rather than dropped: the same grammar the loop refuses a ticket for with
+`reason=no-epic-gate`.
 """
     }
 

@@ -83,18 +83,19 @@ the shipped one back.
 
 ## The CLI
 
-Seven commands. Every one but bare `sf` runs only from inside this repo — anywhere under it, at any depth. On
-top of that, the loop, the three planners and the watcher run from inside a tower project; `sf commit` only needs
-a git repo.
+Eight commands. Every one but bare `sf` runs only from inside this repo — anywhere under it, at any depth. On
+top of that, the loop, the three planners, the watcher and the picture run from inside a tower project;
+`sf commit` only needs a git repo.
 
 ```bash
 sf                     # open an agent session at the factory root
-sf --help              # all seven, explained
+sf --help              # all eight, explained
 sf plan:epic a record box for my diary entries
 sf plan:feature SF-12
 sf plan:task SF-31
 sf loop                # dispatch the tower in the current directory — Ctrl-C stops dispatching
 sf overseer            # read the tower and report on it — reads only, writes nothing
+sf tower               # print the whole database as one tree, in the order the loop works it — reads only
 sf commit save a diary entry   # stage everything, commit as agent:branch:message, push
 sf hook stop           # the worker's Stop hook — you never type this: each worker agent
                        # registers it on its own Stop event

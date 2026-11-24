@@ -50,7 +50,7 @@ runOverseer() {
     requireAgentCommand
     tell "reading $PWD through '$agentCommand'"
     local launchFacts="Your launch facts, from the CLI that started you: the run logs live under \`$logRoot\`, and background sessions are listed by \`$agentCommand agents --json\`. Take those two from this brief; never read either off your own environment."
-    runForegroundAgent overseer --disallowedTools 'Bash(sf:*)' "$launchFacts $*"
+    runForegroundAgent overseer "$launchFacts $*"
 }
 
 case "${1:-}" in

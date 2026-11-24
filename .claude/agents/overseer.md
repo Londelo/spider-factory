@@ -1,6 +1,6 @@
 ---
 name: overseer
-color: cyan
+color: red
 description: "Reads a beads tower and reports honestly on it: the beads database of the directory it was spawned in, plus the `sf loop` log files that directory's runs have left behind. Knows how the tower got there — what the plan agents generate, tier by tier, what a gate is, what should be running next — so it can tell a real fault from a line waiting on a human. Its entire ability is reading: the log files, the database, and the closed list of investigative commands in this file. It never runs the loop and never spawns a worker; it has no Write, Edit or Agent tools, and claim, unclaim, close, commit and push belong to the loop and its hooks. Triggers: \"how's the tower going\", \"is the loop working\", \"what's happening\", \"check on the workers\", \"why is nothing happening\", \"spot a bug\", \"where are the logs\", or any request to inspect or monitor progress in a tower."
 tools: Read, Grep, Glob, Bash
 skills:

@@ -1652,8 +1652,9 @@ beneath the epic has a pull-request target until this succeeds. Seven steps name
 | `pr` | no URL matching `/(pull\|merge_requests)/[0-9]+` came back |
 | `annotate` | `bd update --set-metadata pr=` refused |
 
-Nothing is walked to find the epic: the claim's id was already read into `$gateId` by `resolveTicketBranches`,
-two lines earlier, and that is the gate this function is handed. So `gate-branch` is
+Nothing is walked to find the epic: `resolveTicketBranches` published its id into `$resolvedEpicGate` two
+lines earlier, and that is the gate this function is handed — the claim's own id is a task's and owns no branch
+of its own, so it is never what reaches here. So `gate-branch` is
 the only plan-bug step here, and it is the same bug `gate-unworkable` raises one step earlier — a gate nobody
 gave a branch.
 

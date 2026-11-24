@@ -68,12 +68,14 @@ readFieldOf() {
 # request aims at main when the owner is the epic gate, and at the epic gate's branch otherwise.
 # Fails when the id reaches no gate — a ticket belonging to no tower is not work.
 branchResolveFailure=""
+resolvedEpicGate=""
 
 resolveTicketBranches() {
     local id="$1" epicGate owner
     branch=""
     prTarget=""
     branchResolveFailure=""
+    resolvedEpicGate=""
     splitTowerId "$id" || { branchResolveFailure="malformed"; return 1; }
     if [[ "$idKind" == task && "$idHierarchy" != *.* ]]; then
         branchResolveFailure="task-not-below-a-gate"
@@ -81,7 +83,7 @@ resolveTicketBranches() {
     fi
     epicGate="$(epicGateOf "$id")"
     [[ "$(issueTypeOf "$epicGate")" == gate ]] || { branchResolveFailure="not-a-gate"; return 1; }
-    gateId="$epicGate"
+    resolvedEpicGate="$epicGate"
     owner="$epicGate"
     if [[ "$(issueTypeOf "$id")" == gate ]]; then
         owner="$id"
@@ -116,7 +118,7 @@ claimBelongsToATower() {
         owner-carries-no-branch)
             writeLog errors "reason=gate-unworkable ticket=$ticketId msg=\"$msgOwnerCarriesNoBranch\"" ;;
         *)
-            writeLog errors "reason=gate-unworkable ticket=$ticketId gate=$gateId msg=\"$msgEpicCarriesNoBranch\"" ;;
+            writeLog errors "reason=gate-unworkable ticket=$ticketId gate=$resolvedEpicGate msg=\"$msgEpicCarriesNoBranch\"" ;;
     esac
     return 1
 }

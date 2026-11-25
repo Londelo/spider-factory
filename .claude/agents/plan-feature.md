@@ -166,7 +166,7 @@ The agent standing next to both ids is the only one that can ever wire them, and
 you are standing next to all of them. Per feature:
 
 ```bash
-bd dep add "$start"  "$first"      --type blocks  # the head of the line hangs off the peg
+bd dep add "$first"  "$start"      --type blocks  # the head of the line hangs off the peg
 bd dep add "$ticket" "$previous"   --type blocks  # one per ticket: each waits on its one predecessor
 bd dep add "$gate"   "$review"     --type blocks  # the review alone blocks the gate
 bd dep add "$e2e"    "$gate"       --type blocks  # the epic's suite waits on this feature being merged

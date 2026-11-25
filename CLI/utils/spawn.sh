@@ -96,10 +96,10 @@ checkBackgroundAgentLoaded() {
 }
 
 spawnBackgroundAgent() {
-    local agentName="$1" workingDir="$2" prompt="$3" spawnFile="$4"
+    local agentName="$1" workingDir="$2" prompt="$3" spawnFile="$4" sessionName="$5"
     requireAgentDefinition "$agentName"
-    ( cd "$workingDir" && $SF_AGENT_LAUNCH_COMMAND --bg --agent "$agentName" --permission-mode bypassPermissions \
-        "$prompt" ) >"$spawnFile" 2>&1
+    ( cd "$workingDir" && $SF_AGENT_LAUNCH_COMMAND --bg --agent "$agentName" \
+        -n "$sessionName" "$prompt" ) >"$spawnFile" 2>&1
 }
 
 runForegroundAgent() {

@@ -64,7 +64,8 @@ spawnWorker() {
     } >"$contextFile.tmp" && mv -f "$contextFile.tmp" "$contextFile"
     spawnFailure=""
     spawnBackgroundAgent "$agentName" "$worktreePath" \
-        "$(buildWorkerPrompt "$ticketId" "$branch" "$agentName" "$prTarget")" "$spawnFile" || {
+        "$(buildWorkerPrompt "$ticketId" "$branch" "$agentName" "$prTarget")" "$spawnFile" \
+        "$agentName:$ticketId" || {
         spawnFailure="launcher-failed"
         return 1
     }

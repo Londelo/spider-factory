@@ -92,7 +92,6 @@ beats the file.
 | `SF_ALLOWED_LABELS` | `*` | which dispatching labels this loop may claim; a comma list narrows it |
 | `SF_LOG_ROOT` | `~/.spider-factory/logs` | one directory per run under here |
 | `SF_AGENT_COMMAND` | `claude` | the command that runs an agent — the spawn, the worker count, the planners |
-| `SF_SESSION_VERDICT_COMMAND` | empty | the seam for a harness that is not Claude Code: asked for a session's verdict instead of the daemon's job record, and anything but `done` leaves the ticket claimed |
 | `SF_AGENT_FEATURE_GATES` / `SF_AGENT_EPIC_GATES` | 0 | hand that tier's gate to `lead` instead of a human; one flag per tier, because they are different amounts of trust |
 
 `SF_AGENT_LAUNCH_COMMAND` is derived and cannot be set: `SF_AGENT_COMMAND` plus `--add-dir <factory root>`,
@@ -173,8 +172,6 @@ One line each. These are memories, so the next agent does not rediscover them.
   names nothing.
 - The Stop event says a turn ended, not that the work ended: only a session the harness reports `done` lands
   work, and `blocked` leaves the ticket claimed with the worker parked on a person.
-- `SF_SESSION_VERDICT_COMMAND` is the seam for a harness that is not Claude Code — it takes the session id and
-  prints the verdict word first.
 - `bd` accepts an unknown type or status **silently** and then refuses it, so a broken gate and a working one
   look identical.
 - `gate` and `failed-agent` are per-database custom settings; `bead-initialize` registers both, and an older

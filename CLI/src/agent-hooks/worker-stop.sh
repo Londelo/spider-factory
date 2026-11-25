@@ -22,10 +22,8 @@
 # worker, finished or not, for as long as this script lives. Only state=done closes; blocked means the
 # session is parked on a person — a question, a permission it was denied, an API error only a human can
 # clear — and the ticket stays claimed, uncommitted, until someone answers it and it stops again clean.
-# That record is Claude Code's own and undocumented, so SF_SESSION_VERDICT_COMMAND is its seam: set to a
-# command, it takes the session id as its one argument and answers the same question — first line of
-# stdout the verdict word, whatever follows is what the session is waiting on. Unset, the read below runs.
-# Either way, a verdict the hook cannot read is never a verdict it guesses at: it closes nothing.
+# That record is Claude Code's own and undocumented, and it is the only thing this hook asks. A verdict the
+# hook cannot read is never a verdict it guesses at: it closes nothing.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -168,24 +166,8 @@ readVerdictFromJobRecord() {
     [[ -n "$sessionVerdict" ]] || sessionVerdict="unreadable"
 }
 
-readVerdictFromCommand() {
-    local out
-    out="$($SF_SESSION_VERDICT_COMMAND "$sessionId" 2>/dev/null)"
-    sessionVerdict="$(head -n 1 <<<"$out" | tr -d '[:space:]')"
-    sessionNeeds="$(tail -n +2 <<<"$out" | oneLine)"
-    [[ -n "$sessionVerdict" ]] || sessionVerdict="unreadable"
-}
-
-readSessionVerdict() {
-    if [[ -n "${SF_SESSION_VERDICT_COMMAND:-}" ]]; then
-        readVerdictFromCommand
-    else
-        readVerdictFromJobRecord
-    fi
-}
-
 requireSessionFinished() {
-    readSessionVerdict
+    readVerdictFromJobRecord
     case "$sessionVerdict" in
         done) return 0 ;;
         blocked)

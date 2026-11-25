@@ -1,141 +1,81 @@
 # spider-factory
 
-An agent factory for the web.
+An SDL toolkit for building web applications with Claude Code, driven by Beads. You plan a tower of tickets
+top-down; one command turns that tower into background workers — each claims its ticket, works it, commits,
+pushes, and opens its pull request — while you stay out of the way and close the gates.
 
-This repo is literally a factory. Your projects live inside it, in [`webs/`](./webs) — every web the factory
-builds is cloned there. And everything you need to run the factory lives here beside them: the planners, the
-workers, the dispatcher, the CLI.
+Your projects live inside the factory, in `webs/` — `npm run webs:clone` clones the urls listed in
+`webs/webs.yml` in beside the factory's own code. The planners, the workers, the dispatcher and the `sf` CLI
+all live here too.
 
-You plan a tower of tickets top-down. One command runs the tower and hands its tickets to background
-workers — each one claimed, built on the branch its own id names, committed, pushed, and put up as a pull
-request — while you stay out of the way and close the gates when a tier is proved: when everything under a
-feature gate, or under the epic gate, is done and passing.
+## Requirements
 
-The factory runs on three assumptions: you use Claude Code, you are happy with beads (`bd`) as your ticket
-manager, and you can run bash scripts.
+Locked to Beads (`bd`) for tickets and to Claude Code for the harness — decisions, not preferences. On `PATH`:
+`bd`, `jq`, `git`, `claude`, and `gh` or `glab` for whichever forge your remote is. `SF_AGENT_COMMAND` points
+the whole thing at your own build of the agent command, but that build has to answer the same `--bg --agent`
+flags and keep the same per-session record the Stop hook reads.
 
-## The idea in one breath
+## How we build
 
-Every ticket is a real beads (`bd`) issue. Tickets are wired together with `blocks` edges and nothing else,
-and that graph is the whole tower:
+- **Functional core, imperative shell.** The `standards-coding` skill is the authority and every worker that
+  writes code loads it; nothing is reproduced here.
+- **Testing is a ticket, not an afterthought.** Three tiers, each its own ticket at its own depth:
+  `unit-tests` (one function alone), `feature-test` (one feature's pieces wired), `epic-e2e-test` (journeys
+  across features on the real stack).
+- **The front end is abstracted out of the business logic.** `frontend` writes no business logic; `engineer`
+  writes no JSX.
+- **One branch per epic and one per feature.** A task is a commit, never a branch: everything a ticket needs
+  about its git world is derived from its own id.
+
+## The tower
+
+Every node is a real `bd` issue, the only edge is `blocks`, and that graph is the whole flow control.
 
 ```
 epic gate  (the what)
   └─ feature gate  (one complete user-facing flow, its own branch, its own PR)
-       └─ logic → its unit tests → its UI      (one linked line, never a fan)
+       └─ logic → its unit tests → its UI        (one linked line, never a fan)
        └─ the feature's suite → its review → the gate
-  └─ the broad e2e suite → the epic review → the gate
+  └─ the epic's e2e suite → its review → the gate
 ```
 
-Three tiers of test, three depths: `unit-tests` (one function alone), `feature-test` (one feature's pieces
-wired), `epic-e2e-test` (journeys across features on the real stack). A label decides which worker the loop
-spawns, and a mis-labelled ticket silently gets the wrong depth — so labels are the plan, not decoration.
+The loop is as simple as it is *because* the tower is: `bd ready --claim` returns exactly what is unblocked,
+the one dispatching label on the ticket picks the worker, and the ticket's own id names the gate whose branch
+it lands on and whose target its PR asks for. Nothing else decides what runs next.
 
-**Gates are checkpoints, not work.** They never show in `bd ready`, and only a human closes one — unless
-`SF_AGENT_FEATURE_GATES` / `SF_AGENT_EPIC_GATES` hands that tier to the `lead` agent instead.
+**Gates are checkpoints, not work.** They never appear in `bd ready`, and only a human closes one — until
+`SF_AGENT_FEATURE_GATES` / `SF_AGENT_EPIC_GATES` hands that tier to the `lead` agent, which proves the tier and
+merges its PR.
 
-## Setup
-
-**1 · Install the CLI.** The agents and skills are ordinary project-level files in this repo's `.claude/` —
-Claude Code picks them up when you work in here, and every one is spawned by its bare name. The CLI is a
-separate thing: a launcher on your PATH. From a clone of this repo:
+## Quick start
 
 ```bash
-npm run cli:install      # writes ~/.local/bin/sf and CLI/spider-factory.env
-npm run cli:uninstall    # removes that launcher, and only that launcher
+npm run cli:install    # writes ~/.local/bin/sf and CLI/spider-factory.env
+npm run cli:uninstall  # removes that launcher, and only that launcher
 ```
 
-**2 · Initialize beads in the project you want to build.** The tower lives in the target repo, not here — and the
-target lives inside the factory, in `webs/`: that is the design, not a limitation, and every `sf` command but
-bare `sf` refuses to run anywhere else.
-Say "initialize beads" there, or use the `bead-initialize` skill — it installs `bd`, runs `bd init`,
-registers the `gate` type and `failed-agent` status the tower needs, writes a SessionStart hook and a beads
-section into that repo's `CLAUDE.md`, and puts four git hooks in it: pre-commit, post-merge, pre-push,
-post-checkout. Your repo is touched, not just its database.
+In the project you are building — under `webs/` — say "initialize beads" first. The `bead-initialize` skill
+installs `bd`, runs `bd init`, and registers the `gate` type and `failed-agent` status the tower needs.
 
-**3 · Every setting lives in `CLI/spider-factory.env`** — copied down from
-`CLI/spider-factory.example.env` on install and never touched again. Workers at once, tick length, how many
-tickets end a run, log root, which labels may dispatch, whether the lead agent closes gates, and which
-command runs an agent. Edit that file; something you export yourself still wins for one run. One name is
-not yours to set: `SF_AGENT_LAUNCH_COMMAND` is what the factory builds for itself out of `SF_AGENT_COMMAND`,
-and anything you write there is overwritten the moment the file is read —
-[`.claude/CLAUDE.md`](./.claude/CLAUDE.md) owns what it is for.
-
-## Webs
-
-`webs/` is where the repos the factory builds live. The directory ships (by its `.gitkeep` alone); nothing
-inside it is tracked. Your list is `webs/webs.yml`, one repo url a line:
-
-```yaml
-repos:
-  - https://github.com/Londelo/my-web.git
-  - git@github.com:Londelo/my-other-web.git
-```
+Then run these from inside that project, anywhere under the factory:
 
 ```bash
-npm run webs:clone
+sf plan:epic a record box for my diary entries  # one epic gate, its e2e suite, its review
+sf plan:feature <epic-id>                       # the epic into feature gates, each with branch, PR, suite, review
+sf plan:task <feature-id>                       # one feature into logic → unit tests → UI, all blocking its gate
+sf loop                                         # dispatch the tower here — Ctrl-C stops dispatching
+sf tower                                        # the whole database as one tree, in the order the loop works it
+sf overseer                                     # read the tower and its logs and say what is stuck
 ```
 
-Each url lands in `webs/` beside the list, in a directory named after the last segment of its url. A repo
-already sitting there is left alone — it never pulls, never resets, never deletes. When `webs.yml` is
-missing it is copied from the tracked `webs/webs.example.yml` and never written after that; delete it to get
-the shipped one back.
+Every knob — workers at once, tick length, log root, which labels may dispatch, whether the lead agent closes
+gates — lives in `CLI/spider-factory.env`. Something you export yourself still wins for one run.
 
-## The CLI
+## Read more
 
-Eight commands. Every one but bare `sf` runs only from inside this repo — anywhere under it, at any depth. On
-top of that, the loop, the three planners, the watcher and the picture run from inside a tower project;
-`sf commit` only needs a git repo.
+The code is the only source of truth.
 
-```bash
-sf                     # open an agent session at the factory root
-sf --help              # all eight, explained
-sf plan:epic a record box for my diary entries
-sf plan:feature SF-12
-sf plan:task SF-31
-sf loop                # dispatch the tower in the current directory — Ctrl-C stops dispatching
-sf overseer            # read the tower and report on it — reads only, writes nothing
-sf tower               # print the whole database as one tree, in the order the loop works it — reads only
-sf commit save a diary entry   # stage everything, commit as agent:branch:message, push
-sf hook stop           # the worker's Stop hook — you never type this: each worker agent
-                       # registers it on its own Stop event
-```
-
-## The workflow
-
-1. **Plan top-down.** `sf plan:epic` turns a vague idea into one epic gate plus its e2e and review tickets.
-   `sf plan:feature` breaks that epic into feature-sized flows, each with its own branch, PR, suite and
-   review, phased by dependency. `sf plan:task` lays one feature's chain: logic, its unit tests, its UI.
-   Every id is minted by `CLI/src/create-beads/` — a hand-typed id reaches no gate.
-2. **Run the loop.** `sf loop` claims what is ready, derives the branch and the PR target off the ticket's
-   own id, builds the worktree, and spawns the worker inside it — a fresh session told every one of those facts
-   in its prompt and handed no environment, with the same facts written down beside the run as the dispatch
-   record the CLI reads back. Every line it logs prints to your screen as it goes.
-3. **Workers commit as they go** with `sf commit` — bare, no name typed: it signs the commit off that dispatch
-   record, and as `manual` when nobody was dispatched — and finish the work before they stop. No worker ever closes
-   its own ticket — finishing it is the job of the one script in `CLI/src/agent-hooks/`: commit, push, open the
-   PR, close. Each of the seven worker agents registers that script on its own Stop event, from the `hooks:`
-   block in its own frontmatter, so the session ending is itself the authority to land the work — it is the only
-   signal that a worker finished. Before it stops a worker also puts its result — and exactly what it did not
-   finish — on its own ticket through the `bead-comment` skill, so what you judge is the ticket, the commits and
-   the pull request, never a final message that died with the session. Stop early and the ticket closes with
-   whatever it managed. `Stop` is the only event there is, so a worker killed mid-turn is nobody's
-   to find — `sf overseer` is the only thing that looks. How a hook knows which ticket it stands for is
-   [`.claude/CLAUDE.md`](./.claude/CLAUDE.md)'s to say.
-4. **You close the gates** when a tier is proved, then run the loop again for the next tier. `sf overseer`
-   tells you what is stuck and why, and hands you the command when the fix is a mutation.
-
-Workers run `bypassPermissions` unattended — only run the loop in a repo you fully trust.
-
-## Where the real detail lives
-
-**The code is the only source of truth.** The diagrams are its translated account — the thing you read when
-you are not in the code, and the thing people quote.
-
-| You want | Go to |
-|---|---|
-| the system in human terms — the machine, the tower, the workers, every alarm | [`.claude/diagram/model.c4`](./.claude/diagram/model.c4) and the four walkthroughs in [`.claude/diagram/views.c4`](./.claude/diagram/views.c4): `index` the plan · `theLoop` the run · `theLogs` the log · `everyFailure` the alarms |
-| read them rendered | `.claude/diagram/build.sh`, then open `.claude/diagram/dist/index.html` |
-| edit those diagrams without breaking them | [`.claude/diagram/REFERENCE.md`](./.claude/diagram/REFERENCE.md) |
-| the vocabulary — category vs label vs agent, the id grammar, the moving parts | [`.claude/CLAUDE.md`](./.claude/CLAUDE.md) |
-| what a thing actually does | the file it lives in |
+- [`.claude/CLAUDE.md`](./.claude/CLAUDE.md) — the agent reference: the vocabulary, the moving parts, and the
+  rules that break the system when broken.
+- [`.claude/diagram/`](./.claude/diagram/) — the human account of the machine: the model, the four
+  walkthroughs, and `build.sh` to render them.

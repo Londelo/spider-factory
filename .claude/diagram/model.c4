@@ -16,160 +16,23 @@ model {
 
     sfCli = cliTool "sf — the one command, and its eight" {
       summary "The whole CLI: one bash file, eight commands, each one an engine beside it. Every one but bare `sf` runs only from inside the factory."
-      description """
-**What it is:** `CLI/bin/sf` — one bash file, no node. The installer puts a launcher for it at
-`~/.local/bin/sf`. Every command is an arm of one `case` block, and nothing else is reachable.
-
-| You type | What runs |
-|---|---|
-| `sf` | an agent session through `SF_AGENT_COMMAND` (default `claude`), **from anywhere, always at the factory root** — already inside it, you stay put; anything you type after it goes to that session |
-| `sf --help` / `-h` / `help` | the usage block, from anywhere: the eight commands, the prompt forms, and where every setting lives |
-| `sf loop` | `CLI/src/beads-loop/index.sh`, foreground — the dispatcher over the tower in the current directory |
-| `sf plan:epic` / `sf plan:feature` / `sf plan:task` | `CLI/src/plan-agent.sh` with that kind, and everything you typed after the command handed to it as the prompt |
-| `sf overseer` | `CLI/src/overseer-agent.sh`, foreground — the reader, `sf` denied to it |
-| `sf tower` | `CLI/src/tower/index.sh`, foreground — the picture, the whole database as one tree. No agent session and no model in it: two `bd` reads piped through one jq program, `CLI/src/tower/tower.jq`. What it prints is on that node |
-| `sf commit <line>` | `CLI/src/commit.sh` — the only thing that commits, anywhere |
-| `sf hook stop` | `CLI/src/agent-hooks/worker-stop.sh` — the worker's Stop hook, an engine beside every other one, located by `locateEngines` and execed through the same `requireEngine` check. Nobody types it: each of the seven worker agent files registers it on its own `Stop` event, and it reads its own stdin. A second word dies naming the one |
-
-**Three checks, and where each one lives.** `requireInsideFactory` is the first line of all six command
-dispatchers, so it is the first thing every one of the eight does: it matches `$PWD/` against
-`<factory root>/*`, the root being **two levels up from the script's own folder** — `locateEngines` resolves
-`$0` to `CLI/bin`, walks `$here/../..`, and keeps the result in `$factoryRoot` — so the root itself, or anything nested
-under it at any depth, passes; anything else dies naming the root and telling you to `cd` into it, and says
-bare `sf` opens a session from anywhere. Bare `sf` and `sf --help` never meet it — bare `sf` answers from
-wherever you are and `cd`s to that root itself, and it `cd`s to **the same `$factoryRoot`**, the one
-`locateEngines` already computed: the arm derives nothing of its own, because a second computation of the same
-path is a second fact that can disagree with the first. `requireEngine` runs next, before every command: the engine
-file is actually there, or the message names the missing path and says re-run `CLI/install-cli.sh`.
-`requireBeadsProject` — a beads database reachable from here — is **one predicate in `CLI/utils/console.sh`**, not a
-copy per command: `sf` runs it only for `loop`, the three planners, the watcher and the tower reader each call that
-same one inside their engine, the two id generators call it before they mint anything, and `commit` needs only a
-git repo.
-
-**Who else stands at that door.** Every `sf` call a worker or a hook makes is a command and so carries the
-same requirement: the `sf hook stop` that reaches the hook at all, the worker's `sf commit` as it goes, and the
-Stop hook's `sf commit` on its behalf.
-They all have it — the loop will only run a tower from inside the factory, and the worker, the hook and the
-tower all sit under that same root, the worktree being `<tower>/.claude/worktrees/…`. **That guard in front of
-the hook is the design, not an oversight**: the webs this factory builds are required to live under
-`spider-factory/webs/` — `webs/webs.yml` and `scripts/clone-webs.sh` are what put them there — and a tower is a
-clone of one of those webs, so a tower outside the factory is not a state the system supports and the refusal is
-the system saying so. **What that costs, kept on the record:** the refusal is a `die` to stderr, which reaches
-the hook's debug output and never `$SF_LOG_ROOT/<run>/`, so a worker whose tower does sit outside the factory
-leaves no line anywhere in the run's logs. A person's own session
-never reaches the hook at all, wherever it stands: the event is bound in the seven worker agents' own
-frontmatter, and a plain session is run as none of the seven. Only a session that reaches the hook as one of those
-seven does, and it always stands in that hook's own worktree.
-
-**What is not a command.** Anything starting with `-` is not a command at all — it goes to the bare session as
-arguments. Anything else unknown is refused **by name**, with the eight listed and `Try 'sf --help'` under it,
-exit 1 — and `sf hook` refuses anything but its one arm the same way, naming it and saying `there is one:
-'sf hook stop'`. There is no webs command: the
-cloner beside this one is an npm script, not a `sf` one.
-"""
       link https://github.com/Londelo/spider-factory/blob/main/CLI/bin/sf "Source — CLI/bin/sf"
     }
 
     installer = cliTool "CLI/install-cli.sh — put sf on your path" {
       summary "One bash script you run yourself: it writes the `sf` launcher at `~/.local/bin/sf` and, the first time only, the parameters file."
-      description """
-**What it is:** `CLI/install-cli.sh` — one bash file, no node, no package manager, and no agent in the
-loop of it: you run `bash CLI/install-cli.sh` and it locates the repo from its own path, so the directory
-you happen to stand in does not matter. This is the whole route to `sf` on your path. It writes two things.
-
-**Write 1 — the launcher: one real file at `~/.local/bin/sf`, never a symlink.** A real file is
-deliberate — it outlives the repo being moved or deleted, and it names its own problem. Its header bakes in
-the repo path (`# Repo: <path>`) and the line `written by spider-factory's CLI/install-cli.sh`, which is
-what the uninstaller greps for. On a later run, if `<repo>/CLI/bin/sf` is gone, the launcher itself prints
-the path it is missing, says nothing else on your system changed, and prints both ways out: the `rm -f` that
-clears the launcher, or clone the repo again and run its `CLI/install-cli.sh` again. Otherwise it execs
-`bash <repo>/CLI/bin/sf` with your arguments. Re-running the installer overwrites the launcher — that is how
-you repoint it after moving the repo.
-
-**Write 2 — `CLI/spider-factory.example.env` copied to `CLI/spider-factory.env`, `chmod 600`, and only when
-that file is missing.** Once it exists the installer never touches it again: those are your edits by then,
-and deleting the file is how you get the defaults back. It does **read** it, to compare: every key the shipped
-example carries that the kept file lacks is counted and named on stderr, with the two ways out — add them by
-hand, or delete the file and re-run. A file kept for a year and an example that gained a key since is otherwise
-indistinguishable from a setting nobody wrote. The announce line says which of the two happened —
-`wrote the example` or `kept your edits`. What the settings are is the parameters node's, not this one's.
-
-**Then one warning and two lines, and both installers speak through `console.sh`.** If `~/.local/bin` is not
-on your `PATH` it prints the exact `export PATH=` line your shell profile is missing, rather than installing
-something you cannot reach. Each installer calls `nameTheSpeaker sf`, so the warning comes out `sf: …` and
-the two announce lines — the launcher it wrote and the env file's state — come out unprefixed.
-
-**Taking it back off: `CLI/uninstall-cli.sh` removes that launcher and nothing else.** No launcher at all →
-it says so and exits 0. A launcher carrying no marker of this repo's → it refuses, leaves it alone, and
-hands you the `rm -f` to run yourself if it really is yours; that grep is what keeps it off somebody else's
-`sf`. The parameters file survives either way. Deleting the ticket database is not an uninstall and no
-script here does it.
-"""
       link https://github.com/Londelo/spider-factory/blob/main/CLI/install-cli.sh "Source — CLI/install-cli.sh"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/uninstall-cli.sh "Source — CLI/uninstall-cli.sh"
     }
 
     websCloner = cliTool "npm run webs:clone — the webs the factory builds" {
       summary "Clone every repo url in `webs/webs.yml` into `webs/` beside it. Never pulls, never resets, never deletes; `sf` has no webs command."
-      description """
-**What it is:** `scripts/clone-webs.sh`, run by `npm run webs:clone` and by nothing else — `sf` has no webs
-command, and the installer never touches it. Every web the workers build is a clone sitting in `webs/`.
-
-| Fact | Where it comes from |
-|---|---|
-| the list | `webs/webs.yml` — one repo url a line under `repos:`, each line starting with a dash; a `#` comments a line out, and quotes around a url are stripped |
-| its first copy | copied from the tracked `webs/webs.example.yml` **only when it is missing** — nothing else ever writes that file, not the installer and not `sf`; delete it and the next run writes the shipped one back |
-| where a clone lands | `webs/<last segment of the url, .git stripped>` |
-| what is in the repo | `webs/.gitkeep` and `webs.example.yml` alone — `webs/*` is gitignored, so a clone belongs to the machine and never to the repo |
-
-**One line per url, then it moves on.** `cloned name=… url=…`; `skipped name=… reason=already-cloned` when a
-`.git` is already there, or `reason=not-a-clone` when something else is; `failed name=… reason=git-clone`.
-Two more refuse before anything is attempted: `reason=not-a-git-url` when the url does not start `https://`,
-`http://`, `ssh://`, `git://` or read like `user@host:path`, and `reason=no-directory-name` when the url names
-no folder. An existing directory is left exactly as it is — **never pulls, never resets, never deletes.**
-
-One summary line closes the run, `webs: N cloned, M skipped, K failed into <webs/>`; a list with nothing in it
-says so out loud instead of cloning nothing quietly. The run exits non-zero only when something failed.
-"""
       link https://github.com/Londelo/spider-factory/blob/main/scripts/clone-webs.sh "Source — scripts/clone-webs.sh"
       link https://github.com/Londelo/spider-factory/blob/main/webs/webs.example.yml "Source — webs/webs.example.yml"
     }
 
     preflight = noteDoc "The checks — everything that must hold before the first tick" {
       summary "The eight checks that must hold before the first tick; seven of them refuse the run outright."
-      description """
-In the order the code runs them — the bootstrap at the bottom of `CLI/src/beads-loop/index.sh`, which calls
-them one after another; checks 2–5 and 8 live in `preflight.sh` beside it, check 6 is `requireBeadsProject`, which lives
-in `CLI/utils/console.sh` beside `die` and is the one beads probe every command runs, checks 1 and 7 in `config.sh`.
-Seven of the eight
-end the run through `die` — `beads-loop: <what is wrong>` on stderr, exit 1 — and no tick ever happens; a run that
-cannot report on itself is not a run. `die` is not theirs: it lives in `CLI/utils/console.sh`, the one file in the CLI
-that writes to a terminal — every engine, `bin/sf`, `CLI/utils/user-env.sh` and both installers source it and each
-script calls `nameTheSpeaker <name>`
-once, so every line each one says comes out `<name>: <line>`; the loader sources it for exactly that reason, so it
-can name a line of the parameters file it refuses to read. Check 2 refuses through `reportToolNotOnPath` and
-check 6 through `reportNoBeadsDatabase`; that second sentence is the one `sf`, `plan-agent.sh` and
-`overseer-agent.sh` refuse with too, and `reportMissingFromInstall` (a file the install should have put down) and
-`reportAgentCommandNotOnPath` (the first word of `SF_AGENT_COMMAND`) are the other two reused refusals.
-Checks 3–5 pass their own sentence to `die` directly; check 8 passes the sentence
-`requireAgentDefinition` wrote for it, and is the only one that gets a log line first — it runs after check 7, so
-the run's `errors` file exists by then and `reason=agent-definition-missing` is on its way before the run dies.
-
-| # | Check | Refuses when |
-|---|---|---|
-| 1 | `configureAllowedLabels` — `SF_ALLOWED_LABELS` against the `AGENT` map | **not fatal** — a typo'd list matches no ticket, and the tower sits still while waiting lines keep arriving |
-| 2 | `requireToolsOnPath` — `bd jq git` plus the first word of `SF_AGENT_COMMAND` | the first one missing is named on stderr |
-| 3 | `requireNumericSettingsFromEnvironment` | `SF_MAX_PARALLEL` / `SF_POLL_S` / `SF_MAX_TICKETS` set to anything but digits — never defaulted silently, because they govern unattended workers |
-| 4 | `requireGateFlagsAreSwitches` — `SF_AGENT_FEATURE_GATES` and `SF_AGENT_EPIC_GATES`, each read by `configureFromEnvironment` | either one is anything but `0` or `1` — the line names the flag and says what each value means: `0` a human closes that gate, `1` the lead agent does. A half-open gate tier is not a state the loop will guess its way through |
-| 5 | `requireUsablePollInterval` — `SF_POLL_S` must divide 60 | the permitted list is printed: `1 2 3 4 5 6 10 12 15 20 30 60`; the waiting lines are rate-limited at one per minute, so a poll that does not divide the minute makes that cadence a lie |
-| 6 | `requireBeadsProject` — `requireBeadsToolsOnPath` first, then `bd list --limit 1 --json` must answer an **array** | a missing `bd` or `jq` is named as a missing binary, never as a missing database; then `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the environment does not save a wrong directory |
-| 7 | `createRunLogDirectory` — `mkdir -p` the run's dir, then seed `claims errors waiting results closes` | fatal on purpose: a run that cannot write its logs cannot raise an alarm |
-| 8 | `requireAgentDefinitionsResolve` — `requireAgentDefinition` over every value of the `AGENT` map plus `lead`, deduped | one of them has no file at `<factory>/.claude/agents/<agent>.md`, or a file whose frontmatter does not open with `---`, close with `---`, and carry a `description:` line. the whole worker set is read once here, before anything is claimed; the per-spawn proof on the agent-command node still runs every time |
-
-`sf` itself runs check 6 and two before it — `requireInsideFactory`, that the directory it was typed in is
-the factory root or anything under it, and `requireEngine`, that `../src/beads-loop/index.sh` is actually
-there — so a broken install names itself instead of failing deep in a tick.
-"""
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L122-L136 "Source — beads-loop/index.sh lines 122–136, the bootstrap that runs them in order"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/preflight.sh#L5-L45 "Source — beads-loop/preflight.sh lines 5–45, checks 2–5 and 8"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/spawn.sh#L29-L39 "Source — CLI/utils/spawn.sh lines 29–39, requireAgentDefinition, the file check check 8 runs"
@@ -178,103 +41,12 @@ there — so a broken install names itself instead of failing deep in a tick.
 
     knobs = knobPanel "The run's parameters (env, read once at startup)" {
       summary "The run's parameters, read once at startup out of `CLI/spider-factory.env`; what you export yourself still wins."
-      description """
-Both engines source `CLI/utils/user-env.sh` and call `loadSpiderFactoryEnv` as their first act. It takes **any**
-`KEY=value` line out of `CLI/spider-factory.env` (`CLI/spider-factory.example.env` copied there on install) — not only
-`SF_*=` ones, so a knob the engines read by name works whatever it is called — expands `$HOME` in a
-value, and **exports only what is unset** — so a value you exported yourself still beats the file.
-A line that is neither blank, nor a comment, nor `KEY=value` is **named on stderr with its file and line number and
-skipped**, never dropped in silence; the loader sources `console.sh` so it has `tell` to do that with.
-`SF_ENV_FILE` points it elsewhere, which is the whole test hook; no file at all is a normal state, and
-the engines' own `:-` defaults are the floor under it. `CLI/spider-factory.example.env` is documentation that happens
-to be installed, so it and the engines are kept in step by hand.
-
-**The one thing the loader writes whatever the file says is `SF_AGENT_LAUNCH_COMMAND`.** It is the last line of
-`loadSpiderFactoryEnv`, runs whether or not the env file exists, and overwrites anything already there: your
-`SF_AGENT_COMMAND` plus the flags this repo hardcodes into every agent spawn — today `--add-dir <factory root>`,
-the root derived from `user-env.sh`'s own `BASH_SOURCE`. Composed once there so no spawn site carries a flag of
-its own. It is **not a setting**: nothing reads it out of `CLI/spider-factory.env`, and hand-editing it buys
-nothing, because the next load replaces it. `SF_AGENT_COMMAND` stays the knob you edit. What the extra directory
-is for is on the agent-command node.
-
-| Knob | Default | What it does |
-|---|---|---|
-| `SF_AGENT_COMMAND` | `claude` | the command that runs an agent — **the knob you edit**, and the one `CLI/spider-factory.example.env` documents; split on spaces, so it may carry its own arguments. Read directly by the worker count, by the startup `PATH` check, and by the two reads that prove a live session (`agents --json --all`, then `logs <session>`); every actual spawn goes through the launch command below |
-| `SF_AGENT_LAUNCH_COMMAND` | *(not a setting)* | `$SF_AGENT_COMMAND --add-dir <factory root>`, exported by `loadSpiderFactoryEnv` on every load and overwritten each time — what `CLI/utils/spawn.sh` runs and nothing else — `spawnBackgroundAgent` for the worker and a gate's lead, `runForegroundAgent` for the three planners and the overseer. Listed here because it is `SF_*` and because editing it does nothing |
-| `SF_AGENT_FEATURE_GATES` | `0` | does the **lead agent** close a feature gate for you. `0` = a human closes it; `1` = the loop dispatches the lead agent at a ready feature gate. Anything else and the run refuses to start |
-| `SF_AGENT_EPIC_GATES` | `0` | the same switch for the epic gate alone — one flag per tier, because a feature gate and the epic gate are different amounts of trust |
-| `SF_MAX_PARALLEL` | `4` | workers running at once; the count is recounted from `$SF_AGENT_COMMAND agents --json` every tick, and a session counts only while it reports itself `busy` — a finished worker holds no slot |
-| `SF_POLL_S` | `3` | seconds between ticks; **must divide 60** or the run refuses to start, because the idle rate limit is `60 / SF_POLL_S` ticks |
-| `SF_MAX_TICKETS` | `0` | stop once N tickets have closed this run — counted off the run's `closes` file, so the loop keeps ticking while it waits; 0 = endless |
-| `SF_LOG_ROOT` | `~/.spider-factory/logs` | parent of the one timestamped dir this run writes |
-| `SF_ALLOWED_LABELS` | unset or `*` = the whole AGENT set | a comma list narrows which labels may dispatch |
-"""
       link https://github.com/Londelo/spider-factory/blob/main/CLI/spider-factory.example.env "Source — CLI/spider-factory.example.env"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/user-env.sh "Source — CLI/utils/user-env.sh"
     }
 
     dispatcher = dispatcher "beads-loop/ — the dispatcher" {
       summary "The engine: a tick dispatches any ready gate its tier flag opens, then claims one ready ticket, derives its branch off the id, spawns its worker."
-      description """
-**What it is:** the engine `sf loop` runs. A `while true` loop: test the ticket cap, `tick`, `sleep $SF_POLL_S`,
-again. It ends by itself only when `SF_MAX_TICKETS` tickets have closed this run — the test is against the run's
-`closes` file, not against the tick count, so a run waiting on workers still ticking is never cut off.
-It is the only thing in the system that claims, dispatches, publishes the epic branch, or owns folders.
-
-**Where the engine lives:** `CLI/src/beads-loop/` — ten bash files, one concern each, no node, no build.
-`index.sh` is the file `sf loop` executes and the only one with a bootstrap: the knobs, the `AGENT` map, the
-order the other nine are sourced in, `claimAndDispatchOneTicket`, `tick()`, `runLoop()`, the interrupt trap.
-Beside it: `config.sh` the knobs, the waiting cadence, the tower paths, the log folder · `preflight.sh` the
-checks that end the run before the first tick, and the gate tier flags · `logs.sh` the human text of every
-message, so no call site carries a sentence · `tower-id.sh` the id grammar and everything derived off it · `git.sh` the worktree, the epic branch
-and its PR · `beads.sh` every beads read that is not a claim · `claim.sh` the frontier, the guards a claim must
-pass, the waiting line · `worker.sh` the prompt, the spawn, the dispatch · `gates.sh` the gate side of the tick.
-Every function named below lives in one of these. **What the run says to the terminal is nobody's business
-here:** that is `CLI/utils/console.sh`, sourced from `../utils/` beside `logging.sh`, `forge.sh` and `spawn.sh`
-(with `user-env.sh`, everything `index.sh` pulls in from outside the directory), which `index.sh` names
-`beads-loop` — the startup announcement and the closing
-summary are its `announceRunLogDirectory` and `reportStopped`, and every other word a run says is a log line
-first, which `writeLog` also echoes while the loop runs.
-
-One tick, in the order the code runs it (`tick()`, `index.sh`):
-
-| # | Step | Reads | On failure |
-|---|---|---|---|
-| 1 | **dispatch any ready gate its tier flag opens** — `dispatchReadyGates`, before a single ticket is claimed. Returns at once when neither `SF_AGENT_FEATURE_GATES` nor `SF_AGENT_EPIC_GATES` is `1` | `bd list --include-gates --ready --type gate --limit 0 --json` → `.id`; the tier is `gateTierOf`, never a key | see the gate rows below |
-| 2 | capacity check — once per tick, before the claim, and the tick ends there when it fails | `$SF_AGENT_COMMAND agents --json`, background sessions reporting `status: busy` whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower | waiting `max_parallel` / `max_parallel_stalled`, and the tick ends |
-| 3 | **claim** — one claim a tick, and once it has been read the tick is over | `bd ready --claim --json` — atomic: assignee + `in_progress` + a 5-minute lease | `bd-failure`; an empty answer is a waiting line, not an error |
-| 4 | match labels against the `AGENT` map — **exactly one** may match | `.[0].labels` | `label-ambiguous`, left claimed |
-| 5 | derive the branch and the PR target off the **id** | `resolveTicketBranches <id>` — `splitTowerId` reads `<repo>-<kind>-<uuid>-<hierarchy>` off the right; the uuid names the tower, the kind word swapped to `feature` with the hierarchy cut at the last dot is the feature gate whose `branch` the work lands on, the kind word swapped to `epic` at hierarchy `0` the epic gate whose `branch` is `prTarget`; `prTarget` is `main` when the owner is the epic gate itself. Nothing is walked and no key on the ticket is read | `no-epic-gate ticket=…` (id does not read the grammar · `step=not-below-a-gate` · `gate=<the epic it names>`), `gate-unworkable ticket=…` (`owner-carries-no-branch` · `epic-carries-no-branch`), left claimed |
-| 6 | publish the epic branch + PR if the gate has none | `ensureEpicGatePr <gate-id>` — the branch is born with a commit of its own, so it is never `main`'s own commit | `epic-pr-failed step=…`, `bd unclaim` |
-| 7 | make the branch's folder | `ensureWorktree branch prTarget` | `worktree-failed`, left claimed |
-| 8 | spawn, then **prove it** | `spawnWorker` writes the dispatch context file, then hands the whole spawn to `spawnBackgroundAgent` in `CLI/utils/spawn.sh`: `$SF_AGENT_LAUNCH_COMMAND --bg --agent <agent> --permission-mode bypassPermissions` — your `SF_AGENT_COMMAND` plus the flags every spawn carries (`--add-dir <factory root>`) and the one this form alone carries (`--permission-mode bypassPermissions`, which the foreground spawns never get), the bare agent name, a project-level agent in `.claude/agents/`. `checkBackgroundAgentLoaded` then has to prove the session actually came up as that agent — the two proofs are on the agent-command node | launcher exits non-zero: `worker-not-dispatched`, `bd unclaim`, the tick moves on. Never proved: `agent-not-loaded`, `bd unclaim`, and **the run dies** |
-| 9 | one log line, move on | `writeLog claims \"reason=dispatched\"` | — |
-
-**One pair of hands per branch is the tower's job, not the loop's.** Every ticket below a feature gate sits on
-that gate's one branch in a single linked line of `blocks` edges, so only one of them is ever ready and only one
-is ever `in_progress` on that branch; the same holds at the epic. The loop runs **no busy-branch check**: it
-reads the frontier once a tick, never puts a claim back to try another, and never counts what is already at
-work. A tower that fans into two ready tickets on one branch is a mis-built tower, and the loop works both.
-
-**The gate half of the tick** (`dispatchOneGate`, step 1) is the only place a worker is spawned without a
-label. A gate never appears in `bd ready`, so it is claimed **by status**: `bd update <gate> --status
-in_progress --if-status open`, and the `--if-status` is both the race guard and what takes the gate off the
-ready list until its lead agent dies.
-
-| Step | Reads | On failure |
-|---|---|---|
-| the tier is worked out, then switched on | `gateTierOf` — the kind word of the gate's own id: `epic` or `feature`, nothing read from the database; matched against the two flags | a tier whose flag is `0` is skipped in silence; an id carrying neither word logs `gate-unworkable gate=…` |
-| derive the gate's branch and target | `resolveTicketBranches <gate>` — the gate's own `branch`, and the epic gate's `branch` (or `main`) as the target | waiting `gate_unworkable gate=… step=…` |
-| **claim it** | `bd update <gate> --status in_progress --if-status open` | `gate-claim-lost`, no lead agent spawned |
-| make the branch's folder | `ensureWorktree gateBranch gatePrTarget` | `worktree-failed step=gate`, and the gate is put back `open` |
-| spawn the **lead agent**, then **prove it** | the same `spawnWorker` call with `kind=gate`, so the same `spawnBackgroundAgent` and the same proof; `--agent lead`, the bare name; label on the line is `gate:<tier>` | `worker-not-dispatched gate=…`, the gate put back `open`, the tick moves on · `agent-not-loaded gate=…`, the gate put back `open`, and **the run dies** |
-| one log line | `writeLog claims \"reason=dispatched kind=gate gate=… tier=…\"` | — |
-
-**What it never does:** it never polls a worker, never reads worker output, never merges, never ends
-itself, never closes a ticket, and never derives an agent name from a label. It also runs **no
-`bd reclaim`**: a lease that lapses leaves its ticket parked `in_progress`, off the frontier — sweeping
-claims back is the supervisor's job, not the loop's.
-"""
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh "Source — CLI/src/beads-loop/index.sh, the tick and the run"
       link https://github.com/Londelo/spider-factory/tree/main/CLI/src/beads-loop "Source — the whole CLI/src/beads-loop/ directory, the ten files"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/console.sh "Source — CLI/utils/console.sh, the run's terminal lines"
@@ -282,117 +54,17 @@ claims back is the supervisor's job, not the loop's.
 
     agentMap = noteDoc "The AGENT map — the only label→worker binding" {
       summary "The seven labels that dispatch, each bound to one worker; nothing else picks a worker."
-      description """
-```bash
-declare -A AGENT=(
-    [backend-logic]=engineer
-    [frontend-ui]=frontend
-    [unit-tests]=tester-unit
-    [feature-test]=tester-feature
-    [epic-e2e-test]=tester-e2e
-    [feature-review]=review
-    [epic-review]=review
-)
-
-leadAgentName="lead"
-```
-
-**Three names, never interchangeable** — collapsing any two is how a tower silently dispatches nothing:
-
-| Name | What it is | Examples |
-|---|---|---|
-| **category** | a column of plan-task's own node-type table. Nothing ever writes one to beads — no `--category` is passed anywhere in this repo | `backend-logic`, `frontend-ux`, `unit-tests` — the three plan-task node types, and nothing above a task carries one |
-| **label** | written with `bd create -l`; a ticket may carry any number, but **exactly one** must be a key of this map | the seven keys above, bar none |
-| **agent** | a real file in `.claude/agents/` | `engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`, `review`, `lead` |
-
-The keys **are** the closed label set: `isLabel` requires membership here *and* in the allowed set.
-Zero or two matches on a claim is the tower's bug, not the loop's — it never guesses a specialist.
-`review` answers two labels; the three test labels are three **tiers**, and the label — never `--agent` —
-is what carries the tier, so a mis-labelled ticket gets the wrong depth of coverage and no worker can
-tell you it did. Note `frontend-ui` is the **label** while `frontend-ux` is only its category: a ticket
-labelled with its category matches nothing. There is no merge label at either tier — nothing assembles a
-feature or an epic, each branch is merged by the **lead agent** standing on the gate above it, and the
-lead agent is reached by the gate dispatch, not by a key of this map.
-"""
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/index.sh#L21-L31 "Source — beads-loop/index.sh lines 21–31, the AGENT map and the lead agent's name"
     }
 
     hookFields = knobPanel "SF_* — the nine log fields the Stop hook fills itself" {
       summary "The SF_ variables the Stop hook exports inside its own process, filled off this session's dispatched claims line. The spawn sets none."
-      description """
-**The spawn writes no environment at all.** `spawnWorker` (`CLI/src/beads-loop/worker.sh`) hands the whole brief to
-`spawnBackgroundAgent` (`CLI/utils/spawn.sh`) and that runs the agent command with nothing in front of it — no
-`SF_TICKET=`, no `SF_BRANCH=`, none of them; the function takes a working directory, a prompt and a spawn file, and
-has no environment parameter to pass one through. `claude --bg` serves every session
-from one shared daemon that **freezes the environment at the run's first spawn**, so anything the loop set there
-would reach a later worker, and its Stop hook, as the *first* worker's values. The facts travel two other ways: to
-the **worker** as literals in its prompt — ticket id, branch, and the tower's path, plus `prTarget` in the lead
-agent's rule 4 — and to
-the **CLI** as the dispatch record the loop writes around the spawn: the worker-context file
-`<log root>/worker-context/<worktree folder name>`, written **before** the agent starts, and the
-`reason=dispatched` line in the run's `claims` file, written once its session id is known.
-
-**The fields below are the hook's own, in the hook's own process.** `adoptDispatchContext` takes the session id out
-of the hook's stdin JSON, matches it to this session's claims line, and exports each field off that line — the
-context file only as the fallback for what a thin line omits. Two shells have two environments and nothing carries
-between them: there is no cross-process persistence and no scratch file. The working directory is the one thing it
-does inherit true — a claimed spare is chdir'd to the spawn's cwd, so the hook stands in the worktree — but a
-worktree belongs to a branch and not to a ticket, so it identifies nothing. What the hook cannot rebuild, it
-refuses: no ticket or no run is `reason=claim-malformed`, no branch `reason=no-branch`, no target
-`reason=no-pr-target`, and the ticket stays claimed.
-
-| Field | Value | Where the hook gets it | Who reads it |
-|---|---|---|---|
-| `SF_TICKET` | `the back-end ticket` | claims line `ticket=` | what the close, the commit and every alarm are about. It is **not** the test that picks a dispatched session out of all the others: that is the claims line itself |
-| `SF_BRANCH` | `feature/add-record` | claims line `branch=`, else context file `branch=` | commit here, push here, refuse if `git branch --show-current` disagrees |
-| `SF_PR_TARGET` | `epic/record-box`, or `main` at the epic tier | claims line `target=`, else context file `pr_target=` | the target of this branch's PR — derived off the ticket's id by the loop |
-| `SF_AGENT` | `engineer`, or `lead` on a gate dispatch | claims line `agent=`, else context file `agent=` | so an alarm names who was doing the work |
-| `SF_LABEL` | `backend-logic`, or `gate:<tier>` on a gate dispatch | claims line `label=`, else context file `label=` | so an alarm names what chose that worker |
-| `SF_PROJECT_DIR` | the tower root, where `.beads` lives | claims line `repo=`, else context file `tower=` | every `bd -C` the hook runs — **the worktree is not the tower** |
-| `SF_LOG_DIR` | this run's log dir | the claims line's `run=`, under the log root | alarms land in `$SF_LOG_DIR/errors` |
-| `SF_SESSION` | the session id | the hook's own stdin JSON, `.session_id` | the key that found the claims line, and the `--session` the close is filed under |
-| `SF_WORKTREE` | the branch's folder | claims line `worktree=` | the folder every `git -C` the hook runs stands in |
-
-`SF_LOG_QUIET=1` is exported by the Stop hook before it writes its first line: a hook must never print
-into a session. The engine leaves it unset, so its own lines also go to the terminal. Nothing else is handed to
-the worker, and the worker writes nothing to signal it is finished: what ends its turn is the `Stop` event, and the
-`claims` line is what says the turn was the loop's to begin with.
-
-**The ninth dispatch fact, `kind`, is not one of the nine log fields.** `spawnWorker` takes it as its ninth
-argument, `${9:-task}`, and writes it into the context file beside the other six — `ticket branch pr_target agent
-label tower kind`; a **gate** dispatch additionally writes `kind=gate` onto its claims line as detail. The Stop hook
-reads it back as `SF_WORK_KIND="${claimKind:-${kind:-task}}"`, off the claims line first and the context file only
-as a fallback. It is the only thing that tells the hook it is finishing a **gate** rather than a task.
-"""
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/worker.sh#L54-L75 "Source — beads-loop/worker.sh lines 54–75, spawnWorker: the context file, then the spawn through spawnBackgroundAgent with no environment in front of it, then the proof"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/agent-hooks/worker-stop.sh#L82-L117 "Source — CLI/src/agent-hooks/worker-stop.sh lines 82–117, adoptDispatchContext: the claims line becomes the hook's own nine fields"
     }
 
     claim = cliTool "bd ready --claim — the hand that takes one ticket" {
       summary "bd ready --claim — takes one unblocked ticket atomically and starts its five-minute lease."
-      description """
-**What it is:** the one atomic read in the system, and the only reason the loop can run two places at once
-without stealing its own work. `bd ready --claim --json` picks the single first unblocked ticket and, in the
-same statement, stamps an assignee, moves it to `in_progress`, and starts a **five-minute lease**.
-
-| Property | Consequence |
-|---|---|
-| atomic | a bare `bd ready` is a peek, not a take — two loops reading with it would both work the same ticket |
-| one ticket per call | and the tick makes exactly **one** of them: read the claim, dispatch or refuse, and the tick is over — there is no second claim waiting behind it |
-| an **empty** answer is not an error | that is a waiting line: `frontier_empty` if nothing is waiting elsewhere, `tower_stalled waiting=N` if work exists behind a blocker |
-| the lease is the only watchdog | a lapsed lease parks the ticket `in_progress` and off the frontier — nothing in this repo runs `bd reclaim`, so sweeping claims back is a human's act |
-| `bd unclaim` puts a claim back | `releaseClaim` is one line, called from **three** places: the epic branch and its PR could not be published · the launcher died · the session came up but never proved itself an agent. Everything else that refuses — a mislabelled ticket, an id that reaches no gate, a worktree that could not be made — leaves the claim where it is, on purpose |
-
-A claim is a JSON object, and **two** fields decide everything downstream: `.id` (which two gates it sits
-under, and therefore which branch the work lands on and which its pull request aims at — `resolveTicketBranches`
-reads both off the id, and a second query fetches the gates' own `branch` keys) and `.labels` (which worker, if
-exactly one matches the map). Nothing on the claim's `.metadata` is read at all. Anything else on the ticket —
-title, description, notes — the loop never reads.
-
-**A gate never appears here.** `bd ready` does not list one, so a gate is never taken by this command; the
-loop moves it to `in_progress` itself with `bd update <gate> --status in_progress --if-status open`, which is
-step 1 of the tick and the only claim in the system made by status.
-"""
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/claim.sh "Source — CLI/src/beads-loop/claim.sh, the frontier and the guards"
       link https://github.com/Londelo/spider-factory/blob/main/CLI/src/beads-loop/gates.sh#L13-L47 "Source — CLI/src/beads-loop/gates.sh lines 13–47, dispatchOneGate: the claim made by status"
     }
@@ -401,242 +73,74 @@ step 1 of the tick and the only claim in the system made by status.
 
   logRun = logStore "~/.spider-factory/logs/<date>_<time> — one dir per run" {
     summary "One timestamped directory per run, holding every file that run writes."
-    description """
-**What it is:** the central home for everything a run leaves behind. The engine seeds **five** files up
-front (`claims errors waiting results closes`), so a missing file and an empty file look the
-same and neither hides a silent failure — `closes` is written by the Stop hook, possibly long after the run
-ended. Two more appear only when something writes them (`bd-stderr`, from the claim, and `claude-stderr`, from
-the capacity count), and one per worker (`spawn-<ticket>`).
-
-**No sixth file is seeded, and none of these five ever holds a line about a worker that died.** A sixth used to
-be, `failures`, seeded alongside the rest and written by nothing at all, so an empty one read as "no failures"
-when it meant "no such feature" — it is gone from the seed list and from the code. What it stood for has not
-gone, and the absence is a louder alarm than the file ever was: `Stop` is the only hook event a worker agent
-binds and there is no `StopFailure` to bind, so a session killed by an API error fires no hook and writes no
-line into any file in this directory. The tell is the **absence across** the five — a `claims` line, no `closes`
-line, and a ticket left `in_progress` that no `bd ready` will ever name. The
-overseer's check for a worker that died quietly is the only thing that finds one, and all it can do is name the
-ticket and hand a human `bd update <ticket> --status failed-agent` to run.
-
-**Beside the run dirs, not inside one: `<log root>/worker-context/<worktree folder name>`.** This is the other half
-of the dispatch record and the only state in the system that is neither the database nor a log line. The loop writes
-it before the agent starts, one file per **branch** (the folder name is the branch with `/` → `+`), holding
-`ticket= branch= pr_target= agent= label= tower= kind=`; a second dispatch onto the same branch replaces it, and the
-Stop hook deletes it the moment the ticket closes. It is not seeded, not per run, and never read by a tick — only by
-the hook, as the fallback for what a thin claims line omits, and by `sf commit`, which reads its `agent=` key to
-name the commit subject. Nothing under it is safe to delete mid-run: a missing file plus a thin claims line is
-`reason=no-context`, and the ticket stays claimed.
-
-**One line format, and one owner of it** (`CLI/utils/logging.sh`), or the files cannot be read against each
-other. **Two callers source that one file, and nothing else does.** The engine sources it and keeps its nine
-fields in **process memory** for the whole run, setting them as the tick goes. The Stop hook sources the same
-file and fills the same nine fields from its own environment on every line, through
-`takeLogFieldsFromEnvironment`.
-
-For a caller with no process memory of its own those nine come from **one variable per key**: `SF_LOG_RUN`
-(falling back to the name of the log directory), `SF_PROJECT_DIR`, `SF_TICKET`, `SF_LABEL`, `SF_AGENT`,
-`SF_BRANCH`, `SF_PR_TARGET`, `SF_SESSION`, `SF_WORKTREE`. Export them once in your own process and every line
-after carries them; one you never set comes out `-`. Nothing carries from one process to the next — two shells are
-two environments — so the hook fills them off the dispatched claims line it just matched to this session, with the
-dispatch context file as the fallback for what a thin line omits (the nine, and where each one comes from, are on
-the hook-fields node). It cannot inherit them from the worker: the spawn hands the session **no environment at
-all**, because `claude --bg` runs every session through a pooled daemon that froze the environment at the run's
-first spawn. The engine exports none of them either — it keeps its own nine in process memory with `setLogField`.
-The directory the lines land in is `$logDir`: the engine's own, and the hook rebuilds it from `SF_LOG_DIR`, then
-`SF_LOG_ROOT`, then the default.
-
-```
-<TAG padded to 8> <ISO time>\trun=… repo=… ticket=… label=… agent=… branch=… target=… session=… worktree=… <detail>
-```
-
-The nine keys are on **every line of every file**, `\"-\"` for whatever is not known at that moment — an
-absent field would be indistinguishable from a field nobody set, and an error line is worth nothing if
-it cannot say what it happened to. That shared key set is what makes the files **JOIN**: an `errors` line
-names the ticket, label, agent, branch, target, repo and session, and the same keys lead from it into
-`claims` or `closes` by `grep` alone. Anything outside the nine — a `step=`, a `gate=`, an
-`exit=`, a `msg=` — is passed as **detail**; the key set is closed, or the joining stops working.
-
-```
-CLAIMS   2026-11-04T09:12:03\trun=2026-11-04_09-12-01 repo=/home/dev/spider-factory/webs/record-box ticket=back-end label=backend-logic agent=engineer branch=feature/add-record target=epic/record-box session=287d3c4c worktree=/home/dev/spider-factory/webs/record-box/.claude/worktrees/feature+add-record reason=dispatched
-```
-"""
     link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/logging.sh "Source — CLI/utils/logging.sh, the one definition of a line"
 
     fClaims = logFile "claims" {
       summary "Every ticket taken, and the epic branch the first time it is published."
-      description """
-Every ticket the loop took. `reason=dispatched` on a spawn, and `gate=… reason=epic-published gateBranch=…
-pr=…` when the loop publishes the epic branch — that one line names no ticket of its own, because the identity
-the tick already carries is on it. A claim the loop puts back (`bd unclaim`) writes **nothing here**: the
-release is silent, so a ticket that was claimed and handed back leaves no trace in this file.
-
-A **gate** dispatch is the dispatched line with three keys added: `reason=dispatched kind=gate gate=<id>
-tier=<epic|feature>`, and its fixed identity already reads `ticket=<gate id> agent=lead label=gate:<tier>
-target=<the gate's `prTarget`>`. Those three keys are the only place a reader can tell a gate dispatch from a task
-dispatch — the nine identity keys look identical either way, and the Stop hook reads `kind=` off this very
-line to decide which path to take.
-"""
     }
     fErrors = logFile "errors" {
       summary "Every failure, whoever saw it, and never rate-limited."
-      description """
-The alarm: every failure, whoever saw it. **Never rate-limited** — a waiting line is capped at one a minute
-per reason, an error never is.
-"""
     }
     fWaiting = logFile "waiting" {
       summary "The quiet ticks, one line a minute per reason."
-      description """
-The quiet ticks, **one a minute per reason** (`60 / SF_POLL_S` ticks), each carrying
-`working=<busy sessions>` and `next=<the id a bare bd ready would name>`.
-"""
     }
     fCloses = logFile "closes" {
       summary "One line per ticket that landed, with its pull request url."
-      description """
-The Stop hook's proof of work: one line per ticket that landed, `url=<the PR>`. A **gate** close carries one
-extra key, `url=<the PR> gate=true` — the same url, because the lead agent merged that branch's own pull
-request rather than opening a new one, and the hook found it whatever state it was in.
-"""
     }
     fResults = logFile "results" {
       summary "The run's tally of ticks, claims and tickets closed, at the ticket cap or on Ctrl-C."
-      description """
-The run's tally — `ticks=N claimed=M done=K` — at `SF_MAX_TICKETS`, or on Ctrl-C (`onInterrupt`). The cap line
-carries a `note=` saying the run was configured to end there; the Ctrl-C line does not, so the two are
-told apart without guessing. `done=K` is the count off this run's `closes` file.
-"""
     }
     fBdStderr = logFile "bd-stderr" {
       summary "Stderr of the last claim, quoted on a claim failure."
-      description """
-Stderr of the last `bd ready --claim`, captured on the claim line itself; its last line is quoted as
-`msg=` on a `bd-failure` alarm.
-"""
     }
     fClaudeStderr = logFile "claude-stderr" {
       summary "Stderr of the last capacity count."
-      description """
-Stderr of the last `$SF_AGENT_COMMAND agents --json` capacity count.
-"""
     }
     fSpawn = logFile "spawn-<ticket>" {
       summary "That one worker's raw spawn output, which holds its session id."
-      description """
-That one worker's raw spawn output, which holds its session id (`backgrounded · 287d3c4c`), read back by
-`getSpawnedAgent`. It used to be one shared `last-spawn` that every spawn overwrote, so the id survived
-only for the run's final worker — the one thing a human needs to attach to, read, or stop.
-"""
     }
   }
 
   stopHook = hook "worker-stop.sh — the Stop hook, fail-closed" {
-    summary "The closer, registered by each worker agent's own frontmatter: commit, push, the branch's PR, close — seventeen refusals first."
-    description """
-**What it is:** the closer, and **it runs**. It sits at `CLI/src/agent-hooks/worker-stop.sh`, an engine beside every
-other one that `bin/sf` locates and execs, and implements the whole
-finish below. The registration is in the agent files themselves: each of the **seven worker agents** —
-`engineer`, `frontend`, `tester-unit`, `tester-feature`, `tester-e2e`, `review`, `lead` — carries a `hooks:` block
-in its YAML frontmatter binding `Stop` → `sf hook stop` (timeout 300), and the harness reaches this script through
-that command, the eighth arm of `sf` — and its only arm: `sf hook` refuses a second word by name. There is no `hooks.json` — that file is gone — and no
-`.claude/settings.json` registers anything: an agent's own frontmatter is the only wiring. `overseer.md` and the
-three `plan-*.md` agents deliberately carry no such block, so a session run as one of those four never fires it.
-The event that arrives is **`Stop`, not `SubagentStop`**: `claude --bg --agent <name>` is a top-level session with
-an agent attached, not a subagent, which is why the binding sits under `Stop:`.
-
-What tells a dispatched worker apart from everything else is the `claims` line that names this session id: a
-session with no dispatched claims line leaves at once, silently, and writes nothing anywhere. Never the cwd — the
-hook input's `.cwd` is the worktree and is real, a claimed spare being chdir'd to the spawn's cwd, but a worktree
-belongs to a branch and not to a ticket, so it identifies no worker.
-
-```
-the worker's session ends (`Stop`) → `sf commit` onto its feature's branch → push → the branch's PR →
-write the PR url onto the ticket's pr metadata → close it
-```
-
-It refuses **seventeen** ways, each one an `errors` line then `exit 0` with the ticket untouched, in the order the
-code checks them —
-they are walked one by one in the second walkthrough. Nothing anywhere says a worker's brief is finished: there is no
-marker, no declaration, no signal of the worker's own that the hook could check. The `Stop` event is the only thing
-that says a turn ended, and the dispatched `claims` line is the only thing that says the turn was the loop's to
-begin with — once this session is matched to that line, landing the work is what the hook does. What that costs is
-the honesty of the stop: a worker that quits early still gets its commit, its push, its PR and its closed ticket,
-carrying whatever it managed, so the diff, the worker's final message and whatever it wrote on its own ticket before
-it stopped are the only things a person has to judge the tier by. The final message dies with the session; the
-comment on the ticket is the part of that report that outlives it — the duty itself is the workers layer's, not this
-hook's, and this hook neither writes one nor checks that one exists. That is why the contract's last bullet is about
-when it is honest to stop.
-
-**It writes its own lines.** The script sources `CLI/utils/logging.sh` — the one definition of a line — directly,
-the way the engine does, and nothing else sources it. Its own `logLine <tag> [detail…]` sets the directory from
-`SF_LOG_DIR`, then `SF_LOG_ROOT`, then the default, makes sure it exists, fills the nine fields from its own
-environment with `takeLogFieldsFromEnvironment`, and calls `writeLog`. It exports `SF_LOG_QUIET=1` before its
-first line, so a hook never prints at a terminal it does not own. There is no `sf log` command to call: that
-command is gone, and a hook that shelled out to it would be a hook that logs nothing.
-
-**The commit is the worker's own command, not a private one:** `stageTheWork` first asks whether anything is
-left to land — usually the worker committed it all as it went, and then nothing is — and `commitTheTask` runs
-`sf commit` in the worktree with the ticket's title and a `Ticket: <id>` trailer as the message, so a task's last
-commit is the same shape as all the others — same command, same `agent:branch:message` form, nothing private.
-`commitTheTask` ends by asking `git diff --cached --quiet` whether anything is *still* staged: staged work left
-behind means the commit did not take, and that is what `reason=commit-failed` means. The hook then pushes for itself: cheap when the branch is current, and it
-is the hook's own guarantee that the branch is on the forge before a PR is opened off it — which is why
-`reason=push-failed` is a separate alarm from `reason=commit-failed`. `sf` is in `requireTools` for this
-reason; `reason=missing-tool tool=sf` is the alarm when the CLI is not installed. Both of those calls are made
-inside the tower's own folders, and the loop only ever runs a tower from inside the factory, so the check on the
-`sf` node is met.
-
-**One branch, one pull request, forever:** the branch's first task creates the PR, and every later task finds
-it by `gh pr list --head <branch> --base <target> --state open` and reuses it — which is why the branch, not
-the ticket, is the identity of the work.
-
-**Two paths, decided by one key.** Everything above the `SF_WORK_KIND` test is shared: guard, branch,
-commit, push, forge. A claim whose `kind=gate` (read off the dispatched claims line, falling back to the
-context file, defaulting to `task`) then takes a different road: it looks the branch's PR up **at any state**
-— `gh pr list … --state all` / `glab mr list … --all`, not `--state open` — because the lead agent has just
-merged it and an open-only lookup would find nothing. With no PR at all the hook raises
-`reason=pr-not-found` and leaves the gate claimed: there was nothing there to merge. With one, it annotates
-the gate with the url, closes the **gate** as its claimant, writes `closes url=… gate=true`, removes the
-context file and exits. **It never opens a new PR on the gate path** — the lead agent merged the branch
-through the forge, and a second PR off a merged branch is a lie about work nobody did.
-"""
+    summary "The closer, registered by each worker agent's own frontmatter: only a session the harness reports `done` may commit, push and close; every other verdict leaves the ticket claimed."
     link https://github.com/Londelo/spider-factory/blob/main/CLI/src/agent-hooks/worker-stop.sh "Source — CLI/src/agent-hooks/worker-stop.sh"
   }
 
   overseerAgent = worker "overseer — the reader, never the hand" {
-    summary "`sf overseer`: reads this directory's tower and its run logs and reports back to you, foreground. `sf` is denied to it outright."
+    summary "`sf overseer`: reads this directory's tower and its run logs and reports back to you, foreground. It has no Write, Edit or Agent tools."
     description """
-**What it is:** `.claude/agents/overseer.md`, run in the **foreground** by `sf overseer` →
-`CLI/src/overseer-agent.sh`, which calls `runForegroundAgent` (`CLI/utils/spawn.sh`) — that reads
-`.claude/agents/overseer.md` and refuses to start a session without it, then `exec`s `$SF_AGENT_LAUNCH_COMMAND` —
-your `SF_AGENT_COMMAND` plus the flags every spawn carries, since it too stands in a tower and not in the factory —
-with the `overseer` agent, `--disallowedTools 'Bash(sf:*)'`, and a short **launch brief prepended to your prompt**.
-The `PATH` guard below still checks the plain `SF_AGENT_COMMAND`, and the `exec` means there is no after: the file
-check is the only proof this engine can have. Foreground is
-the whole difference from a worker: a worker is spawned `--bg`
-with nobody watching and reports through the log; the overseer talks back to you, and anything you type after
-the command goes to it as the prompt — after that brief, which it cannot lose.
+**The file:** `.claude/agents/overseer.md`, run in the **foreground** by `sf overseer` →
+`CLI/src/overseer-agent.sh` → `runForegroundAgent overseer "<launch brief> <your prompt>"`
+(`CLI/utils/spawn.sh`), which proves the agent file exists and then `exec`s the verbatim form
+`$SF_AGENT_LAUNCH_COMMAND --agent overseer "<launch brief> <your prompt>"`. **No `--bg`, no `-n`, no
+`--disallowedTools`, no permission flag** — the two foreground and background forms differ by `--bg` and the
+session name and nothing else. `requireAgentCommand` checks the first word of the plain `SF_AGENT_COMMAND` on
+`PATH` first, and the `exec` means there is no after: the file check is the whole proof this engine can have.
+Foreground is the whole difference from a worker — a worker is spawned `--bg` with nobody watching and reports
+through the log; the overseer talks back to you and can still stop and ask.
 
-**Two of its facts come from that brief, never from its own environment.** The engine bakes the **log root** and
-the **agent command** into the prompt it hands over — `overseer-agent.sh` interpolates them off its own
-`SF_LOG_ROOT` and `SF_AGENT_COMMAND` — and `overseer.md` writes them as `<log root>` and `<agent command>`
-throughout. The watcher is a session like any other: whatever its shell happens to carry about a run can belong to
-a different one.
+**Its job, off its own frontmatter:** *"Reads a beads tower and reports honestly on it: the beads database of the
+directory it was spawned in, plus the `sf loop` log files that directory's runs have left behind."* It knows how a
+tower got where it is — what each plan agent writes, tier by tier, what a gate is, what should be running next —
+which is what lets it tell a real fault from a tier simply waiting on a human. **Skill it loads: `bead-read`.**
+Tools: `Read, Grep, Glob, Bash` — **no `Write`, no `Edit`, no `Agent`**, and no `hooks:` block, so a watcher
+ending its session never commits, pushes, opens a PR or parks a ticket.
 
-**It reads three things and mutates nothing:** the beads database of the directory it was started in, the run
-logs under `<log root>`, and git. It knows how a tower got where it is — what each plan agent writes, tier by
-tier, what a gate is, what should be running next — which is what lets it tell a real fault from a tier simply
-waiting on a human.
+**Two of its facts come from the launch brief, never from its own environment.** `runOverseer` interpolates its
+own `SF_LOG_ROOT` and `SF_AGENT_COMMAND` into the prompt — *"the run logs live under `<log root>`, and background
+sessions are listed by `<agent command> agents --json`. Take those two from this brief; never read either off your
+own environment."* — and `overseer.md` writes them as `<log root>` and `<agent command>` throughout. The watcher is
+a session like any other: whatever its shell carries about a run can belong to a different one.
 
 | Guard | What it stops |
 |---|---|
-| `sf` denied at the command level | `sf commit`, `sf loop`, `sf plan:*` — while `bd`, `git` and every other read still run |
-| no `Write`, `Edit` or `Agent` tools in its own file | writing a file, or spawning a worker of its own |
+| no `Write`, `Edit` or `Agent` tools in its own file | writing a file, or spawning a worker of its own — this is the guard; nothing is denied at the command level |
 | `requireBeadsProject`, then the first word of `SF_AGENT_COMMAND` on `PATH` | running it outside a tower, or with an agent command that does not exist |
+| no `hooks:` frontmatter | a watcher ending its session committing, pushing or closing anything |
 
-**Where the fix is a mutation, it hands you the command to run.** That is the design and not a limitation:
-claim, unclaim, close, commit and push belong to the loop and its hooks, and a reader that could do them
-itself would be a second loop nobody dispatched.
+**Where the fix is a mutation, it hands you the command to run** — e.g. `bd update <ticket> --status
+failed-agent`. That is the design, not a limitation: claim, unclaim, close, commit and push belong to the loop and
+its hooks, and a reader that could do them itself would be a second loop nobody dispatched.
 """
     link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/overseer.md "Source — .claude/agents/overseer.md"
     link https://github.com/Londelo/spider-factory/blob/main/CLI/src/overseer-agent.sh "Source — CLI/src/overseer-agent.sh"
@@ -645,138 +149,17 @@ itself would be a second loop nobody dispatched.
   towerView = cliTool "CLI/src/tower/index.sh — the whole database as one tree" {
     summary "`sf tower`: every ticket of every status as one tree, in the order the loop works them. Two `bd` reads, one jq program, nothing written."
 
-    description """
-**What it is:** `CLI/src/tower/index.sh`, foreground, run by `sf tower` → `dispatchTowerView`, which is
-`requireInsideFactory`, then `requireEngine`, then `exec bash` on it. `locateEngines` locates it the same way it
-locates every other engine. It **runs no agent session**: no `$SF_AGENT_LAUNCH_COMMAND`, no `--agent` to resolve,
-no model, no prompt — the whole thing is two `bd` reads piped through one jq program,
-`CLI/src/tower/tower.jq`, which is the only file it shares an argument with. Its speaker is `tower`, so anything
-it says itself comes out `tower: …`; the tree is `jq`'s own stdout and carries no prefix.
-
-**Two reads, and nothing else.** `bd ready --json` first, its ids collapsed to a JSON array and handed to `jq` as
-`--argjson ready`; then `bd export --json`, slurped (`jq -s -r -f`) and filtered to every exported row that carries
-an id. **No claim, no unclaim, no close, no status write, no metadata write, no commit, no push, no forge call, no
-git, no log line.** It is the only way to see a whole tower that touches nothing: a ticket it prints stays exactly
-as it was, still claimable by the next tick.
-
-**Two guards, in this order.** `requireInsideFactory` in `bin/sf`, then `requireBeadsProject` inside the engine —
-the same two the loop, the three planners and the watcher answer to. `-h` / `--help` / `help` is matched **before**
-the beads probe, so the usage block prints from a folder with no database in it; it still has to be inside the
-factory to get that far.
-
-**One tree per uuid.** Rows are grouped by the uuid in their ids, one group per tower, each opening with a banner
-line. Inside a group:
-
-| Line | Where it comes from |
-|---|---|
-| the root | the row whose kind word is `epic`. With no row carrying that uuid at hierarchy `0`, a stand-in reads `(no epic gate)`, titled `no row carries this uuid at hierarchy 0` |
-| one line per feature gate | every `feature` row, sorted by its hierarchy number; that feature's own tasks hang beneath it |
-| then the epic's own tier | the tasks whose hierarchy head is `0` — its suite `.1` and its review `.2` — as top-level lines with nothing under them |
-| then the orphans | any task whose head names no feature gate, also with nothing under it |
-
-**The order is the dispatcher's, and the number proves it.** Every row is ranked `[head, member]` with three
-substitutions: the epic's tier (head `0`) ranks after every feature, a gate ranks after every ticket below it, and
-inside a feature `.1` and `.2` rank after `.3..N`. So a feature reads worker chain, then its suite, then its review,
-then its gate, and the epic's own suite, review and gate close the tower. **The lines and the numbers part ways on
-purpose:** a gate's line sits *above* its tasks, its number sits *after* them.
-
-**The number is the order this epic's tickets actually closed.** Closed rows are numbered `1..N` by close time,
-ties broken by that same work order; every row still waiting is numbered on from `N+1`, in work order. So the page
-reads as a schedule and a number out of step with the page is the order having gone wrong — that is the whole point
-of the column. An unfiled id gets `-`.
-
-**Every line, left to right:** the number, a tree connector (`├─`/`└─`, with `│` or blank down the side of a
-feature's tasks), the id padded to the widest id in the database, a status glyph, a tag, the day it closed, the
-title.
-
-| Glyph | Status |
-|---|---|
-| `✓` | closed |
-| `▶` | in progress |
-| `◆` | open **and named by `bd ready`** — the only place this view shows the frontier |
-| `·` | open, not ready |
-| `~` | deferred |
-| `!` | failed-agent |
-| `✗` | cancelled |
-| `?` | any status the code does not know |
-
-The tag is `gate:epic` or `gate:feature` for the two gate kinds, the row's own labels joined with commas for
-anything else, and `-` for a row carrying none. The date is `closed_at` cut to the day, `-` for a row that never
-closed.
-
-**Two tallies.** One line at the top of everything: `N towers  M tickets`, with `K unfiled` appended only when
-there are any. One per tower, on its banner: `── <uuid>  N tickets  X closed  Y running  Z ready  W waiting`, with
-`O other` appended only when something is `deferred`, `failed-agent` or `cancelled`.
-
-**An id that parses as no tower is listed, never dropped.** An id not reading
-`<repo>-<kind>-<uuid>-<hierarchy>` joins no tree and appears last under
-`── unfiled  ids that do not read <repo>-<kind>-<uuid>-<hierarchy>`, still carrying its glyph, tag, date and title.
-That is the same grammar the loop refuses a ticket for with `ERROR reason=no-epic-gate` — here it is a section, not
-a refusal, because a picture has nothing to dispatch.
-
-**The second reader, beside the overseer — and not interchangeable with it.**
-
-| | `sf overseer` | `sf tower` |
-|---|---|---|
-| what runs | an agent session, through `$SF_AGENT_LAUNCH_COMMAND` | one bash script and one jq program |
-| reads | the database, the run logs under `SF_LOG_ROOT`, and git | the database alone |
-| answers | in prose, to whatever you type after the command | one tree on stdout, to no question |
-| can be told to look at | a question, a ticket, a suspicion | nothing — it takes no argument but `--help` |
-"""
     link https://github.com/Londelo/spider-factory/blob/main/CLI/src/tower/index.sh "Source — CLI/src/tower/index.sh"
     link https://github.com/Londelo/spider-factory/blob/main/CLI/src/tower/tower.jq "Source — CLI/src/tower/tower.jq"
   }
 
   beads = beadsStore "beads DB (bd) — the tower" {
     summary "The database holding every gate, ticket and edge — the loop's only runtime input."
-    description """
-**What it is:** the loop's **only runtime input**. None of the design docs or CLAUDE.md files are read at
-runtime; the graph — every gate, ticket, `blocks` edge, and the metadata keys — lives here. The commands
-that read and write it are in the toolbelt; what lives here is the **state**, and the state is two keys.
-
-**The two metadata keys, and only two.** One is the plan's, one is the loop's or the hook's:
-
-| Fact | Where it lives | Who reads it |
-|---|---|---|
-| `branch` | on a **gate only** — the epic gate and each feature gate carry their own, written once by the `plan-*` agent that owns the tier. No task, suite or review carries one | the loop, through `readFieldOf <gate> branch`, on the gate the ticket's id names — then written into the dispatch record, the claims line's `branch=` with the context file's `branch=` beside it, which is where the Stop hook reads it back; nothing parses text for it |
-| `pr` | the url, written by the loop (onto the epic gate) or the Stop hook (onto any ticket whose work landed) — never by a plan agent | a human, and the hook when it looks for the PR already on a branch |
-
-**Everything else about a ticket's git world is derived, never stored.** An id reads
-`<repo>-<kind>-<uuid>-<hierarchy>`; for `box-task-7f3a9c-1.3` the uuid names its tower, the kind word
-swapped to `feature` with the hierarchy cut at the last dot names the feature gate whose `branch` the work
-lands on, and the kind word swapped to `epic` with hierarchy `0` names the epic gate whose `branch` is the
-**`prTarget`** — `main` when the owner is the epic gate itself. Which tier a gate is is the kind word of its
-own id, `epic` or `feature` — nothing is read from the database to work it out. A stored copy of either is a
-fact that can disagree with the gate that decides it, which is why neither is a key.
-
-**There is no `parent` key, no `parent-child` edge, and no `--parent` at create time.** Parenthood is what
-made a gate unenforceable: beads refuses a `blocks` edge from an ancestor to its own descendant. With nothing
-to walk, the id is the only thing pointing at a gate — so every ticket of a tower is created with an explicit
-`--id`, and a flat one reaches no gate: the loop refuses it, `ERROR reason=no-epic-gate ticket=<id>`, and
-leaves it claimed on purpose. Every id comes out of `CLI/src/create-beads/create-gate.sh` or
-`CLI/src/create-beads/create-task.sh` — both in the **factory checkout**, not in the tower a plan agent stands in
-— and never from an eye. A gate is a **custom type** and must be registered
-(`bd config set types.custom \"gate\"`), as is the parking status
-(`bd config set status.custom \"failed-agent:frozen\"`): `bd` does not reject an unregistered type or status, it
-**accepts it silently and then refuses it**, so a broken gate and a working one look identical. Check
-`bd types` before you trust one.
-"""
     link https://github.com/Londelo/spider-factory/blob/main/.claude/skills/bead-initialize/SKILL.md "Source — the bead-initialize skill"
   }
 
   forge = forge "origin — GitHub or GitLab" {
     summary "The remote the tower publishes to: one pull request per branch."
-    description """
-**What it is:** the forge the tower publishes to. `main` at the bottom, one PR per branch above it:
-`feature/<slug>` → PR → the epic branch, `epic/<slug>` → PR → `main`.
-
-**Which forge it is, is settled three ways, in this order** (`detectForge` in `CLI/utils/forge.sh`, used by both the
-loop and the Stop hook): an honest host name in the remote URL (`*gitlab*`, `*github*`); then the refs that host
-actually publishes, because only GitHub serves `refs/pull/` and only GitLab serves
-`refs/merge-requests|pipelines|environments/`; then a machine holding **exactly one** of `gh`/`glab`.
-Where all three are ambiguous the hook refuses to guess and logs `forge-unknown` — a wrong guess pushes
-a branch to the wrong forge.
-"""
     link https://github.com/Londelo/spider-factory/blob/main/CLI/utils/forge.sh "Source — CLI/utils/forge.sh"
   }
 
@@ -785,194 +168,28 @@ a branch to the wrong forge.
 
     bdCmds = noteDoc "bd — the only reads and writes the tower answers to" {
       summary "The ticket commands the tower answers to, and why each one is that one."
-      description """
-| Command | Why this one |
-|---|---|
-| `bd ready --claim --json` | the **only** sanctioned claim: atomic assignee + `in_progress` + 5-minute lease |
-| `bd ready --json` (peek) | two callers, both read-only: once inside the loop's `waiting()`, purely to name `next=`, and once by `sf tower`, which keeps the whole id list so it can draw an open ticket the frontier has taken as `◆` |
-| `bd export --json` | every row of the database at once, every status included — the whole of what `sf tower` reads, and of nothing else. The loop never runs it: a tick reads only what is ready |
-| `bd unclaim <id>` | put a claim back — the two places `releaseClaim` is called, listed on the claim node |
-| `bd heartbeat <id>` | the worker keeps its lease alive; it never closes its own ticket |
-| `bd list --status in_progress --limit 50 --json \| jq length` | a **count**, taken only once the capacity test has already said the run is full: `0` makes the waiting line `max_parallel_stalled`, anything else makes it `max_parallel in_progress=N`. It is never a listing, and nothing walks it — the loop runs no busy-branch check |
-| `bd list --status open,blocked --limit 0 --json` | the probe that tells `frontier_empty` from `tower_stalled` |
-| `bd show --json <id>` | read one ticket back — its status, its title (`--long`, the commit message), its `issue_type` (is this row a gate?), and a gate's `branch` |
-| `bd update <id> --set-metadata k=v` | **merges** — which is why writing `pr` never disturbs the plan's `branch` |
-| `bd update <id> --status <s> --if-status <from>` | **the gate claim**, and the only conditional write in the system: `moveGateTo <gate> in_progress open` is the take, `moveGateTo <gate> open in_progress` is the put-back, and a non-zero exit (the gate was no longer in `<from>`) is the `gate-claim-lost` alarm. A gate never reaches `bd ready`, so this is the only way it moves |
-| `bd close <id> --session <id> --reason …` | only the Stop hook, only once this session's dispatch is on the `claims` line — a task or a gate, never by the worker itself |
-| `bd list --include-gates --ready --type gate --limit 0 --json` | the ready gates, `.id` alone — the only listing that shows a gate at all, and the input to `dispatchReadyGates`. The tier is not on the row; `gateTierOf` reads it off the id's kind word |
-| `CLI/src/create-beads/create-gate.sh <repo> [<epicGateId>]` then `bd create -t gate --id <what it printed> --metadata '{"branch":…}'` | a plan agent mints a gate id and nothing else: no gate id is ever typed. With an epic gate id in hand it numbers the next feature, with none it mints the epic and its one uuid |
-| `CLI/src/create-beads/create-task.sh <repo> <gateId> [suite\|review]` then `bd create -t task -l <label> --id <what it printed>` | a plan agent mints a task id and nothing else: a gate carries **zero** labels and the `branch` key alone, a task exactly one dispatching label and **no metadata at all**. `.1` and `.2` are fixed to a gate's suite and review, and asking for a second one refuses; above `.2` it takes
-the highest of that gate's existing task ids and adds one — counted off the database, not off the graph, so a
-ticket whose edge was never written still holds its number. Every ticket of a tower carries an explicit `--id` — a flat one reaches no gate. There is **no `--parent`** anywhere in a tower. Both scripts live in the **factory checkout**, which is one of a plan agent's working directories — they are not inside the tower it stands in, and its cwd stays there, because cwd is what decides which beads database `bd` reads and therefore which tower gets counted |
-| `bd dep add <blocked> <blocker> --type blocks` | the **one edge type in a tower**, read "blocker blocks blocked"; what a tier *is* = the tickets that block its gate |
-| `bd where` | which DB a directory resolves — `bd` walks **up** and ignores `BEADS_DIR` |
-
-A gate is a **custom type** and must be registered (`bd config set types.custom \"gate\"`): `bd` does not reject
-an unregistered type, it **accepts and hides it**, so a broken gate and a working one look identical. Check
-`bd types` before you trust one.
-"""
     }
 
     claudeCli = cliTool "$SF_AGENT_COMMAND (claude) — the command every agent runs through" {
       summary "The command every agent runs through; the launch form off it is what CLI/utils/spawn.sh spawns with, and it proves every one of those spawns."
-      description """
-`SF_AGENT_COMMAND`, default `claude` — the one command every agent in the system runs through, so
-pointing it at your own build moves all of them. `loadSpiderFactoryEnv` composes a second name off it,
-`SF_AGENT_LAUNCH_COMMAND` = `$SF_AGENT_COMMAND --add-dir <factory root>`, and **which of the two a call uses is
-not interchangeable**: every call that has to *resolve an `--agent`* takes the launch form, and every other call
-stays on the plain name. And there is exactly one file that runs the launch form — **`CLI/utils/spawn.sh`**, which
-is why that rule cannot be broken by accident: `spawnBackgroundAgent` is the `--bg` pair below, `runForegroundAgent`
-is the two foreground ones, neither of them starts a session until `requireAgentDefinition` has read the agent file,
-and no call site anywhere composes the command itself.
-
-- `$SF_AGENT_LAUNCH_COMMAND --bg --agent <agent> --permission-mode bypassPermissions \"<the brief>\"` —
-  the worker spawn, run with `cd` **inside** the branch's worktree, and deliberately **no `-w`** —
-  `claude --worktree` only ever *creates* one, and this branch already owns its own. The lead agent's gate spawn
-  is the same call with `--agent lead`, and the brief is the same `buildWorkerPrompt` with one branch of one
-  variable: `$stayOnBranchRule` is rule 4, chosen by `[[ "$agentName" == "$leadAgentName" ]]`, and the lead variant
-  is the only text that names the target or says `sf commit` outright. Nothing else is added, so a gate session is
-  handed nothing a worker is not. **This is the only spawn in the whole CLI that carries `--permission-mode`:**
-  both forms below run without it, so the asymmetry is the file's — a session `--bg`'d by `spawnBackgroundAgent`
-  never stops to ask, a foreground one can. What that brief actually says is on the workers layer.
-- `$SF_AGENT_LAUNCH_COMMAND --agent <planner> \"<prompt>\"` — the three plan agents, foreground, through
-  `runForegroundAgent` from `CLI/src/plan-agent.sh`, which is what `sf plan:epic`, `sf plan:feature` and
-  `sf plan:task` run.
-- `$SF_AGENT_LAUNCH_COMMAND --agent overseer --disallowedTools 'Bash(sf:*)' \"<launch brief> <your prompt>\"` — the
-  reader, foreground, through `runForegroundAgent` from `CLI/src/overseer-agent.sh`. The engine prepends a
-  one-sentence brief naming the run
-  logs' directory and the command that lists background sessions, both interpolated off the engine's own
-  `SF_LOG_ROOT` and `SF_AGENT_COMMAND`, and tells the watcher to take those two from the brief and never off its own
-  environment. It is the only spawn that hands a session a fact this way; the worker's facts ride in its prompt and
-  the dispatch record.
-- `$SF_AGENT_COMMAND agents --json` — the capacity count, recounted fresh every tick: background
-  sessions reporting `status: busy` whose `cwd` starts with `<tower>/.claude/worktrees` or equals the tower.
-  All three tests are load-bearing. A finished `--bg` session is never removed from this listing — it stays
-  `kind: background` and only its status drops to `idle` — so without the status test a worker that finished
-  would hold a slot for the rest of the run. Nothing here ever stops a session: a finished worker is left
-  running on purpose, so it stays readable in the agent listing.
-- bare `sf` — `exec ${SF_AGENT_COMMAND:-claude}`, no `--add-dir`: that session `cd`s to the factory root itself,
-  so the agents and skills are already under its project root.
-
-**Why the launch form adds a directory.** A worker's cwd is a git worktree, and the planners and the overseer run
-inside a tower project — so in every one of those sessions the project root is the tower, never the factory, and
-Claude Code discovers `.claude/agents/` and `.claude/skills/` only from a session's own project roots. Without the
-added directory `--agent <name>` resolves to nothing and no skill loads — and the launcher does not say so: the
-launch succeeds, the session comes up, and it comes up as the **default template**. What catches it is the proof
-below (`agent-not-loaded` for a worker or a gate, and nothing at all for a foreground engine, which is why the
-file check runs before the exec and not after). `--add-dir` makes `spider-factory/` a **second project
-root for discovery only** — it is **not a sandbox and not a permission grant**; it changes nothing about where the
-session works or what it may touch. The root is derived from `CLI/utils/user-env.sh`'s own location, so it always
-names the checkout the code is actually running from.
-
-**How a spawn is proved to have become the agent it named.** Two reads, both in `CLI/utils/spawn.sh`, both on the
-plain name, and both needed. `agentSessionState` asks `${SF_AGENT_COMMAND:-claude} agents --json --all` for the
-session's `state`; `agentSessionNamesAgent` asks `logs <session>` for its header, strips the ANSI, and requires a
-token exactly equal to `@<agent>`. Neither alone is enough. **The state lies on its own:** a session spawned with a
-name that resolves to nothing comes up `working` and only dies seconds later, so `working` is provisional until it
-has held — `checkBackgroundAgentLoaded` polls once a second for 30s and accepts only a session still alive past a
-5s settle *and* naming the agent in its header. **The header is the only thing that says which agent the session
-actually became**, because nothing in `agents --json` carries the agent at all. A session already `failed` or
-`stopped` fails at once, and an empty session id fails at once. The function never dies: the caller already holds a
-claimed ticket, and it must be handed back before anything ends.
-
-**What the launcher's own words are worth: nothing.** `claude` prints a "no agent named X, starting with the
-default template" warning whenever its cwd is not the factory root, because the launcher resolves `--agent` against
-`$PWD` alone while the session resolves it against the added factory root too — so the warning rides along on
-perfectly good spawns, and a name with no file behind it prints the same words. Its exit status is `0` either way.
-Read neither: existence is the agent file before the spawn, and the state plus the header after it.
-
-`SF_AGENT_COMMAND` is split on spaces, so it may carry its own arguments, and its first word is what the PATH checks
-look for. **Every place the plain name survives is a read, never a spawn:** `beads.sh`'s `agents --json` and
-`spawn.sh`'s `agents --json --all` and `logs <session>` (the `--add-dir` flag is variadic and would swallow the
-`agents` / `logs` positional as a second directory), the loop's startup `requireToolsOnPath`, the
-`requireAgentCommand` each of the two foreground engines runs before it execs, and bare `sf`'s own `exec`.
-
-Workers run `bypassPermissions` unattended, so this loop only ever belongs in a repo you fully trust.
-"""
     }
 
     gitCli = cliTool "git — worktrees, fetch, push" {
       summary "The git the loop runs: is a branch checked out, make its folder, fetch, push."
-      description """
-The loop owns the folders, because a worktree belongs to a **branch**, not to a ticket.
-
-- `branchAlreadyCheckedOut`: parse `git worktree list --porcelain` for `refs/heads/<branch>` — a branch
-  already checked out somewhere is reused, never re-added.
-- `ensureWorktree <branch> <prTarget>` → `git worktree add -B <branch> <path> <start>`, under
-  `<tower>/.claude/worktrees/`, where the folder name is the branch name with `/` → `+`
-  (`feature/add-record` → `feature+add-record`).
-- `<start>` is the **first** of `origin/<branch>`, `origin/<prTarget>`, `<prTarget>`, `HEAD` that resolves —
-  a feature branch starts where it is going to land.
-- `git -C <tower> fetch --quiet origin` before each lookup, and the loop's one push. When the branch does not
-  exist on the remote yet, or sits exactly on its target, `ensureBranchAheadOfTarget` first writes it a commit of
-  its own — `git -C <tower> commit-tree <target>^{tree} -p <target> -m \"chore: open <branch>\"` — then runs
-  `git -C <tower> push --quiet origin <seedSha>:refs/heads/<branch>`, publishing an epic branch that has none.
-  The tower's own working tree is never touched and its HEAD never moves.
-- **Nothing else here commits.** `git add -A`, `git commit -m \"agent:branch:message\"` and
-  `git push -u origin <branch>` all live inside `sf commit` (`CLI/src/commit.sh`) — the only way anything
-  commits in this repo. The agent is the one the loop dispatched onto **this folder**: `commit.sh` loads the
-  environment only to find the log root, then reads the `agent=` key of that folder's dispatch context file,
-  `<log root>/worker-context/<worktree folder name>` — so the name is a fact about the folder, not about the shell
-  that typed the command, and no dispatch record means `manual`, a person standing in a terminal. The branch is
-  `git symbolic-ref --short HEAD`, and a detached HEAD is refused because a branch it cannot name is a
-  subject it cannot write.
-"""
     }
 
     forgeCli = cliTool "gh / glab" {
       summary "gh or glab, whichever the remote settled on: find the branch's pull request, open one if none."
-      description """
-Whichever `detectForge` settled on. Both are used the same way: list the PR already on this branch pair,
-and create one only when there is none. Only a URL matching `/(pull|merge_requests)/[0-9]+` counts as a
-pull request — an error message quoting a docs URL is not one.
-"""
     }
 
     worktree = branchBox "the branch's folder — .claude/worktrees/<branch with / → +>" {
       summary "One folder per branch, where every ticket of that feature works in turn."
-      description """
-One folder per **branch**, not per ticket, which is why the loop owns it: `feature/add-record` lives at
-`.claude/worktrees/feature+add-record`, and every ticket of that feature works in the same folder, one after
-the other, each one's commit landing on the last.
-
-```
-git worktree list --porcelain          is this branch checked out somewhere already? reuse it
-git worktree add -B <branch> <path> <start>
-<start> = origin/<branch> | origin/<prTarget> | <prTarget> | HEAD   — the first that resolves
-git -C <tower> fetch --quiet origin    before each lookup
-```
-
-A feature branch starts where it is going to land. The worker is spawned with its cwd **inside** this folder,
-and it lands its own finished pieces here as it goes — `sf commit`, one commit per piece (the rule is on the
-workers layer) — never a bare `git commit` or `git push`, never a branch of its own, so two hands never write
-one branch. The tower root (where `.beads` lives) is never inherited from this folder either: it reaches the worker
-as a literal path in its prompt and sits in the dispatch record as `tower=`. **The worktree is not the tower.**
-"""
     }
 
   }  // toolbelt
 
   human = human "Human (Brodie)" {
     summary "Closes the gates and nothing else — until a tier's flag hands that gate to the lead agent."
-    description """
-**What it is:** the one who closes a **gate**, unless that tier's switch says otherwise. A *task* is closed by
-the Stop hook, when its worker's session ends — the human never reaches for a task, and a worker that
-closes its own ticket is a bug, because the hook walks past an already-closed ticket and lands nothing. The
-human reads the worker's report — which is the comment the worker left on its own ticket, since the final message
-it was typed into died with that worker's session — verifies the branch and the PR, and closes the gate above it.
-There is **no `human` agent** — the person enters through gates, and nothing is ever spawned for them. A claimable ticket
-assigned to a human is a model bug.
-
-Both gates are the human's by default: `SF_AGENT_FEATURE_GATES=0` and `SF_AGENT_EPIC_GATES=0`, and a gate stays
-open until someone verifies it. Setting a tier's flag to `1` hands *that* tier to the **lead agent**, which the
-loop spawns for a ready gate and whose Stop hook closes it — the other tier is still the human's, which is why
-there are two switches and not one. The two are not the same amount of trust: a feature gate merges one flow
-into the epic branch, the epic gate merges the whole thing into `main`.
-
-`bd ready` never shows a gate, so a tower **stalls** at an open one until it is verified — by a person, or by
-the lead agent proving the tier out loud. That is the design, not a bug — it is the only place a claim loop
-cannot fake understanding.
-"""
   }
 
   // ═════════════════════════════════════════════════════════════════════════════
@@ -981,193 +198,143 @@ cannot fake understanding.
 
   workers = layer "The workers" {
     summary "The seven workers: six are reached by a label, the seventh — the lead — only by a gate."
-    description """
-**Every worker reports on its own ticket before it stops.** All seven agent files carry the same section, `## Report
-On The Ticket`, word for word identical across the seven: before it stops, the worker puts its **result** on its own
-ticket through the `bead-comment` skill — what it did, and when the brief outran it, exactly what is left. The
-section owns only the fact that it happens; what belongs on a ticket and how a comment reads is the skill's, and the
-section deliberately restates none of those rules. This is why the section exists: the final message dies with the
-session, so the ticket — with the branch and its pull request — is what the next reader actually has. The ticket is a
-third surface beside the final message and the pull request, and the only one of the three that carries the worker's
-own account of the whole brief. Six of the seven preload `bead-read` and `bead-comment` in their `skills:`
-frontmatter; `review` preloads nothing and loads both at its Step 1, and it is the one worker with **two** comment
-surfaces — its own ticket, and the pull request its findings go on.
-
-**The contract is in the agent file.** Every worker but the lead carries a `## The contract` section, and each of
-those six runs **four** bullets, all of them beside the standing instruction to keep the five-minute lease alive
-with `bd heartbeat <ticket>` between long steps: never close your own ticket (the Stop hook
-closes it when your turn ends, and a ticket already closed makes the hook walk past it, landing nothing); **report
-on your own ticket**, one line pointing at the `## Report On The Ticket` section below it, because that section is
-what the next reader gets of the work; spawn nothing; and **finish the work before you stop** — stopping is what
-finishes the ticket, so stop only when you would hand the brief to a human as it stands. The comment duty is a named
-section, not a bullet: the bullet only points at it, and the section itself restates none of the skill's rules.
-There is no declaration of completion to make and nothing to touch at the end: the session ending *is* the
-hand-off, which is why the contract spends its last bullet on when it is honest to stop rather than on how to
-signal that you are done.
-**Six of the seven say spawn nothing** — `engineer`, `frontend` and the three testers each carry that bullet
-verbatim, and the lead carries it as hard rule 6. **`review` is the one
-exception**: its own contract says *spawn fixers, once each, one at a time, and file no tickets*, and it is
-the only agent file in the tower whose `tools:` line carries `Agent`. The round is on its node. The `lead`
-agent states the same rules inside its own steps and hard rules rather than in a section of that name — `bd
-heartbeat <gate>`, never `bd close` not even its own, spawn nothing, and never invent a branch, a target, a test
-command, or a ticket; it carries the report section too, with no bullet pointing at it, having no contract section
-to hold one. No skill holds these rules, and the agent file is the **only** place most of them are written at all — the brief the loop
-sends is not a copy of this contract.
-
-**What the loop's brief actually sends.** `buildWorkerPrompt` (`CLI/src/beads-loop/worker.sh`) builds the one
-argument the spawn passes after the flags, and it is short: the ticket id, a `FIRST:` line ordering the worker to
-read `bd show --json <ticket>` in full as its complete brief, one paragraph saying this folder is the worktree of
-a branch shared by every task of the feature so earlier commits may already be sitting there, and then exactly
-**four** numbered rules, running **1, 2, 3, 4** with no gaps. Every fact in it is a **literal** interpolated into
-that one `printf` — the ticket id, the branch, the tower's path, and for the lead agent its `prTarget` — because the
-spawn hands the session no environment to read any of them off. A worker's brief never names the pull request's
-target: `prTarget` is interpolated only into the lead variant of rule 4. The four are: ground every beads command before you run it; keep
-the five-minute lease alive with `bd heartbeat <ticket>`; never run `bd close`,
-because the Stop hook closes the ticket when your turn ends and closing it by hand makes the hook walk past it —
-that same rule 3 is where the brief says *finish the work before you stop*, because stopping is what finishes the
-ticket;
-and stay on `${branch}`, in this folder — never create a branch, never check one out, never merge, never rebase,
-never a bare `git commit` or `git push`, and commit as your agent file tells you as you go, because whatever is
-still uncommitted when you stop becomes one last commit on the branch carrying your ticket's title.
-**Rule 1 is the one that guards the database**, and it is there because `bd` finds its database by walking **up**
-from wherever the session happens to be standing: the rule names the tower's path **as a literal** — the same path
-the dispatch record carries under `tower=` — and orders the worker to run `bd where` and make it name that database.
-When it names another one, the remedy the rule gives is `-C '<tower>'` on every beads command from then on, said out
-loud in the report; **never** `cd` into a tower that is not its own. One stray `cd` and the
-worker is reading somebody else's tower, claiming and closing tickets in a tower it was never dispatched into.
-Rule 4 is the only part that differs by agent — for the
-**lead** it says this ticket is a GATE, that you verify the tier it stands for and then merge this branch's own
-pull request into its target with the forge's own command (`gh pr merge` / `glab mr merge`) and never a local
-`git merge` into the target — built as `$stayOnBranchRule` and interpolated into the one `printf`, which is
-closed and parses. What the brief still never says: the report-on-the-ticket section — no line of it orders the
-worker to comment its result on its ticket — and any ban on spawning; so the
-prompt is no safety net for either of them, and both live only in the worker's own agent file.
-
-**The same file holds the hook registration.** Each of these seven agent files carries a `hooks:` block in its own
-YAML frontmatter binding `Stop` → `sf hook stop` (timeout 300) — that block, and nothing
-else, is what makes a worker's session ending finish the work. It is the only event any of them binds: there is no
-`StopFailure` event to bind, and nothing runs when a session dies on an error — see the run log's own node for
-what a dead worker leaves behind, which is nothing in any file.
-The overseer and the three plan agents carry no `hooks:` block at all,
-so their sessions fire no hook; the mechanism is on the Stop hook's node.
-
-**The five that build, commit as they go.** `engineer`, `frontend`, `tester-unit`, `tester-feature` and
-`tester-e2e` each carry a `## Commit As You Go` section running a bare `sf commit <what you just did>` after every
-major change that stands on its own — one commit per piece, so the pull request shows the work as it happens
-instead of one blob at the end. **Nothing prefixes that command with an agent name**, and no agent file does: the
-name in the `agent:branch:message` subject is read off the dispatch record for the folder the commit stands in, not
-out of the shell that typed it — which is exactly why the command is bare. `lead` and `review` have no such section: `review` commits
-nothing at all — its fixes reach the branch only through its fixers' own `sf commit`, never its own — and the
-lead commits only what it had to resolve where the target moved under the branch.
-"""
     engineer = worker "engineer" {
       summary "Business logic, endpoints, hooks, types, error factories; never tests, JSX or CSS."
       description """
-**Label `backend-logic` → `engineer`.** Business logic, endpoints, hooks, types, error factories.
-Never writes tests, JSX or CSS. Preloaded skills: `bead-read`, `bead-comment` and the four standards; the worker
-contract, and the `## Report On The Ticket` section that files its result on the ticket, both live in the agent file
-itself.
+**Label `backend-logic` → `engineer`.** Head of every feature's linked line: its commit is what the micro tests and
+then the UI are built against.
+
+**Job, from `.claude/agents/engineer.md`:** "Writes clean, maintainable business logic, backend endpoints, React
+hooks, type guards, error factories, and pipelines. Follows the FP+imperative paradigm and project coding standards.
+Never writes tests, JSX, or CSS."
+
+**Skills it preloads:** `bead-read`, `bead-comment`, `standards-coding`, `standards-errors`,
+`standards-file-organization`, `standards-naming`. **Tools:** `Read, Write, Edit, Bash, Grep, Glob`.
+Contract, report section and `## Commit As You Go` are in that same file — see the workers layer.
 """
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/engineer.md "Source — .claude/agents/engineer.md"
     }
     testerUnit = worker "tester-unit" {
       summary "Micro tier: one back-end function alone — every branch, boundary and error it throws."
       description """
-**Label `unit-tests` → `tester-unit` — the micro tier.** One back-end function alone; every branch, every
-boundary, empty/null, every error it throws. Never a component: the UI is proved by the composition tier.
-Waits on the back-end ticket it tests. Skill: `framework-jest`.
+**Label `unit-tests` → `tester-unit` — the micro tier.** Second in the linked line, behind the back-end ticket it
+tests.
+
+**Job, from `.claude/agents/tester-unit.md`:** "The micro tier of the test system: tests one BACK-END function at a
+time, alone, and inside that function it is exhaustive — every branch, every boundary, every error it can throw,
+every edge case. Owns the input matrix and nothing above it. Back-end only: it never touches components — the UI is
+proved by the feature tier." Framework-agnostic by design: it decides **what** to cover, the loaded framework skill
+supplies the **how**. Never writes wiring, composition, browser or journey tests, and never writes production code.
+
+**Skills it preloads:** the six the engineer carries, plus `framework-jest`. **Tools:** `Read, Write, Edit, Bash,
+Grep, Glob`.
 """
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/tester-unit.md "Source — .claude/agents/tester-unit.md"
     }
     frontend = worker "frontend" {
       summary "Components, layout and styling, last in the line against functions already proved."
       description """
-**Label `frontend-ui` → `frontend`.** Components, layout, styling, the shared component system. Last in the
-line, built against functions already proved. Its landing is what unblocks `feature-test`.
+**Label `frontend-ui` → `frontend`.** Last of the three in the linked line, built against functions already proved;
+its landing is what unblocks the feature's composition test.
+
+**Job, from `.claude/agents/frontend.md`:** "Builds UI components, layouts, and styling. Manages the shared component
+system and design tokens. Never writes business logic, API endpoints, or tests."
+
+**Skills it preloads:** `bead-read`, `bead-comment`, `standards-coding`, `standards-errors`,
+`standards-file-organization`, `standards-naming`. **Tools:** `Read, Write, Edit, Bash, Grep, Glob`.
 """
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/frontend.md "Source — .claude/agents/frontend.md"
     }
     testerFeature = worker "tester-feature" {
       summary "Composition tier: one feature's pieces proved wired, its errors and successes surfacing."
       description """
-**Label `feature-test` → `tester-feature` — the composition tier.** One feature's pieces proved wired; its
-errors and successes surface. Never re-runs the micro tier's edge matrix, never walks cross-feature journeys.
-Skill: `framework-playwright`.
+**Label `feature-test` → `tester-feature` — the composition tier.** Always `.1` of its feature: the first thing the
+lead agent counts when it proves the tier.
+
+**Job, from `.claude/agents/tester-feature.md`:** "The middle tier of the test system: proves one feature's pieces
+are actually wired together — the small unit-tested functions and components composed correctly, and every error and
+success the feature encapsulates actually surfaces. Deliberately NOT exhaustive: it never re-runs the unit tier's
+edge-case matrix, and never walks cross-feature journeys (tester-e2e owns those)." Reads its ticket plus what blocks
+it and the gate it blocks, and works that alone; never writes production code.
+
+**Skills it preloads:** the six the engineer carries, plus `framework-playwright`. **Tools:** `Read, Write, Edit,
+Bash, Grep, Glob`.
 """
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/tester-feature.md "Source — .claude/agents/tester-feature.md"
     }
     testerE2e = worker "tester-e2e" {
       summary "Broad tier: whole user journeys across features in a real browser on the real stack."
       description """
-**Label `epic-e2e-test` → `tester-e2e` — the broad tier.** Journeys across features on the real stack:
-cross-feature state handoffs, session continuity, one success and one failure journey per feature. The least
-verbose tier. Skill: `framework-playwright`.
+**Label `epic-e2e-test` → `tester-e2e` — the broad tier.** Always the epic's `.1`: it runs only after every feature
+gate is closed, so it is testing a finished thing.
+
+**Job, from `.claude/agents/tester-e2e.md`:** "The broad tier of the test system: writes end-to-end tests that walk
+whole user journeys across features in a real browser against the real stack, proving the features play nicely
+together — cross-feature state handoffs, session continuity, and each feature's success and failure surfacing to the
+user. The least verbose tier of the three: one journey per user-visible outcome, never re-testing the unit tier's
+edge cases or the feature tier's wiring." Reads its ticket plus the epic gate, the feature gates and their tiers
+where they apply; never writes production code.
+
+**Skills it preloads:** the six the engineer carries, plus `framework-playwright`. **Tools:** `Read, Write, Edit,
+Bash, Grep, Glob`.
 """
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/tester-e2e.md "Source — .claude/agents/tester-e2e.md"
     }
     reviewAgent = worker "review" {
       summary "Three questions as PR comments, then every finding handed one at a time to the agent that owns its fix."
       description """
-**Labels `feature-review` and `epic-review` → `review`.** Three questions from first principles: does the code
-do what its source of truth demands, do the tests prove it, is it simple and readable. Maps the system the
-change sits in (entry → exit, following imports), instruments it with trace logs, runs the tests against the
-instrumented code, posts **each finding as its own PR comment**, pinned to the line it belongs to and complete
-enough to fix from, then one summary comment with the whole picture. Files no tickets, **creates no files at
-all** — not a findings file, not a report, not notes, nothing new ever appears in that worktree — and commits or
-pushes nothing: its **findings** live on the pull request and in its final message and nowhere else — never on its
-own ticket, which is a different surface and carries something else, its result, the way every other worker's does.
-The only writes it makes are the trace logs of Step 4, into files that already exist, sitting in its own working tree;
-`sf commit` runs `git add -A`, so anything left there rides onto the branch it is judging, which is why it
-**strips them back out before it stops** and checks with `git status` that the tree holds nothing at all.
-Nothing is preloaded — `bead-read` and `bead-comment` together at Step 1, the four standards at Step 6, and
-`pr-comments` at Step 7 all load on demand at the step that uses them. Step 1 loads `bead-comment` for exactly one reason, and says so: it is how review writes on **its
-own** ticket, which is not the surface its findings go on.
+**Labels `feature-review` and `epic-review` → `review`.** Always `.2` of its feature, and the epic's `.2`.
 
-**Its branch is the folder it stands on; its base is read through `bd`.** The loop checked the branch out and put
-the session inside it, so `git branch --show-current` is the whole answer and the only thing it trusts — never
-anything its own shell carries about a dispatch: `claude --bg` runs it through the shared daemon that froze the
-environment at the run's first spawn, so whatever is in there can be another worker's branch entirely. It never reviews a branch against itself: it diffs against the **epic gate's** `branch` metadata, read
-off `<repo>-epic-<uuid>-0` with `bd show --json`, and against `main` when its own hierarchy starts at `0`.
-**An empty `git diff --stat` is a finding, never a pass** — either the base resolved wrong or the branch holds
-nothing; it says which, and stops rather than reviewing an empty diff.
+**Job, from `.claude/agents/review.md`:** reads its ticket and the tickets around it, reads the diff, maps the whole
+system the change touches, instruments it with trace logs, runs the tests against the instrumented code, then
+answers three questions from first principles — **does the code do what its source of truth demands, do the tests
+actually prove it, is it simple and readable** — posts every finding as its own PR comment, hands each finding once
+to the one agent that owns that kind of fix, and stops there.
 
-**Step 8 — one round of fixers, then it stops looking.** Once the findings are posted and the instrumentation
-stripped, review spawns **one fixer per finding, one at a time, in sequence, one round only**: it spawns the
-first, waits for it to report, then spawns the next, and never puts two of them on the branch together — they
-share one working tree and one branch, and two fixers editing the same files step on each other's commits. It
-routes by **what the fix has to touch** — never by how severe the finding is nor by which of the three questions
-raised it: `engineer` for logic, data, a hook, an endpoint, an error path or a standard violated in non-UI code;
-`frontend` for a component, JSX, layout, styling, or anything the user sees; and for behaviour the tests could
-not have failed on, the test tier matched to the **depth of the gap** — unit for one back-end function alone,
-feature for one feature's pieces wired, e2e for a journey across features — going one tier down when the depth
-is unclear. A finding needing both a change and its proof is **two spawns**, because a fixer never writes what
-another tier owns; they still go one after the other. These are nested sessions inside review's own — it is the
-only agent file in the tower whose `tools:` line carries `Agent` — and each arrives knowing nothing, so **the
-finding's own PR comment is the whole brief**: review pastes that comment body verbatim into the prompt and adds
-nothing it does not already say, putting alongside it only the url of the comment it came from, the branch it is
-standing on, and the name of the review ticket, for context. A comment that is not enough to fix from was never
-a finished finding: the missing detail goes back onto the pull request before the spawn.
+**Tools:** `Read, Write, Edit, Grep, Glob, Bash, Skill, Agent` — the only agent file in the tower with `Agent`.
+**No `skills:` key at all**: everything loads on demand at the step that uses it — `bead-read` + `bead-comment` at
+Step 1, the four `standards-*` at Step 6, `pr-comments` at Step 7.
 
-**Every prompt ends with the same three constraints:** fix this finding and nothing beside it; commit it
-yourself with `sf commit`; and touch no ticket — no `bd close`, no `bd create`, no comment on anything. A fixer
-has no ticket of its own, so the `## Report On The Ticket` section its own agent file carries **stays shut** —
-the fix it commits is its report, and the hook finds no `reason=dispatched` line for a session the loop never
-spawned, so it closes nothing. **They
-commit; review commits nothing.** A fixer's `sf commit` is what lands a fix on the branch; review never runs
-`git add`, `git commit`, or `git push`, and never fixes what a fixer left broken. Each fixer is a session of its
-own, and each one's own `Stop` event is what finishes it — review's turn ends only when review itself stops, so a
-fixer reporting back can never close the review ticket out from under it. Then review re-runs no step, reads no
-fixer's diff, and spawns no second round.
+| Surface | What goes there |
+|---|---|
+| The pull request | **every finding, one comment each**, pinned to the line it belongs to and complete enough to fix from, plus one summary comment with the whole picture |
+| Its own ticket | its **result**, through `bead-comment` — a different surface from the findings, exactly as every other worker's |
+| Its final message | dies with the session; nothing depends on it |
 
-**Then it closes out its own threads.** Once the last fixer has reported, review takes each finding back to the
-thread it posted it in and resolves it — the ones whose fix landed, and only those. The resolve calls live in
-this agent's own file, not in `pr-comments`, which is posting-only and owns no resolve verb: GitHub resolves a
-**thread**, so it reads the thread ids off `gh api graphql … reviewThreads` first and only then fires
-`resolveReviewThread`; GitLab resolves a **discussion** by its id with
+**It writes nothing that lands.** Files no tickets, **creates no files at all**, runs no `git add` / `git commit` /
+`git push`. Its only writes are Step 4's trace logs, into files that already exist — and because `sf commit` runs
+`git add -A`, anything left there would ride onto the branch it is judging, so it **strips them back out and proves
+it with `git status`** before stopping.
+
+**Base and branch.** Branch = `git branch --show-current`, the only thing it trusts — never its own environment,
+which the shared daemon froze at the run's first spawn and which can name another worker's branch. Base = the **epic
+gate's** `branch` metadata, read off `<repo>-epic-<uuid>-0` with `bd show --json`; `main` when its own hierarchy
+starts at `0`. **An empty `git diff --stat` is a finding, never a pass** — either the base resolved wrong or the
+branch holds nothing; it says which and stops.
+
+**Step 8 — one round of fixers, then it stops looking.** One fixer per finding, **one at a time**, spawn → wait for
+its report → spawn the next; never two on the branch together, because they share one worktree and step on each
+other's commits. Routing is by **what the fix has to touch**, never by severity nor by which question raised it:
+`engineer` for logic, data, a hook, an endpoint, an error path, or a standard broken in non-UI code · `frontend` for
+a component, JSX, layout, styling, anything the user sees · and for behaviour no test could have failed on, the test
+tier matched to the **depth of the gap** (unit = one back-end function alone, feature = one feature's pieces wired,
+e2e = a journey across features), one tier down when the depth is unclear. A finding needing both a change and its
+proof is **two spawns**, still in sequence — a fixer never writes what another tier owns. Each fixer arrives knowing
+nothing, so **the finding's own PR comment, pasted verbatim, is the whole brief**, beside only the comment's url, the
+branch, and the review ticket's name; a comment that is not enough to fix from was never a finished finding, and the
+missing detail goes back onto the PR before the spawn. **Every prompt ends with three constraints:** fix this finding
+and nothing beside it · commit it yourself with `sf commit` · touch no ticket. A fixer has no ticket, so its own
+`## Report On The Ticket` stays shut and the hook finds no `reason=dispatched` line for a session the loop never
+spawned — it closes nothing. Each fixer is its own session and its own `Stop` finishes it, so a fixer reporting back
+can never close the review ticket out from under review. Then review re-runs no step, reads no fixer's diff, fixes
+nothing a fixer left broken, and spawns no second round.
+
+**Then it resolves only its own threads** — and only the ones whose fix landed. `pr-comments` is posting-only and
+owns no resolve verb, so these calls live in this agent's own file: GitHub resolves a **thread**, so it reads thread
+ids off `gh api graphql … reviewThreads` then fires `resolveReviewThread`; GitLab resolves a **discussion** with
 `glab api --method PUT …/discussions/<id> -f resolved=true`. A finding whose fixer came back wrong, or came back
-saying it was not a defect, stays **open**: an open thread is the human's signal that this one still needs a
-person. It never resolves a comment it did not post, never approves, never merges — approve and merge are the
-human's, and are what the `lead` agent and the person closing a gate do, not this worker.
+saying it was not a defect, stays **open** — an open thread is the human's signal. Never approves, never merges:
+those are the person's, and the `lead` agent's.
 """
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/review.md "Source — .claude/agents/review.md"
     }
@@ -1175,38 +342,41 @@ human's, and are what the `lead` agent and the person closing a gate do, not thi
       summary "The one worker no label reaches: stands on a gate, proves the tier, merges the branch through the forge."
       description """
 **No label reaches this agent — a gate does.** `leadAgentName=\"lead\"` sits beside the `AGENT` map, not inside
-it: the loop spawns the lead only from `dispatchOneGate`, for a ready gate whose tier flag is on, with the
-identity `agent=lead label=gate:<tier>`. Everything below it has already been committed, pushed, reviewed and
-closed; its whole job is to find out whether any of that is a lie.
+it: the loop spawns the lead only from `dispatchOneGate`, for a ready gate whose tier flag is on, with the identity
+`agent=lead label=gate:<tier>` and the session name `lead:<gate>`. Everything below it is already committed, pushed,
+reviewed and closed; its whole job is to find out whether any of that is a lie.
 
-**A closed ticket is a claim, not a fact.** Its proof is never the ticket list — it is four checks, each read
-out with its numbers: every ticket that blocks the gate is closed; this tier's review actually reviewed and
-every finding is answered on the branch; the project's own test command exits `0` **with a count above zero**
-(the epic tier runs the end-to-end command too); the pull request's pipeline is green, where queued and skipped
-are not green. Any one of them failing means it says *this gate is not proved*, comments the gate naming what is
-missing, and stops there — the gate stays claimed and a human is told why.
+**Job, from `.claude/agents/lead.md`:** "Closes a gate. Runs on a feature gate or the epic gate and proves the tier
+it stands for — every ticket under the gate closed, the review run and its findings fixed on the branch, the
+project's own tests green, the pull request's pipeline green — then merges that branch's pull request into its
+target. Writes no code and no tests; it resolves conflicts only where the target moved under the branch. Never
+merges by hand, never pushes a merge of its own making into the target."
 
-**Its report goes on the gate, not only in its message.** Step 8 is one line per ticket in the tier, the test
-command with its count, each pipeline check, each review finding and how it was answered, and the merge with its
-result — and the `## Report On The Ticket` section the lead carries like every other worker makes it file that same
-report on its own gate through `bead-comment` before it stops, because its final message dies with its session and
-the gate is the only thing the person closing it will still be able to read. Preloaded skills: `bead-read` and
-`bead-comment`.
+**Skills it preloads:** `bead-read`, `bead-comment` — nothing else. **Tools:** `Read, Write, Edit, Grep, Glob, Bash`.
 
-**Merge, and only now** — `gh pr merge` / `glab mr merge` on that branch's PR into its **`prTarget`**, which
-Step 1 derived off the gate's own id: the epic gate's `branch`, or `main` when the gate is the epic gate. The
-forge does the merge: never a local `git merge` into the target, never a push to the target, never a rebase.
-Where the target moved under the branch it brings the target *into this branch*, with one
-command and no others: `git -c merge.conflictStyle=diff3 merge origin/<prTarget>`. The style is `merge` unless it is
-asked for, and a plain `git merge` then hands over two sides with no `|||||||` base section showing what the code
-looked like before either side touched it — which is the only legitimate way to choose between two sides. The setting
-is asked for **on the command line and never written into anyone's config**. A test file in that conflict is spliced,
-never chosen: union of the cases, both sides kept, and where both assert they are made to agree by fixing the code,
-never by silencing an assertion — a test weakened to end a conflict makes everything above the gate a lie.
-It
-commits the resolution with `sf commit` and pushes, so the PR carries it and the pipeline re-runs. Writes no
-code and no tests; never closes, reopens, unclaims or reclaims a ticket — `bd close` would end the hook before
-it ever ran.
+**A closed ticket is a claim, not a fact.** Proof is four checks, each read out with its numbers: every ticket that
+blocks the gate is closed · this tier's review actually reviewed and every finding is answered on the branch · the
+project's own test command exits `0` **with a count above zero** (the epic tier runs the end-to-end command too) ·
+the PR's pipeline is green, where queued and skipped are **not** green. Any one failing → it says *this gate is not
+proved*, comments the gate naming what is missing, and stops: the gate stays claimed and a human is told why.
+
+**Step 8 is the report, and it goes on the gate** — one line per ticket in the tier, the test command with its count,
+each pipeline check, each review finding and how it was answered, the merge with its result — filed through
+`bead-comment` before it stops, because the final message dies with the session and the gate is the only thing the
+person closing it can still read.
+
+**Merge, and only now** — `gh pr merge` / `glab mr merge` on that branch's PR into its **`prTarget`**, which Step 1
+derived off the gate's own id: the epic gate's `branch`, or `main` when the gate *is* the epic gate. The forge does
+the merge — never a local `git merge` into the target, never a push to the target, never a rebase. Where the target
+moved under the branch it brings the target *into this branch* with one command and no others:
+`git -c merge.conflictStyle=diff3 merge origin/<prTarget>`. A plain `git merge` hands over two sides with no
+`|||||||` base section showing what the code looked like before either side touched it, and that base is the only
+legitimate way to choose between two sides; the setting is asked for **on the command line, never written into
+anyone's config**. A test file in that conflict is **spliced, never chosen** — union of the cases, both sides kept,
+and where both assert they are made to agree by fixing the code, never by silencing an assertion: a test weakened to
+end a conflict makes everything above the gate a lie. The resolution goes through `sf commit` and a push, so the PR
+carries it and the pipeline re-runs. Never closes, reopens, unclaims or reclaims a ticket — `bd close` would end the
+hook before it ever ran.
 """
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/lead.md "Source — .claude/agents/lead.md"
     }
@@ -1214,88 +384,104 @@ it ever ran.
 
   planAgents = layer "The plan agents (outside the tower)" {
     summary "The judgments the machine never makes: what the epic is, what a feature is, the order in one."
-    description """
-The judgments the machine never makes belong here: **what the epic is** (one `epic/<slug>` of two or three
-lowercase words saying what the thing *is*); **what counts as a feature** (a complete user-facing flow, phased
-foundations → core → dependent → polish); **the order inside a feature's line** (the logic, then its tests,
-then the UI — never a fan); **the tier of a test ticket** (the label carries the tier, never `--agent`). Each
-plan agent writes **one** metadata key and only one: `branch`, and only ever onto **its own gate**. The epic
-planner names `epic/<slug>` on the epic gate, the feature planner names `feature/<slug>` on its own — and
-nothing below a gate carries a copy of either, because a copy is a fact that can disagree with the gate that
-decides it. The other half of what a plan agent writes is the **id**: every ticket of a tower is created with
-an explicit `--id`, because that id is the only thing the loop reads to find the two gates above it — and no
-plan agent ever numbers one itself, it runs `CLI/src/create-beads/create-gate.sh` or `create-task.sh` and passes
-what comes back. Nothing below recomputes a branch, and there is no parent chain to walk.
-
-**Where a plan agent stands, and what it can therefore reach.** Each of these sessions runs **inside the tower
-project**, not in the factory: `--add-dir` makes the factory checkout a second project root for discovery only,
-which is how its own agent file, its skills, the two id generators and the `plan-tasks` templates are readable at
-all. Name a factory file by the checkout; never assume the cwd holds it. The cwd itself stays in the tower on
-purpose — it is the cwd that decides which beads database `bd` reads, and therefore which tower gets counted.
-
-**Their `tools:` lines are three different lists, and one of them is not a typo.** `plan-epic` alone carries
-`Write`, `Edit`, the four task tools and the web tools (`WebSearch`, `WebFetch`, `mcp__searxng__*`) — it is the one
-planner that has to research a vague idea and write down what it found. `plan-feature` and `plan-task` carry
-`Read, Bash, Grep, Glob, Skill` and nothing else: they read the tier above, then write tickets through `bd` and
-write no file anywhere. Never assume the three are symmetric — a step, a brief or a fix aimed at "the planners"
-breaks on whichever of them lacks the tool.
-
-Each is one foreground command — `sf plan:epic`, `sf plan:feature`, `sf plan:task` — and anything you type
-after it goes to the planner as the prompt. What runs them is on the agent-command node: the engine checks the
-tower, checks the command is on `PATH`, then hands the agent name to `runForegroundAgent`, which will not start a
-session for a planner whose file is not under `.claude/agents/`. A foreground engine gets no proof after the fact —
-it `exec`s away its own process — so that file check is the whole of it.
-"""
     planEpic = planner "plan-epic" {
       summary "A vague idea into exactly one epic gate plus its end-to-end and review tickets."
       description """
-Vague idea → clarifying questions → research → **exactly one** epic gate plus its `epic-e2e-test` and
-`epic-review` tickets, and nothing else: **there is no merge ticket** and no label for one, because the lead
-agent merges from the gate. Its gate's id comes from `create-gate.sh <repo>` — a fresh uuid and hierarchy `0`;
-it writes one key, `branch: epic/<slug>`, onto the gate alone; its two tickets
-carry no metadata at all and are created with an explicit `--id` from `create-task.sh <repo> <epicGate> suite`
-and `… review`, so their ids read `0.1` and `0.2` under this gate.
-The epic's own pull request aims at `main` — that is derived, not written, and it is the one merge in the tower
-that reaches `main`. Then three edges: the suite blocks the gate, the review blocks the gate, the review waits
-on the suite. Builds the tower and does no work in it.
+**Job, from `.claude/agents/plan-epic.md`:** "Conversational epic architect. Turns a vague idea into exactly one epic
+gate plus its e2e and review tickets, through targeted questions and real research."
+
+**Tools:** the widest planner list — `Read, Write, Edit, Bash, Grep, Glob, Skill, TaskCreate, TaskUpdate, TaskList,
+TaskGet, WebSearch, WebFetch, mcp__searxng__*`. It is the only planner that researches a vague idea and writes down
+what it found; the other two carry `Read, Bash, Grep, Glob, Skill` and nothing else. **No `skills:` key** — it loads
+`bead-create` for the row shapes at the moment it writes rows.
+
+**How it behaves.** `ask 1–2 questions at a time until you understand the *what* → synthesize → show it back, adjust
+→ create`, and "the user needs the right questions, not a lecture". Questions live in the task list
+(`TaskCreate` each one the moment it is thought of), never held in its head. Surveyed before creating, so no
+duplicate epic.
+
+**Create in the order they run** — gate first, with its `branch` and nothing else in metadata, then the e2e suite,
+then the review. The gate goes first because it is the only row anywhere that carries a branch name, and both tickets
+below it resolve their git world through it.
+
+**What it writes:** exactly one epic gate plus `epic-e2e-test` and `epic-review`, and nothing else — **there is no
+merge ticket** at any tier and no label for one, because the lead agent merges from the gate. Gate id from
+`create-gate.sh <repo>` (fresh uuid, hierarchy `0`); one key written, `branch: epic/<slug>`, onto the gate alone. The
+two tickets carry **no metadata at all** and take an explicit `--id` from `create-task.sh <repo> <epicGate> suite` and
+`… review`, so they read `0.1` and `0.2`. The epic's PR aims at `main` — derived, never written, and the one merge in
+the tower that reaches `main`. **Three edges:** suite blocks the gate, review blocks the gate, review waits on the
+suite. Builds the tower and does no work in it.
 """
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/plan-epic.md "Source — .claude/agents/plan-epic.md"
     }
     planFeature = planner "plan-feature" {
       summary "An epic into complete user-facing flows, each with its own branch, suite and review."
       description """
-Epic → feature-sized features (complete user-facing flows). Each gets its own `feature/<slug>`, written onto
-its gate and nowhere else. Its gate's id comes from `create-gate.sh <repo> <epicGateId>`, which copies the
-epic's uuid and numbers the next feature; its `feature-test` and `feature-review` tickets carry no metadata and
-are created with an explicit `--id` from `create-task.sh <repo> <gate> suite|review`. Where a feature's pull
-request merges is never written here — the loop takes this gate's uuid, names the epic gate of that tower, and
-reads its `branch`; a feature whose id names no epic gate is not aimed at `main`, it is refused
-(`ERROR reason=no-epic-gate`). **No merge
-ticket at this tier**: a feature has one branch and its tasks are the commits onto it. Four edges per feature —
-the suite and the review each blocking the gate, the review waiting on the suite, and this feature's gate
-blocking the epic's `epic-e2e-test`, which is what holds the epic tier off the frontier until every feature has
-merged.
+**Job, from `.claude/agents/plan-feature.md`:** "Breaks an epic into feature-sized features — complete user-facing
+flows — each with its own branch, its own PR, and its feature-test and review tickets, phased by dependency and
+naming the stack. Runs automatically off an epic id, or asks which epic when none is given; **no epic is a valid
+answer**."
+
+**Tools:** `Read, Bash, Grep, Glob, Skill` — no `Write`, no `Edit`: it writes tickets through `bd` and writes no file
+anywhere. **Skills it preloads:** `standards-naming`, `standards-file-organization`.
+
+**What it writes.** One gate per flow, phased foundations → core → dependent → polish, each with its own
+`feature/<slug>` written onto its gate and nowhere else. Gate id from `create-gate.sh <repo> <epicGateId>`, which
+copies the epic's uuid and numbers the next feature; its `feature-test` and `feature-review` tickets carry **no
+metadata** and take an explicit `--id` from `create-task.sh <repo> <gate> suite|review`, so they read `<n>.1` and
+`<n>.2`. Where a feature's PR merges is never written here — the loop takes the gate's uuid, names the epic gate of
+that tower and reads its `branch`; a feature whose id names no epic gate is not aimed at `main`, it is refused
+(`ERROR reason=no-epic-gate`). **No merge ticket at this tier**: a feature has one branch and its tasks are the
+commits onto it.
+
+**Four edges per feature** — suite blocks the gate, review blocks the gate, review waits on the suite, and **this
+feature's gate blocks the epic's `epic-e2e-test`**, which is what holds the epic tier off the frontier until every
+feature has merged.
 """
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/plan-feature.md "Source — .claude/agents/plan-feature.md"
     }
     planTask = planner "plan-task" {
       summary "One feature into its tasks, chained one to the next, every one blocking the feature's gate."
       description """
-One feature → its tasks, **labelled at creation** with `bd create -l <label>`, each one created with an
-explicit `--id` from `create-task.sh <repo> <featureGate>`, run once per task in chain order, and **no metadata
-at all** — not even a `branch`: the loop reads the uuid off that id and takes both branches off the two gates it
-names (a plan agent never invents a branch below its own
-tier, and refuses with `ERROR reason=metadata-missing` when the feature's gate carries no `branch` of its own).
-Before it writes each ticket it reads that kind's section-by-section template — `engineer.md` for a
-`backend-logic` ticket, `frontend.md` for `frontend-ui`, `tester-unit.md` for `unit-tests` — three files under
-`.claude/shared/plan-tasks/` in the **factory checkout**, and if its draft disagrees with the template the
-template wins. The checkout is one of its working directories; its cwd stays in the tower, where no template
-exists, because cwd is what decides which beads database `bd` reads.
-Each task gets **two** edges —
-onto the feature's gate, making it part of that tier, and onto the single task before it, ordering the build —
-in one linked line, never a fan, and the tail hands to the `feature-test` ticket. Refuses outright without a
-feature in the prompt: `ERROR reason=no-parent-feature`. Every ticket verified with a `bd show --json` round
-trip, its `dependencies` among the fields checked.
+**Job, from `.claude/agents/plan-task.md`:** "Automatically breaks ONE feature into granular worker tasks —
+implementation and micro tests — chained one to the next, each with requirements, edge cases and file paths, every
+one of them blocking the feature's gate. Requires a feature ticket in the prompt and refuses without one." Asks
+nothing, ever — it either has a feature or it refuses.
+
+**Tools:** `Read, Bash, Grep, Glob, Skill` — no `Write`, no `Edit`. **Skills it preloads:** `standards-naming`,
+`standards-file-organization`.
+
+**What it writes.** One feature → its tasks, **labelled at creation** with `bd create -l <label>`, each created with
+an explicit `--id` from `create-task.sh <repo> <featureGate>` run once per task in chain order, and **no metadata at
+all** — not even a `branch`: the loop reads the uuid off that id and takes both branches off the two gates it names.
+A plan agent never invents a branch below its own tier, and refuses with `ERROR reason=metadata-missing` when the
+feature's gate carries no `branch` of its own. Before writing each ticket it reads that kind's section-by-section
+template — `engineer.md` for `backend-logic`, `frontend.md` for `frontend-ui`, `tester-unit.md` for `unit-tests` —
+three files under `.claude/shared/plan-tasks/` in the **factory checkout** (one of its working directories; its cwd
+stays in the tower, where no template exists, because cwd decides which beads database `bd` reads). If its draft
+disagrees with the template, **the template wins**.
+
+**Two edges per task, and this is the whole job.** `bd dep add "$gate" "$task" --type blocks` plus
+`bd dep add "$task" "$previous" --type blocks`, first task excepted — one linked line, never a fan:
+
+| Edge | What it enforces |
+|---|---|
+| task → gate | makes the ticket **part of the tier**. That set of blockers *is* the list the lead agent reads when it asks whether the feature is proved |
+| task → the one task before it | orders the build. One predecessor, never two, never "all of the above"; the first waits on nothing and is the only thing the frontier sees when the feature starts |
+| chain tail → `feature-test` | one extra edge, plan-task's own: the suite proves nothing until the whole line of commits exists |
+
+**The hazard on this tier:** a missing edge is doing something worse than nothing. The tier edge is the only thing
+that keeps one feature down to one ready ticket, so two tasks released together are **two workers committing to one
+branch at once** — and a row whose tier edge silently isn't there still runs, is invisible to `bd ready`'s tier list,
+and **the lead agent never counts it: the gate closes over it.** Order inside the line is logic → its tests → the UI:
+shared types and error factories first, then each back-end function with its `unit-tests` ticket immediately behind it
+(so a test never waits on UI it does not test), then components, then polish — the UI last because a page is built
+against functions that already hold, not against a guess at them.
+
+**Not its:** the suite's and review's edges to each other and to the gate (`plan-feature` wired those), the feature's
+branch name (the gate owns it), anything at the epic tier. Refuses outright without a feature in the prompt:
+`ERROR reason=no-parent-feature`. Every ticket verified with a `bd show --json` round trip, `dependencies` among the
+fields checked.
 """
       link https://github.com/Londelo/spider-factory/blob/main/.claude/agents/plan-task.md "Source — .claude/agents/plan-task.md"
     }
@@ -1498,85 +684,34 @@ closed — by a person, or by the lead agent proving the tier and merging `featu
       toolsMissing = alarm "startup: <tool> not found on PATH" {
         #fatal
         summary "A tool the loop needs is not on PATH, so the run exits before its first tick."
-        description """
-`requireToolsOnPath` wants `bd jq git` plus the first word of `SF_AGENT_COMMAND`, and `exit 1`s on the first
-one missing. Note the Stop hook has its own list — `bd jq git sf` — shorter because it never spawns a session,
-and carrying `sf` because that is the command it commits with.
-"""
       }
       knobNotNumeric = alarm "startup: SF_<VAR>=<x> is not a number" {
         #fatal
         summary "A numeric knob was set to something that is not a number, so the run refuses to start."
-        description """
-`SF_MAX_PARALLEL`, `SF_POLL_S` or `SF_MAX_TICKETS` set to anything but digits. There is no defaulting silently:
-a knob typed wrong would otherwise change how many workers run unattended.
-"""
       }
       gateFlagNotASwitch = alarm "startup: SF_AGENT_<TIER>_GATES=<x> is not a switch" {
         #fatal
         summary "A gate tier switch is neither 0 nor 1, so the run refuses to guess who closes that tier's gate."
-        description """
-`SF_AGENT_FEATURE_GATES` and `SF_AGENT_EPIC_GATES` are switches, not numbers: `0` means a person closes that
-tier's gate, `1` means the lead agent does. Anything else — `true`, `yes`, `2` — prints the flag with both
-meanings and exits 1. Checked after the numeric knobs, before the poll interval; unset is `0`, so this is always
-a value somebody typed. There is no defaulting here either: a value read loosely would silently hand a tier's
-merges to a machine, or silently withhold them from it.
-"""
       }
       pollUnusable = alarm "startup: SF_POLL_S=<x> is unusable — it must divide 60" {
         #fatal
         summary "The poll interval does not divide 60, so the waiting-line cadence would be a lie."
-        description """
-The permitted list is printed: `1 2 3 4 5 6 10 12 15 20 30 60`. It must divide 60 because the waiting lines are
-rate-limited at one per minute — `60 / SF_POLL_S` ticks — and a poll that does not divide the minute makes that
-cadence a lie.
-"""
       }
       noBeadsDb = alarm "startup: no beads database found from $PWD" {
         #fatal
         summary "This directory answers no ticket list, so nothing can be done here."
-        description """
-`bd list --limit 1 --json` must answer an **array**. It is a real probe of \"can we do anything here\", not a
-check for a `.beads` folder — `bd` walks **up** from the cwd and ignores `BEADS_DIR`, so a database in the
-environment does not save a wrong directory. `sf` runs the same probe before it even starts the engine.
-"""
       }
       logDirUnwritable = alarm "startup: cannot create <dir>" {
         #fatal
         summary "The run's log directory cannot be created, so the run could never raise an alarm."
-        description """
-`mkdir -p $SF_LOG_ROOT/<timestamp>` failed. Fatal on purpose: a run that cannot write its logs cannot raise an
-alarm, and a silent dispatcher is the one thing this design refuses to be.
-"""
       }
       agentDefinitionMissing = alarm "startup: no agent named '<name>'" {
         #fatal
         summary "An agent in the worker set has no file, or a file with no usable frontmatter. The run exits before its first tick."
-        description """
-`requireAgentDefinitionsResolve` runs `requireAgentDefinition` over every value of the `AGENT` map plus `lead`,
-deduped — seven files, six of them off the map, because `review` answers two labels. Each must exist at
-`<factory>/.claude/agents/<agent>.md`, and its frontmatter must open with `---`, close with `---`, and carry a
-`description:` line; a file that fails either test is refused by name and path, never by a stack trace.
-
-Two things make this check worth running once up front instead of leaving to the spawn. A worker spawned without
-its agent does not fail — it comes up as the **default template** and does somebody's work under the wrong
-contract — and the launcher's exit status is `0` either way, so nothing at the spawn moment distinguishes them.
-And it is the **last** of the eight checks, the only one running after the run's log folder exists, so it is the
-only one that leaves a line behind: `reason=agent-definition-missing agent=<name> msg=\"<the sentence>\"` in
-`errors`, written before the `die`.
-
-The same predicate runs inside every spawn, on both the background and the foreground path — so a name added to
-the map without its file dies at startup, and a file deleted mid-run dies at the next spawn.
-"""
       }
       labelsStarved = alarm "not fatal: SF_ALLOWED_LABELS names nothing the map holds" {
         #fatal
         summary "The allowed labels name nothing the map holds: not fatal, but the tower never moves."
-        description """
-The one startup mistake that does **not** stop the run. A typo'd label narrows the allowed set to something no
-ticket carries, so every claim matches zero keys, every claim is `label-ambiguous`, and the tower sits still
-while the waiting lines keep arriving. Compare the files by hand: `bd list --json` labels against the map.
-"""
       }
     }
 
@@ -1584,188 +719,46 @@ while the waiting lines keep arriving. Compare the files by hand: `bd list --jso
       summary "Everything the tick can refuse, and whether the ticket stays claimed."
       bdFailure = alarm "ERROR reason=bd-failure exit=N" {
         summary "The claim failed or answered without an id; the tick returns and the next one tries again."
-        description """
-Two forms, one reason. `bd ready --claim` exited non-zero and the last line of `$logDir/bd-stderr` is quoted in
-`msg=`; or it exited `0` and handed back no `id`, with the first 60 characters of the payload in `msg=`. The tick
-returns; there is no claim to keep or return, so the next tick tries again. An **empty** answer is not this
-alarm at all — that is a waiting line.
-"""
       }
       labelAmbiguous = alarm "ERROR reason=label-ambiguous" {
         #leftClaimed
         summary "Zero or two dispatching labels on the claim; the loop never guesses a worker."
-        description """
-Zero **or two** dispatching labels on a claim: `matched=\"…\" labels=\"…\"`. The dispatcher never guesses a
-specialist. The ticket is LEFT CLAIMED so its 5-minute lease parks it off the frontier — otherwise the loop
-would spin on the same unworkable ticket every tick — and the errors file is the alarm.
-
-The commonest cause is a ticket labelled with its **category** instead of its label (`frontend-ux` for
-`frontend-ui`), which matches nothing and reads identically to a ticket with no labels at all.
-"""
       }
       noEpicGate = alarm "ERROR reason=no-epic-gate ticket=<id>" {
         #leftClaimed
         summary "The ticket's id reaches no gate: it belongs to no tower. The id is in the line."
-        description """
-Three forms, one reason, and the ticket's own id on every one of them — that is the point of the alarm, so a
-person can find the row. The loop derives a ticket's whole git world off its id, and that only reaches a gate
-when the id is shaped like a tower's, reading `<repo>-<kind>-<uuid>-<hierarchy>`:
-
-| form | when |
-|---|---|
-| (no `step=`) | the id does not read that grammar at all — a `bd create` with no `--id` mints exactly this |
-| `step=not-below-a-gate` | it reads, and calls itself a `task`, but its hierarchy carries no gate number — a task hangs below a gate or nowhere |
-| `gate=<the epic id it names>` | the epic gate its uuid names is a real ticket that is **not** a gate |
-
-Nothing was dispatched and the ticket is LEFT CLAIMED, so its five-minute lease parks it off the frontier
-instead of the loop spinning on it. It is a plan bug, and it stays a plan bug where you can see it: the loop
-never invents a gate and never walks a graph looking for one.
-"""
       }
       ticketGateUnworkable = alarm "ERROR reason=gate-unworkable ticket=<id>" {
         #leftClaimed
         summary "The ticket's id reaches its gates, but one of them carries no branch."
-        description """
-Two forms, and the second carries `gate=`. `owner-carries-no-branch`: the gate this ticket's work lands on —
-its feature gate, or the epic gate for an epic-tier ticket — has no `branch` of its own, so there is no folder
-to work in and nothing to push. `epic-carries-no-branch`: the work has a home but the epic gate above it has no
-`branch`, so the pull request has nothing to aim at.
-
-Left claimed, same reason as the label alarm. The gate is the only place a branch is ever written, so a gate
-with no `branch` is a plan bug, and the loop never guesses one to cover it.
-"""
       }
       epicPrFailed = alarm "ERROR reason=epic-pr-failed step=…" {
         #unclaimed
         summary "The epic branch or its pull request could not be published; seven steps say where."
-        description """
-The epic branch or its PR could not be published — and every feature PR below it aims at that branch, so nothing
-beneath the epic has a pull-request target until this succeeds. Seven steps name exactly where it died:
-
-| step | when |
-|---|---|
-| `gate-branch` | the epic gate carries no `branch` metadata of its own, so nothing beneath it has a pull-request target |
-| `forge` | `detectForge` settled on nothing |
-| `missing-tool` | the settled forge's CLI (`gh`/`glab`) is not installed |
-| `seed` | the branch's own first commit could not be written — `git commit-tree` needs a `user.name` and a `user.email` |
-| `push` | the epic branch could not be published off `main` |
-| `pr` | no URL matching `/(pull\|merge_requests)/[0-9]+` came back |
-| `annotate` | `bd update --set-metadata pr=` refused |
-
-Nothing is walked to find the epic: `resolveTicketBranches` published its id into `$resolvedEpicGate` two
-lines earlier, and that is the gate this function is handed — the claim's own id is a task's and owns no branch
-of its own, so it is never what reaches here. So `gate-branch` is
-the only plan-bug step here, and it is the same bug `gate-unworkable` raises one step earlier — a gate nobody
-gave a branch.
-
-A forge will not open a pull request whose head and base are the same commit, so the branch is born with one
-commit of its own, `git commit-tree` off `main` — it never touches the tower's working tree and never moves its
-`HEAD`. A branch already there is read first and left alone unless it sits on `main`'s own commit.
-
-Every one of the seven releases the claim with `bd unclaim` and the next tick tries again — the ticket is
-innocent whatever the step, because the failure is the machine's or the gate's and never the ticket's. No worker
-is ever spawned into a branch that does not exist, because the claim is released before the spawn. The one place
-the epic gate's own branch appears is `gateBranch=` on the line — never `branch=`, which belongs to the claim, and
-the two differ.
-"""
       }
       worktreeFailed = alarm "ERROR reason=worktree-failed step=…" {
         #leftClaimed
         summary "The branch's folder could not be built, so no worker is spawned into it; four steps say where."
-        description """
-`ensureWorktree` could not build the folder, so no worker is spawned into it. Left claimed, like a mislabelled
-ticket: a worker spawned into a missing folder burns a slot on nothing. It self-heals what it can first — a stale
-`git worktree` registration is pruned, and a folder left by an interrupted build is moved aside rather than
-overwritten — and only then refuses.
-
-| step | when |
-|---|---|
-| `no-start` | none of `origin/<branch>`, `origin/<prTarget>`, `<prTarget>`, `HEAD` resolves to a commit |
-| `stray-folder` | the branch's folder exists, is not a registered worktree, and could not be renamed aside |
-| `gate` | the same failure on a **gate** dispatch — the line carries `gate=<id>`, and the gate is put back to `open` rather than left claimed, so the next tick may try it again |
-| *(no step)* | `git worktree add` itself failed against the starting commit it did find |
-"""
       }
       branchHasUnpushed = alarm "ERROR reason=branch-has-unpushed-commits" {
         #leftClaimed
         summary "The local branch holds commits no remote has seen; the loop refuses to reset a branch that does."
-        description """
-`git rev-list --count <branch> --not --remotes=origin` came back above zero: somebody's work sits on this local
-branch and has never reached a remote. Rebuilding the folder means `git worktree add -B`, which **resets the
-branch to the starting commit** — so the loop refuses instead of deleting a worker's commits. Left claimed.
-
-The recovery is written into the line itself: `git reflog` to find them, or push them, then run the loop again.
-This is the only worktree alarm that says what to do, because it is the only one where proceeding costs work
-rather than time.
-"""
       }
       folderMovedAside = alarm "ERROR reason=worktree-folder-moved-aside" {
         #staysClaimed
         summary "Not a refusal: an interrupted build's files were kept under a .stale-<epoch> name and the build went ahead."
-        description """
-The branch's folder existed, was not a registered worktree, and held files — the shape a build leaves when it
-dies between creating the folder and registering it. `git worktree add` into a non-empty folder fails outright,
-so the folder is renamed to `<path>.stale-<epoch>` and the branch is built fresh. The line is written to `errors`
-and the worker **is** spawned: nothing was deleted, and the kept folder is named on the line.
-"""
       }
       workerNotDispatched = alarm "ERROR reason=worker-not-dispatched" {
         #unclaimed
         summary "The spawn came back failed; the one alarm that puts the ticket straight back."
-        description """
-`$SF_AGENT_LAUNCH_COMMAND --bg` came back non-zero; the last line of that worker's `spawn-<ticket>` file is quoted
-in `msg=`. This is the **launcher** refusing — the command itself, before any session existed. It is no longer where
-a missing agent file lands: `requireAgentDefinition` reads that file before the spawn is attempted, and a session
-that came up without becoming the agent it named is the alarm below.
-`bd unclaim` — unlike every other tick alarm, this one puts the ticket **straight back**, because nothing was
-ever spawned to work it and the next tick may well succeed.
-
-On a **gate** dispatch the line carries `gate=<id>` instead of a ticket, and the put-back is `moveGateTo <gate>
-open in_progress` — the gate returns to `open`, off the ready list no longer, so the next tick may reach it
-again.
-"""
       }
       agentNotLoaded = alarm "ERROR reason=agent-not-loaded" {
         #unclaimed
         summary "The session came up but never proved itself the agent it named: the claim goes back and the run dies."
-        description """
-The spawn succeeded and the proof failed. `checkBackgroundAgentLoaded` (`CLI/utils/spawn.sh`) watched this
-session for 30s and never saw it both **alive past a 5s settle** and **naming `@<agent>` in its `logs` header**;
-what it saw is quoted in `msg=`, and the four shapes it can see are four different diagnoses:
-
-| `msg=` says | what happened |
-|---|---|
-| `no session id — the launcher claimed to background a session and named none` | the launcher printed no `backgrounded · <id>` to read off its own spawn file |
-| `session <id> died with state=failed before it settled — the agent file exists, so the session refused to load it` | it came up and died inside the settle window |
-| `session <id> ran as state=<x> for 30s but never named @<agent> in its header — the launcher fell back to the default template` | the session worked, on somebody else's contract — the one outcome no other check in the system can see |
-| `session <id> never appeared in 'agents --all' — the <agent> agent never started` | there was no session to watch at all |
-
-Then, in this order: the line to `errors`, `bd unclaim` to put the ticket back, and **`die`** —
-`the <agent> agent never loaded for <ticket> — <why>. The run stops here: every worker left in it would be the
-same worker without an agent.` The ticket is returned and the run ends, both on purpose: the cause is the factory's
-agent directory, not this ticket, so the next tick would die the same death, and a dispatcher that quietly
-continued would spend the rest of the run spawning workers with no agent.
-
-A **gate** dispatch reads the same way with `gate=<id>` in place of a ticket, the gate put back to `open` first,
-and the sentence ending `every gate left in it would be the same gate without an agent`.
-"""
       }
       gateClaimLost = alarm "ERROR reason=gate-claim-lost gate=<id>" {
         #idle
         summary "The gate was no longer open the moment the loop reached for it; no lead agent was spawned."
-        description """
-The gate claim is `bd update <gate> --status in_progress --if-status open`, and `--if-status` is what makes it
-safe: if the gate was no longer `open` the instant the loop reached for it — another loop got there first, or a
-person closed it by hand — the write fails, the alarm fires, and **no lead agent is spawned**. Nothing is
-spawned into a gate someone else already holds, and nothing is closed twice.
-
-This is the only conditional write anywhere in the system, and it is also what takes a gate off the ready list
-while its lead agent works: a gate never appears in `bd ready`, so status is the only handle on it. If that lead
-agent dies, **nothing parks the gate** — no hook fires when a session dies, so it stays `in_progress`, out of the
-ready-gate list for the same reason, and looks exactly like a lead agent still working. The overseer's check for a
-worker that died quietly is the only thing that finds one, and all it can do is hand a person
-`bd update <gate> --status failed-agent` to run.
-"""
       }
     }
 
@@ -1774,170 +767,82 @@ worker that died quietly is the only thing that finds one, and all it can do is 
       claimMalformedHook = alarm "ERROR reason=claim-malformed" {
         #staysClaimed
         summary "The session's claims line carries no ticket or no run, so the hook cannot tell what it stands for."
-        description """
-The hook finds this session's line in the run's `claims` file and reads its `key=value` fields off it. A line
-with no `ticket=` or no `run=` is unreadable — no ticket, no run directory — so the hook stops
-with the ticket still `in_progress`. It is the first refusal in the file, and only a session the loop did
-dispatch can reach it: a session with **no** claims line exits quietly one line earlier, which is how every
-session the loop never started leaves.
-"""
       }
       noContextHook = alarm "ERROR reason=no-context worktree=<dir>" {
         #staysClaimed
         summary "A worker stopped in a loop worktree with no dispatch context file and no branch or target to fall back on."
-        description """
-The claims line names the worktree; the dispatch context file beside it names `branch`, `pr_target` and `kind`.
-This fires when that file cannot be read **and** the claims line carries no `branch=` or no `target=` — with
-either one the hook carries on off the claims line alone. Nothing landed, nothing was committed, and the ticket
-stays claimed.
-"""
       }
       missingToolHook = alarm "ERROR reason=missing-tool tool=<t>" {
         #staysClaimed
         summary "bd, jq, git or sf is missing; checked before any of the hook's own work, once the session is known."
-        description """
-`bd`, `jq`, `git` or `sf` missing — checked before any of the work, but after the claims line has been matched,
-so a session the loop never spawned still exits on line one. `sf` is there because the hook commits
-through it, and the CLI is installed before any worker ever runs.
-"""
       }
       noWorktreeHook = alarm "ERROR reason=no-worktree" {
         #staysClaimed
         summary "The claims line names no worktree that exists, and the hook will not guess one off the hook input's cwd."
-        description """
-The worktree comes only from the `worktree=` field of this session's claims line. If that is empty or the
-directory is not there, the hook refuses — it will not take the hook input's own `.cwd` instead. Guessing here
-means committing whatever happens to sit in some other project's tree.
-"""
+      }
+      workerNeedsInput = alarm "ERROR reason=worker-needs-input needs=\"…\"" {
+        #staysClaimed
+        summary "The session stopped to ask a question, so nothing landed: the ticket stays claimed until someone answers it."
+      }
+      workerFailed = alarm "ERROR reason=worker-failed | reason=worker-stopped" {
+        #staysClaimed
+        summary "The session ended in state=failed or state=stopped, which is not a finished turn."
+      }
+      sessionVerdictUnknown = alarm "ERROR reason=session-verdict-unknown verdict=<v>" {
+        #staysClaimed
+        summary "The hook cannot read the session's verdict, and a verdict it cannot read is never a verdict it guesses at."
       }
       ticketNotInWork = alarm "ERROR reason=ticket-not-in-work state=<s>" {
         #staysClaimed
         summary "The ticket is not in progress; if it is closed, this is a second Stop and the hook leaves."
-        description """
-The ticket is not `in_progress`. Two readings: state `closed` means this is a second Stop in a session that
-already shipped, and the hook leaves **silently** rather than committing onto a shared branch a second time;
-anything else (`not-found`, `open`) is an alarm.
-"""
       }
       noBranchHook = alarm "ERROR reason=no-branch" {
         #staysClaimed
         summary "The dispatch record carries no branch, so the hook refuses to file work anywhere."
-        description """
-Neither the session's claims line (`branch=`) nor that worktree's dispatch context file (`branch=`) names a branch,
-so there is no branch to file on — the loop never got as far as deriving one off the gate the ticket's id names, and
-that gate carries no `branch` key. The spawn is nowhere in this: it sets no environment, so the value the hook is
-missing is one it would have exported for itself. The check is `requireDispatchRecord`, and its `msg=` names the
-dispatch record and the gate that should have carried the key.
-"""
       }
       noPrTarget = alarm "ERROR reason=no-pr-target" {
         #staysClaimed
         summary "The dispatch record carries no pull-request target, so the hook refuses to aim blind."
-        description """
-The loop derived that target off the ticket's epic gate — the gate its uuid names, `main` when the owner is the epic
-gate itself — and wrote it into the dispatch record: the claims line's `target=`, with the context file's
-`pr_target=` as the fallback. Neither carried it, so the hook would be aiming blind, and it refuses to. The spawn set
-no environment, so nothing ever "was not on the spawn": the record is the only place this value was ever written.
-"""
       }
       wrongBranch = alarm "ERROR reason=wrong-branch want=<b> got=<d>" {
         #staysClaimed
         summary "The worker changed branch anyway, so the hook will not file its work under this ticket."
-        description """
-The worker was told never to change branches; if it did anyway, this is the last place that can refuse to file
-its work under the wrong ticket's name. `git branch --show-current` must equal the branch off the dispatch record
-exactly — a detached tree reads as `got=\"detached\"`.
-"""
       }
       noTitle = alarm "ERROR reason=ticket-has-no-title" {
         #staysClaimed
         summary "The commit message is the ticket title, and a titleless ticket cannot be filed."
-        description """
-The commit message IS the ticket title (`bd show --json --long | .title`), so a ticket with no title cannot be
-filed — the commit would be anonymous on a shared branch.
-"""
       }
       commitFailed = alarm "ERROR reason=commit-failed" {
         #staysClaimed
         summary "Committing the tree failed — a genuinely empty tree is allowed, this is not one."
-        description """
-`sf commit \"<title>
-
-Ticket: <id>\"` run inside the worktree — which is `git add -A`, `git commit -m \"<agent>:<branch>:<that
-message>\"`, `git push -u origin <branch>`, all of it `CLI/src/commit.sh`. A review or test
-ticket may legitimately land nothing (`git diff --cached --quiet` before it skips the commit entirely and the hook
-carries on to push, PR and close), so this is a genuine commit failure, not an empty tree: it fires when the index
-is **still dirty** after `sf commit` returned.
-"""
       }
       pushFailed = alarm "ERROR reason=push-failed" {
         #staysClaimed
         summary "Pushing the branch to the remote failed; its output is quoted on the line."
-        description """
-`git push -u origin <branch>` failed, the branch being the one off this session's dispatch record; the first 160
-characters of its output are the `msg=`.
-"""
       }
       forgeUnknown = alarm "ERROR reason=forge-unknown remote=<url>" {
         #staysClaimed
         summary "Nothing settled which forge this remote is, and the hook refuses to guess."
-        description """
-All three settle steps came up empty — the remote name lied, it publishes neither `refs/pull/` nor
-`refs/merge-requests/`, and the machine holds both `gh` and `glab`, or neither. The hook refuses to guess a forge.
-Reached **after** the commit and the push, because the hook only needs the forge to open a PR.
-"""
       }
       forgeToolMissing = alarm "ERROR reason=missing-tool tool=gh|glab forge=<f>" {
         #staysClaimed
         summary "The forge is known, but its command line tool is not installed."
-        description """
-The forge settled, its CLI is not installed. Same reason as the up-front check, different `tool=` and with
-`forge=` appended — which is how you tell the two apart in the errors file.
-"""
       }
       prNotFoundGate = alarm "ERROR reason=pr-not-found forge=<f>" {
         #staysClaimed
         summary "The lead agent stopped on a gate whose branch has no pull request at all — the gate path's own refusal."
-        description """
-Reached only when the claim's `kind` is `gate`. The gate path never opens a pull request — the lead agent was sent
-to **merge** one, so the hook only looks the branch's PR up at any state, `--state all` on GitHub and `--all` on
-GitLab, against that branch and its `prTarget`. Nothing matches: there was nothing for the lead agent to merge,
-and the lead agent's session ended anyway. The gate stays claimed and the tier behind it waits.
-
-This is the reason that does not exist on the task path, and the two are not the same failure: `pr-not-created`
-means the hook could not raise a pull request, this means one was never there to merge. Only two things ever open
-one — the loop, for the **epic** branch, the first time it claims anything under that epic (`epic-published`),
-and the Stop hook, for a **feature** branch, the first time work lands on it. So a feature gate reaching this
-line means no worker's work ever landed on that branch and its tier was closed some other way, by a hand and not
-by the hook.
-"""
       }
       prNotCreated = alarm "ERROR reason=pr-not-created forge=<f>" {
         #staysClaimed
         summary "Nothing came back that looks like a pull request url."
-        description """
-Nothing came back that looks like a PR url. Either the list of the branch's existing PRs and the create both
-failed, or the CLI printed an error quoting some other URL — only `/(pull|merge_requests)/<digits>` counts.
-"""
       }
       ticketNotAnnotated = alarm "ERROR reason=ticket-not-annotated pr=<url>" {
         #staysClaimed
         summary "Writing the pull request url onto the ticket failed, so the hook will not close it."
-        description """
-`bd update --set-metadata pr=<url>` failed. The work is pushed but the ticket cannot say where it went, so the
-hook stops rather than closing a ticket whose PR is unfindable. (`--set-metadata` **merges**, so this never
-disturbs the plan's `branch` key.)
-"""
       }
       closeFailed = alarm "ERROR reason=close-failed pr=<url>" {
         #staysClaimed
         summary "The final close failed: the work is out there with no record in the tower."
-        description """
-`bd close <ticket> --session <session_id> --reason \"worker session … finished; PR …\"` failed. The last step, and
-the only one where everything else already succeeded — the commit, the push and the PR are all out there with no
-record in the tower. `bd` refuses to close a ticket whose assignee is not the actor, and the dispatcher claimed
-this one, so the hook deliberately passes the real `session_id` rather than overriding the actor.
-"""
       }
     }
 
@@ -1948,52 +853,22 @@ this one, so the hook deliberately passes the real `session_id` rather than over
     frontierEmpty = waitingLine "reason=frontier_empty" {
       #idle
       summary "Nothing waits anywhere: the tower is finished or unplanned. The calm one."
-      description """
-The claim came back empty and the stall probe found **no** off-frontier work: the tower is finished, or nobody has
-planned anything yet. This is the calm one.
-"""
     }
     towerStalled = waitingLine "reason=tower_stalled waiting=N" {
       #idle
       summary "Work exists but a blocker holds it off the frontier — usually a gate whose tier is still a person's."
-      description """
-The other half of an empty frontier, and the two need different alarms: work tickets **do** exist
-(`bd list --status open,blocked --limit 0` counted N of them) but an active blocker holds them off `bd ready` —
-an open gate two levels below, most often. That is the expected shape of a run: a gate is a checkpoint, and while
-its tier's flag is `0` nothing dispatches it, so everything behind it waits for a person. `bd list` hides closed
-tickets and gates by default, so N counts work tickets only. A broken tower must never read as a calm one.
-"""
     }
     gateUnworkable = waitingLine "reason=gate_unworkable gate=<id> step=<why>" {
       #idle
       summary "A ready gate's id reaches no usable branch and target, so no lead agent can be placed or aimed."
-      description """
-A gate reached the frontier and `resolveTicketBranches` refused its id. `step=owner-carries-no-branch` — the gate
-carries no `branch` of its own, so nowhere to put the tier's work; `epic-carries-no-branch` — the epic gate its
-uuid names carries none, so its pull request has nothing to aim at; `not-a-gate` — the epic gate its uuid names
-is a row that is not a gate; `malformed` — the id does not read
-`<repo>-<epic|-feature>-<uuid>-<number>` at all. Same rule as the ticket
-path, same refusal: the loop never invents a branch and never guesses a target. The consequence is quieter here —
-with no lead agent spawned the gate is never claimed, so it stays `open`, shows up ready again next tick, and the
-tier behind it simply waits. An alarm would fire every tick forever; this is a line, rate-limited to one a minute.
-"""
     }
     maxParallel = waitingLine "reason=max_parallel in_progress=N" {
       #idle
       summary "The cap is reached and tickets are in progress, so this tick claims nothing."
-      description """
-`SF_MAX_PARALLEL` of this tower's background sessions report themselves busy and N tickets are in progress — the
-workers are working, so the tick simply does not claim. A session that has finished reports idle and is not one of
-them, so it never contributes to reaching the cap.
-"""
     }
     maxParallelStalled = waitingLine "reason=max_parallel_stalled in_progress=0" {
       #idle
       summary "At capacity with nothing in progress: the counted workers are ghosts."
-      description """
-At capacity with **nothing in progress**: the slots are ghosts — sessions counted busy whose tickets are gone. The
-count comes fresh from `$SF_AGENT_COMMAND agents --json` every tick precisely so this state is visible rather than silent.
-"""
     }
   }
 

@@ -5,8 +5,8 @@ step — most of what is wrong with a diagram here was written from memory.
 
 | File | Holds |
 |---|---|
-| `model.c4` | every node: its title, its `summary` (the one line drawn in the box), its `description` (the panel that opens when you click it) |
-| `views.c4` | the four walkthroughs; each step is `A -> B "the words on the arrow" { title, notes }` |
+| `model.c4` | every node: its title and its `summary` — those two are the box. Only an agent node or a ticket/gate node also carries a `description`, which is the body of the modal the top-right button opens; `link` lines are that modal's buttons |
+| `views.c4` | the four walkthroughs; each step is `A -> B "the words on the arrow" { title }` — **no `notes`, ever** |
 | `specification.c4` | the palette: one colour and shape per KIND of thing, never per element |
 | `dist/` | built output — never hand-edited, only rebuilt |
 
@@ -45,23 +45,14 @@ and `scripts/` what npm runs.
 A file that moves breaks every link and every path that named it — grep the whole `.claude/diagram/` directory
 for the old path, not just the node you came to fix.
 
-**These diagrams are tier 3 of three.** The code is the only real source of truth; above it sit two documents
-that point down here:
+**These diagrams are tier 3 of three.** The code is the only source of truth, and above it sit `README.md` and
+`.claude/CLAUDE.md`, both pointing down here. A fact lives at the deepest tier that owns it and nowhere else —
+so a fact you change here, you change here first, then check the two tiers above did not keep an old copy.
 
-| Tier | File | Reader | Depth |
-|---|---|---|---|
-| 1 · the snapshot | `README.md` (repo root) | a human passing through | the idea, the setup, the webs, the CLI, the workflow — brief, and it owns no fact nobody else owns |
-| 2 · the reference | `.claude/CLAUDE.md` | an agent doing the work | the vocabulary, the moving parts, the rules that break the system — detailed, not exhaustive, and it points here |
-| 3 · the account | `diagram/` (here) | a human who is not in the code | the most detailed thing outside the code — the thing people quote, and the thing that must not drift |
-
-A fact lives at the deepest tier that owns it and nowhere else; a shallower tier points down rather than
-repeating it. So a fact you change here, you change here first, and then you check the two tiers above it
-did not keep an old copy.
-
-**These files are updated by a spawned agent, before every commit.** Nothing commits until all three tiers
-match the code — see `.claude/CLAUDE.md` §Documentation. If you are that agent: read the code, never your
-memory of it; do the whole set — `README.md`, `.claude/CLAUDE.md`, and these diagrams — in one pass; rebuild
-`dist/`; and report which file, which node or step, and which line of code you read to get it right.
+**The tiers, their depths, the three agents, the `DOCS LAST RUN FROM:` span and the rule that docs move only
+when Londelo asks are owned by the `sf-documentation` skill. Load it; do not restate it here.** If you are that
+agent: read the code, never your memory of it; rebuild `dist/` when you are done; and report which file, which
+node or step, and which line of code you read to get it right.
 
 ## The four things, checked every time
 
@@ -74,12 +65,22 @@ memory of the code.
 2. **The node's `summary`.** One line, under 150 characters, true read on its own. This is the *only*
    text the box draws — a node with no summary draws its whole description inside the box and the borders
    break.
-3. **The node's `description`.** Every table row, every flag, every "it never does X" traces to a line you
-   actually read. One node owns each fact: where two nodes state the same fact, one of them will
-   eventually drift, and nothing compares them.
-4. **The arrow and its step notes.** The words on the arrow say what happens at that moment; `title` is
-   the decision, `notes` is if/then. A step never restates what the node it points at already owns — point
-   at the node instead ("the eight are listed on the node itself").
+3. **The node's `description` — and only two kinds of node have one.**
+   - **An agent node** (a worker, a plan agent, the overseer) carries its verbatim frontmatter `description:`
+     line, its `tools:` list, and the **names** of the skills it loads. Nothing about the skills themselves.
+   - **A ticket or gate node** carries the schema block: `title / label → AGENT → agent / category / id /
+     metadata / depends / blocks / skill`.
+   - **Everything else — every other node in `model.c4` — has no `description` at all.** Title and `summary`,
+     plus any `link`, and nothing more. That is the rule, not a stage of condensing: files, engines, layers,
+     log artifacts, alarms, waiting lines, external systems are a title and one line, forever. Write one and
+     you have to delete it; the code and `.claude/CLAUDE.md` own any detail beyond the line.
+   Where a description does exist, every claim in it traces to a line you actually read, and one node owns
+   each fact: where two nodes state the same fact, one of them will eventually drift, and nothing compares them.
+4. **The arrow and its `title`.** The words on the arrow say what happens at that moment; `title` is the
+   decision. **A step carries no `notes` block — there are none, and none are ever added back.** Because a
+   non-agent node says nothing beyond its one `summary` line, the step carries what that node is being **used
+   for here**: where a step's label was thin because a note used to carry the weight, the missing words go in
+   the arrow text or the `title`. A step still never restates what the node it points at already owns.
 
 Then check the four **against each other**: a step describing an action its target node contradicts, an
 arrow promising something the code never does, a summary claiming more than its description proves, a node
@@ -96,7 +97,9 @@ exists (validate fails).
   reader can see it is a loop and see which ticket belongs to which worker. What is capped is the words: one or
   two lines naming the ticket, its tier, and what its close releases. Collapsing a round to a single
   `dispatcher -> worker` arrow hides both, and is the failure this bullet exists to prevent.
-- **What a thing *is* belongs on the node**, in the panel you click open, never in the step.
+- **What a thing *is* belongs on the node's `summary`; what it is doing *here* belongs on the step.** For most
+  nodes the `summary` is the whole of what the node says — there is no modal to open. Only an agent or a ticket
+  goes further, per the depth rule above. The arrow and the `title` carry the moment. Neither repeats the other.
 - **A step nobody can parse is deleted, not defended.**
 
 ## Grammar that costs an hour when you get it wrong
@@ -104,8 +107,13 @@ exists (validate fails).
 - `#tag` lines come **before** `summary` and `description`, or the parser dies with
   `Expecting token of type '}' but found #`.
 - A node with a `description` must carry a `summary`; a `summary` over 150 characters is rejected.
-- `notes """` and its closing `"""` each sit alone on their own line, and nothing from the old note may
-  survive after the closing quotes.
+- A node may hold `title`, `summary`, `description`, `technology`, `metadata { KEY VALUE }`, `link URL
+  "Label"`, `navigateTo <view>`, `icon`, `style { }`, `#tags` and its `kind`. The box draws the title and the
+  `summary`; the modal the top-right button opens is the `description`, the `technology`, the `metadata` rows
+  and the `link` buttons. The bottom button lists the node's arrows and is built from the relationship lines —
+  nothing is authored for it. We use `title`, `summary`, `description` (two kinds of node only) and `link`.
+- **There is no `notes` block.** All 122 were deleted on 2026-11-25 and the word survives in `views.c4` only
+  as the comment forbidding it. Write a step as `{ title: "..." }` and nothing more.
 - A step block ends at the `}` indented four spaces. A stray `{ }` after a `title` breaks validate.
 - Bare, unqualified names of nested nodes do not resolve — write `machine.dispatcher`, not `dispatcher`.
 - Nested actors inside a sequence view warn (`Sequence view does not support nested actors`); twelve

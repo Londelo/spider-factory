@@ -22,20 +22,21 @@ It is not a markdown file and not a scratchpad. The database **is** the plan, an
 anything reads at runtime: a worker is spawned from its own ticket and nothing else — nobody reads a plan
 document, a stdout, or a chat summary. So whatever you knew and did not write into the row, the worker
 does not know. A worker never closes its own ticket — the Stop hook closes a task once its worker declares
-done, and a gate waits for a human or the lead agent — so **the ticket and the worker's final report
+done, the loop closes a `bypass` ticket itself the moment it claims one, and a gate waits for a human or the
+lead agent — so **the ticket and the worker's final report
 together are the proof of work anyone sees.**
 
 Two shapes hold the database together, and every parameter below sets one of them:
 
 | Shape | What it is | Set by |
 |---|---|---|
-| **the tower and the ordering** | what must be finished before what may start — the tier relationship *and* the sequence inside it | `blocks` edges: `bd dep add <blocked> <blocker> --type blocks`, or `--deps "blocks:<id>"` at create |
+| **the ordering** | what must be finished before what may start | `blocks` edges: `bd dep add <blocked> <blocker> --type blocks`, or `--deps "blocks:<id>"` at create |
 | **the dispatch** | which specialist this ticket is for | `-l` — exactly one dispatching label |
 
 **There is no third shape and no parenthood.** A tower is `blocks` edges and nothing else: no `--parent`,
-no `--deps "parent-child:<id>"`, no `bd link --type parent-child`. What a tier *is* = the tickets that
-block its gate; what a ticket belongs to = the gate it blocks. An edge you did not write is a ticket that
-belongs to nothing.
+no `--deps "parent-child:<id>"`, no `bd link --type parent-child`. What a tier *is* = every ticket whose
+**id** names its gate; what the edges say is the **order** — who waits on whom. An edge you did not write is
+a ticket that runs whenever it likes, and two tickets on one branch is the failure that makes.
 
 **The id is the other half of the place, and it is never typed by hand — a generator prints it.** Every id in
 a tower reads `<repo>-<kind>-<uuid>-<hierarchy>`, four pieces and no other separator:
@@ -48,10 +49,11 @@ a tower reads `<repo>-<kind>-<uuid>-<hierarchy>`, four pieces and no other separ
 | `<hierarchy>` | where it lives: `0` is the epic gate, `1 2 3` are its feature gates, and `<gate number>.<m>` is a ticket belonging to that gate |
 
 ```
-foobar-epic-a7f3c9-0              foobar-feature-a7f3c9-1         foobar-task-a7f3c9-1.3
-foobar-task-a7f3c9-0.1              the epic's e2e suite              foobar-task-a7f3c9-1.4
-foobar-task-a7f3c9-0.2              the epic's review                 foobar-task-a7f3c9-1.5
-                                    foobar-feature-a7f3c9-2         foobar-task-a7f3c9-2.3
+foobar-epic-a7f3c9-0                foobar-feature-a7f3c9-1         foobar-task-a7f3c9-1.4
+foobar-task-a7f3c9-0.1                the epic's e2e suite            foobar-task-a7f3c9-1.5
+foobar-task-a7f3c9-0.2                the epic's review               foobar-task-a7f3c9-1.6
+                                    foobar-task-a7f3c9-1.1          foobar-feature-a7f3c9-2
+                                      the Feature start               foobar-task-a7f3c9-2.1
 ```
 
 The loop reads a ticket's whole git world off that id and nothing else: the kind word swapped to `feature`
@@ -60,9 +62,11 @@ to `epic` with the hierarchy set to `0` it names the **epic gate** whose `branch
 That is why the pieces are fixed words and numbers and none of it is a free choice — one misspelled word and
 the ticket belongs to no tower.
 
-**Under every gate the first two numbers are taken, always the same two:** `.1` is that gate's suite, `.2` is
-that gate's review, and the worker chain starts at `.3`. Under the epic the same rule reads `0.1`, `0.2`,
-`0.3`. A gate has exactly one of each, so a second suite is not a numbering problem, it is a plan bug.
+**A number says which gate a ticket belongs to and nothing else.** There is no reserved slot, no `.1` that
+means suite, no role in the digits: the generator hands out the next number under the gate, in the order the
+rows were created, and which ticket runs when is entirely the graph's to say. So a number is never read,
+compared or reasoned about — not by a plan agent, not by a worker, not by the loop. What a second suite is,
+is a plan bug; the numbering has no opinion about it either way.
 
 A bare `bd create` mints a **flat** id (`bo1-7f3a`) — no hierarchy, therefore no gate above it, and the loop
 refuses it, logged `ERROR reason=no-epic-gate ticket=<id>`, leaving it claimed. `--parent` mints a dotted
@@ -81,20 +85,18 @@ and exits non-zero — so a failed run can never feed a half id into a `bd creat
 
 ```bash
 # cwd: the tower.  <factory> = the spider-factory checkout, your other working directory.
-EPIC=$(<factory>/CLI/src/create-beads/create-gate.sh foobar)                    # foobar-epic-a7f3c9-0
-FEAT=$(<factory>/CLI/src/create-beads/create-gate.sh foobar "$EPIC")            # foobar-feature-a7f3c9-1
-SUITE=$(<factory>/CLI/src/create-beads/create-task.sh foobar "$FEAT" suite)     # foobar-task-a7f3c9-1.1
-REVIEW=$(<factory>/CLI/src/create-beads/create-task.sh foobar "$FEAT" review)   # foobar-task-a7f3c9-1.2
-TASK=$(<factory>/CLI/src/create-beads/create-task.sh foobar "$FEAT")            # foobar-task-a7f3c9-1.3
+EPIC=$(<factory>/CLI/src/create-beads/create-gate.sh foobar)           # foobar-epic-a7f3c9-0
+E2E=$(<factory>/CLI/src/create-beads/create-task.sh foobar "$EPIC")    # foobar-task-a7f3c9-0.1
+FEAT=$(<factory>/CLI/src/create-beads/create-gate.sh foobar "$EPIC")   # foobar-feature-a7f3c9-1
+START=$(<factory>/CLI/src/create-beads/create-task.sh foobar "$FEAT")  # foobar-task-a7f3c9-1.1
+TASK=$(<factory>/CLI/src/create-beads/create-task.sh foobar "$FEAT")   # foobar-task-a7f3c9-1.2
 ```
 
 | Script | Takes | Prints |
 |---|---|---|
 | `create-gate.sh <repo>` | nothing above it | the epic gate of a new tower, with a uuid minted here |
 | `create-gate.sh <repo> <epicGateId>` | the epic gate | the next feature gate under it, carrying that epic's uuid |
-| `create-task.sh <repo> <gateId> suite` | any gate | that gate's `.1` — and refuses if it already exists |
-| `create-task.sh <repo> <gateId> review` | any gate | that gate's `.2` — and refuses if it already exists |
-| `create-task.sh <repo> <gateId> [task]` | any gate | the next free number above `.2` |
+| `create-task.sh <repo> <gateId>` | any gate | the next number under it. One call per row, in the order you create them |
 
 They create nothing — they are arithmetic, not writers, and the row is still made by `bd create --id`. They
 check what you handed them and refuse the four ways a plan goes wrong: a repo that is not this database's
@@ -103,17 +105,24 @@ is required. A plain task's number is counted off the **ids already in the datab
 a ticket whose edge was never written still holds its number, and counting the graph would hand you its
 collision. Never compute a number yourself, and never copy one from a sibling: run the script.
 
-## The five row shapes, and nothing else is a row
+## The six row shapes, and nothing else is a row
 
-Every ticket in a tower is one of these five, and each carries exactly what its column says — nothing more.
+Every ticket in a tower is one of these six, and each carries exactly what its column says — nothing more.
+The edges column is what `plan-feature` writes after every planner has returned; nobody else wires a tower.
 
 | Row | id from | `-t` | `-l` | `--metadata` | the `blocks` edges it gets |
 |---|---|---|---|---|---|
-| the epic gate | `create-gate.sh <repo>` | `gate` | **none** | `branch: epic/<slug>` | none at create — its tier's tickets block *it* |
-| an epic-tier ticket | `create-task.sh <repo> <epic> suite\|review` | `task` | `epic-e2e-test` · `epic-review` | none | the epic gate |
-| a feature gate | `create-gate.sh <repo> <epic>` | `gate` | **none** | `branch: feature/<slug>` | none at create — its tier's tickets block *it* |
-| a feature's suite / review | `create-task.sh <repo> <feature> suite\|review` | `task` | `feature-test` · `feature-review` | none | the feature gate; the review also waits on its suite |
-| a worker task | `create-task.sh <repo> <feature>` | `task` | exactly one of `backend-logic` · `frontend-ui` · `unit-tests` | none | the feature gate, and its one predecessor in the chain |
+| the epic gate | `create-gate.sh <repo>` | `gate` | **none** | `branch: epic/<slug>` | none — **only the epic's review blocks it** |
+| an epic-tier ticket | `create-task.sh <repo> <epic>` | `task` | `epic-e2e-test` · `epic-review` | none | the review waits on the suite; the suite waits on every feature gate; nothing else points at the gate |
+| the feature gate | `create-gate.sh <repo> <epic>` | `gate` | **none** | `branch: feature/<slug>` | none — **only the feature's review blocks it** |
+| the Feature start | `create-task.sh <repo> <feature>` | `task` | **`bypass`** | none | one edge per prerequisite feature gate; the head of that feature's line hangs off it |
+| a feature's suite / review | `create-task.sh <repo> <feature>` | `task` | `feature-test` · `feature-review` | none | each waits on its one predecessor; the suite is second-to-last, the review last, and the review alone blocks the gate |
+| a worker task | `create-task.sh <repo> <feature>` | `task` | exactly one of `backend-logic` · `frontend-ui` · `unit-tests` | none | its one predecessor in the chain, and nothing else |
+
+**Every ticket waits on exactly one predecessor** — one pure line per feature, hung off that feature's Feature
+start, which is the only ticket in the tower with many blockers. Every ticket under a gate is counted in its
+tier by its **id**, so a ticket that blocks nothing is still the gate's business; blocking is the order, never
+membership.
 
 Two rows carry a label set and get none of it wrong only if the label is read from this table: **a gate never
 carries a label** — a gate is a checkpoint and no worker is chosen for it — and **a ticket that is not a gate
@@ -168,14 +177,16 @@ There is no place to declare at create time. A ticket's position **is** its edge
 `bd dep add` the moment the row exists:
 
 ```bash
-bd dep add "$gate" "$task" --type blocks      # the gate waits on this task — it is one of the gate's tier
-bd dep add "$next" "$task" --type blocks      # and the next task waits on this one
+bd dep add "$ticket" "$previous" --type blocks   # each ticket waits on its one predecessor
+bd dep add "$gate"   "$review"   --type blocks   # the review alone blocks the gate
+bd dep add "$start"  "$prereqGate" --type blocks # the peg waits on a feature this one needs
 ```
 
 **The second id is always the one that comes first**, the one that must be finished before the first may
 start. Read an edge aloud as "`<first id>` waits on `<second id>`" before you run it. Wiring a tier the other
 way round — `bd dep add "$task" "$gate"` — makes the gate block its own tier: nothing in the tier ever
-reaches `bd ready`, the loop reports `tower_stalled`, and every command still exits `0`.
+reaches `bd ready`, the loop reports `tower_stalled`, and every command still exits `0`. And an edge into a
+gate from anything but its review lets the gate close while the review still has something to say.
 
 At create time `--deps <type:id>` writes the same edge: bare `id`, `depends-on:` and `blocked-by:` make
 **this** issue wait on it; `blocks:` reverses it (that issue waits on this one).
@@ -211,6 +222,13 @@ plausible it reads. Two things have no label because no label reaches them: **a 
 a ready gate to the `lead` agent by its type and its tier's flag, never by a label — and a gate carrying a
 label is a checkpoint pretending to be work), and **the human**, who has no agent and is never spawned.
 
+**`bypass` is the one reserved label, and it is deliberately not in that map.** It belongs to a Feature start
+and to nothing else: the loop claims it, closes it on the spot, logs `reason=bypassed`, and spawns nothing —
+no worktree, no worker, no commit, no pull request. It is the single exception to "nobody but the Stop hook
+closes a task", and the only ticket nobody's hook closes, because there is no worker for a hook to belong to.
+Put it on anything that is actually work and the loop closes that work undone, silently, the moment it is
+claimed.
+
 ## The metadata keys
 
 Two keys exist in this system, and a plan agent writes one of them.
@@ -226,8 +244,9 @@ Everything else about a ticket's git world is **derived**, from the one thing th
   an epic-tier ticket, and the epic gate itself, on the epic gate's own.
 - **What its pull request aims at** — `main` when that owner is the epic gate, otherwise the epic gate's
   `branch`. The loop calls this value `prTarget`, and nothing on a ticket ever says it.
-- **Which tier a gate is** — the kind word of its own id, `epic` or `feature`. Read off the string; no graph
-  is walked and no key says it. The graph says only which tickets are *in* the tier — the ones that block it.
+- **Which tier a gate is, and what is in it** — the kind word of its own id says `epic` or `feature`, and
+  every ticket whose id carries that gate's number belongs to it. Both read off the string; no graph is
+  walked and no key says either. The graph says only the **order**.
 
 ```bash
 bd create "Feature: checkout flow" \
@@ -313,7 +332,7 @@ tower's, or a number nobody ran means the row was written by hand, and the loop 
 **One edge per pair, and a second add is swallowed without a word.** Verified: beads keeps a single edge
 between any two issues whatever its type, so an edge of another type already on the pair eats your
 `blocks` add and reports success. Read `.dependencies` back after wiring, not just before — an edge that
-isn't there is a ticket that belongs to no tier and blocks nothing.
+isn't there is a ticket that runs whenever it likes — which, on a shared branch, is the bug.
 
 ## Not this command
 

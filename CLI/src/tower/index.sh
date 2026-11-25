@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # index.sh — print the whole database as one tree: every ticket of every status, each task inside its feature
 #   and each feature inside its epic, top to bottom in the order the dispatcher works them.
+#   The order comes off the blocks graph, one 'bd dep list' over every id; creation order breaks a tie.
 #   index.sh   (or: sf tower)
 set -uo pipefail
 
@@ -15,8 +16,9 @@ tower — the whole database as one tree, in the order the loop works it
   tower.sh
 
 Every ticket of every status, each task inside its feature and each feature inside its
-epic, top to bottom in the order the dispatcher takes them: a feature's worker chain,
-then its suite, then its review, then its gate; the epic's own suite and review last.
+epic, top to bottom in the order the dispatcher takes them, read off the blocks graph:
+every ticket after the one it waits on, and a gate last, after the review that is the only
+thing blocking it.
 
   number   the order this ticket closed within its own epic. Tickets still waiting are
            numbered after the closed ones, in the order they are expected to run — so a
@@ -27,7 +29,8 @@ then its suite, then its review, then its gate; the epic's own suite and review 
 An id that does not read <repo>-<kind>-<uuid>-<hierarchy> belongs to no tower and is
 listed last, under 'unfiled'.
 
-Reads only: one 'bd export' and one 'bd ready'. Nothing is claimed or closed.
+Reads only: 'bd ready', 'bd export', and one 'bd dep list' over every id. Nothing is
+claimed or closed.
 USAGE
 }
 
@@ -35,10 +38,17 @@ readyTicketIds() {
     bd ready --json | jq -c '[ .[].id ]'
 }
 
+blocksEdges() {
+    jq -s -r '[ .[].id ] | .[]' | xargs -r bd dep list --json 2>/dev/null \
+        | jq -c '[ .[] | select(.type == "blocks") ]'
+}
+
 drawTheTower() {
-    local ready
+    local ready exported deps
     ready="$(readyTicketIds)"
-    bd export --json | jq -s -r --argjson ready "$ready" -f "$here/tower.jq"
+    exported="$(bd export --json)"
+    deps="$(blocksEdges <<< "$exported")"
+    jq -s -r --argjson ready "$ready" --argjson deps "${deps:-[]}" -f "$here/tower.jq" <<< "$exported"
 }
 
 runRequestedView() {

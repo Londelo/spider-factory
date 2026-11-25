@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# plan-agent.sh — runs one of the three plan agents, in the foreground, through SF_AGENT_COMMAND.
-#   plan-agent.sh epic [prompt] | plan-agent.sh feature [prompt] | plan-agent.sh task [prompt]
+# plan-agent.sh — runs the epic planner, in the foreground, through SF_AGENT_COMMAND.
+#   plan-agent.sh epic [prompt]
 #   SF_AGENT_COMMAND (claude) the command that runs an agent — it may live in CLI/spider-factory.env
-#   sf plan:epic / plan:feature / plan:task are this file; the contract is .claude/CLAUDE.md §Plan agents.
+#   The feature and task planners are spawned by their parent agent, never from here.
+#   sf plan:epic is this file; the contract is .claude/CLAUDE.md §Plan agents.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,20 +17,17 @@ agentCommand="${SF_AGENT_COMMAND:-claude}"
 
 declare -A planAgentOf=(
     [epic]=plan-epic
-    [feature]=plan-feature
-    [task]=plan-task
 )
 
 usage() {
     cat <<'USAGE'
-plan-agent — run one plan agent
+plan-agent — run the epic planner
 
-  plan-agent.sh epic     [prompt]   the epic planner, from a vague idea
-  plan-agent.sh feature  [prompt]   the feature planner, for one epic
-  plan-agent.sh task     [prompt]   the task planner, for one feature
+  plan-agent.sh epic [prompt]   the epic planner, from a vague idea
 
 Foreground, and the planner talks back to you: it asks what it needs before it
-writes anything. Anything after the kind is handed to it as the prompt.
+writes anything. Anything after the kind is handed to it as the prompt. It then
+spawns the feature planner itself, which spawns one task planner per feature.
 
 SF_AGENT_COMMAND (claude) — the command that runs an agent; it is split on spaces,
 so it may carry its own arguments. Set it in CLI/spider-factory.env, or export it for one run.
@@ -53,7 +51,7 @@ runPlanAgent() {
 }
 
 unknownPlanKind() {
-    die "unknown plan '$1' — there are three: 'epic', 'feature', 'task'. Try 'plan-agent.sh --help'."
+    die "unknown plan '$1' — there is one: 'epic'. The feature and task planners are spawned by their parent agent. Try 'plan-agent.sh --help'."
 }
 
 runRequestedPlan() {

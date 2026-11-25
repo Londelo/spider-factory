@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # create-task.sh — print the id of the next ticket under a gate and create nothing.
-#   create-task.sh <repo> <gateId> [suite|review|task]      (task is the default)
+#   create-task.sh <repo> <gateId>
 # An id is <repo>-<kind>-<uuid>-<hierarchy>. Every ticket a gate owns reads task, whatever its
-# job — the suite, the review and the worker tasks alike — because the kind word names who you
-# are and only a gate is named. The uuid and the repo are copied off the gate, never minted here.
-# The hierarchy is <gate number>.<m>: .1 is always that gate's suite, .2 always its review, and
-# the worker chain starts at .3. Under the epic gate the same rule reads 0.1, 0.2, 0.3.
+# job — the peg, the suite, the review and the worker tasks alike — because the kind word names
+# who you are and only a gate is named. The uuid and the repo are copied off the gate, never
+# minted here. The hierarchy is <gate number>.<m> and <m> is only the next number under that
+# gate: it carries no meaning, the blocks graph is what says what runs when.
 # The id on stdout is the whole contract — pass it to bd create as --id. Errors go to stderr and
 # stdout stays empty, so a failed run can never feed a half id into a plan agent's command line.
 set -uo pipefail
@@ -17,21 +17,19 @@ usage() {
     cat <<'USAGE'
 create-task — print the id of the next ticket under a gate, create nothing
 
-  create-task.sh <repo> <gateId> [suite|review|task]      (task is the default)
+  create-task.sh <repo> <gateId>
 
-Every ticket below a gate reads task in its id — the epic's e2e suite, the epic's review, a
-feature's suite, its review, and its worker tasks all of them:
+Every ticket below a gate reads task in its id — a feature's peg, its suite, its review, and
+its worker tasks all of them:
 
-  foobar-task-a7f3c9-0.1     the epic's e2e suite
-  foobar-task-a7f3c9-0.2     the epic's review
-  foobar-task-a7f3c9-1.1     feature 1's suite
-  foobar-task-a7f3c9-1.2     feature 1's review
-  foobar-task-a7f3c9-1.3     feature 1's first worker task
+  foobar-task-a7f3c9-1.1     feature 1's first ticket
+  foobar-task-a7f3c9-1.2     feature 1's second ticket
+  foobar-task-a7f3c9-1.3     feature 1's third ticket
 
-The two structural tickets are fixed numbers, so name the role and this hands the same number
-back every time; ask for a second suite and it refuses rather than writing a dupe. A plain task
-takes the next free number above .2, counted off the ids already in the database — not off the
-graph, because a ticket whose edge was never written still holds its number.
+The number is the next one free under that gate, counted off the ids already in the database —
+not off the graph, because a ticket whose edge was never written still holds its number. It
+means nothing on its own: which ticket waits on which is the blocks graph's to say, and a plan
+agent may hand the numbers out in any order it likes.
 
 The repo must be this database's own issue prefix, and the gate must be a real row of type gate
 carrying epic or feature. One id on stdout, nothing else; every failure writes to stderr, prints
@@ -56,10 +54,6 @@ requireRepo() {
 issueTypeOf() {
     bd show --json "$1" 2>/dev/null \
         | jq -r 'if type == "array" then .[0] else . end | .issue_type // empty' 2>/dev/null
-}
-
-rowExists() {
-    [[ -n "$(issueTypeOf "$1")" ]]
 }
 
 splitGateId() {
@@ -89,37 +83,19 @@ existingTaskNumbers() {
         | sed -n "s|^$repo-task-$uuid-$head\.\([0-9][0-9]*\)$|\1|p"
 }
 
-structuralNumber() {
-    case "$role" in
-        suite) printf '1' ;;
-        review) printf '2' ;;
-        *) printf '3' ;;
-    esac
-}
-
 nextTaskNumber() {
     local numbers highest
     numbers="$(existingTaskNumbers)"
-    if [[ -z "$numbers" ]]; then
-        printf '%s' "$(structuralNumber)"
-        return
-    fi
+    [[ -n "$numbers" ]] || { printf '1'; return; }
     highest="$(printf '%s\n' "$numbers" | sort -n | tail -1)"
-    [[ "$highest" -ge 2 ]] && printf '%s' "$((highest + 1))" || printf '3'
+    printf '%s' "$((highest + 1))"
 }
 
 newTaskId() {
-    local gateId="$1" number
+    local gateId="$1"
     requireGateRow "$gateId"
     splitGateId "$gateId"
-    if [[ "$role" == suite || "$role" == review ]]; then
-        number="$(structuralNumber)"
-        rowExists "$repo-task-$uuid-$head.$number" \
-            && die "this gate already has its $role at $repo-task-$uuid-$head.$number — a gate has one of each"
-    else
-        number="$(nextTaskNumber)"
-    fi
-    printf '%s-task-%s-%s.%s' "$repo" "$uuid" "$head" "$number"
+    printf '%s-task-%s-%s.%s' "$repo" "$uuid" "$head" "$(nextTaskNumber)"
 }
 
 runRequestedTask() {
@@ -131,10 +107,7 @@ runRequestedTask() {
     esac
     repo="${1:-}"
     local gateId="${2:-}"
-    role="${3:-task}"
     [[ -n "$gateId" ]] || die "no gate named — every ticket belongs to a gate; pass its id as the second argument"
-    [[ "$role" == suite || "$role" == review || "$role" == task ]] \
-        || die "unknown role '$role' — there are three: suite, review, task"
     requireBeadsProject
     requireRepo "$repo"
     newTaskId "$gateId"

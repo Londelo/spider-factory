@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
-# sf — the spider-factory CLI. Eight commands, all foreground, each one an engine beside it in CLI/src/.
+# sf — the spider-factory CLI. Six commands, all foreground, each one an engine beside it in CLI/src/.
 #   Every command but bare `sf` refuses to run from outside the factory; bare `sf` goes anywhere.
 #   sf loop          the dispatcher, ../beads-loop/index.sh; Ctrl-C stops dispatching.
-#   sf plan:epic     the planner, ../plan-agent.sh, epic kind
-#   sf plan:feature  the planner, ../plan-agent.sh, feature kind
-#   sf plan:task     the planner, ../plan-agent.sh, task kind
+#   sf plan:epic     the planner, ../plan-agent.sh, epic kind — it spawns the feature and task planners itself
 #   sf overseer      the watcher, ../overseer-agent.sh; reads the run, writes nothing
 #   sf tower         the picture, ../src/tower/index.sh; the whole database as one tree, writes nothing
 #   sf commit        the committer, ../commit.sh; stages everything, subject is agent:branch:message, then pushes
@@ -18,8 +16,6 @@ nameTheSpeaker sf
 
 declare -A planKindOf=(
     [plan:epic]=epic
-    [plan:feature]=feature
-    [plan:task]=task
 )
 
 usage() {
@@ -30,9 +26,7 @@ sf — spider-factory CLI
                    factory root — you stay put if you are already inside it
   sf --help        this text
   sf loop          run the dispatcher over the tower in the current directory
-  sf plan:epic     run the epic planner
-  sf plan:feature  run the feature planner
-  sf plan:task     run the task planner
+  sf plan:epic     run the epic planner — it plans the features and the tasks under it itself
   sf overseer      read the tower here and report on it — reads only
   sf tower         print the whole database as one tree, in the order the loop works it
   sf commit        stage everything here, commit it, push the branch
@@ -44,12 +38,12 @@ sf — spider-factory CLI
 dispatching — the tickets it claimed stay claimed, and any worker already spawning
 keeps running. Run `sf loop` again to resume.
 
-The three plan commands each run one planner in the foreground, and hand it anything
-you type after the command as the prompt:
+`sf plan:epic` runs the one planner you talk to, in the foreground, and hands it anything
+you type after the command as the prompt. It plans the epic with you, then spawns the
+feature planner and waits, and the feature planner spawns a task planner per feature and
+waits — the whole tower comes out of this one command:
 
   sf plan:epic a record box for my diary entries
-  sf plan:feature SF-12
-  sf plan:task SF-31
 
 `sf overseer` runs the reader in the foreground, over the tower in this directory. It
 reads the beads database, the run logs under SF_LOG_ROOT and git, and reports: alive or
@@ -62,10 +56,10 @@ it hands you the command to run yourself:
 
 `sf tower` prints every ticket of every status in this directory's database as one tree —
 each task inside its feature, each feature inside its epic, top to bottom in the order the
-loop works them: a feature's worker chain, then its suite, then its review, then its gate;
-the epic's own suite and review last. Each line carries the order its own epic's tickets
-actually closed and the day it closed, so a number out of step with the page is the order
-having gone wrong. It reads only — nothing is claimed or closed:
+loop works them, read off the blocks graph: every ticket after the one it waits on, and a
+gate last, after the review that is the only thing blocking it. Each line carries the order
+its own epic's tickets actually closed and the day it closed, so a number out of step with
+the page is the order having gone wrong. It reads only — nothing is claimed or closed:
 
   sf tower
 
@@ -78,7 +72,7 @@ typed it yourself, then the branch you are on, then your own line:
 It commits, then pushes the branch to origin.
 
 SF_AGENT_COMMAND (claude) — the command that runs an agent. Point it at your own
-build and the three planners and the loop's workers all run through that instead;
+build and the planners and the loop's workers all run through that instead;
 it is split on spaces, so it may carry its own arguments. The loop also asks it for
 `agents --json` to count the workers already running, so your build has to answer
 that too or the loop will spawn past SF_MAX_PARALLEL.
@@ -88,8 +82,8 @@ SF_ALLOWED_LABELS — lives in CLI/spider-factory.env, which the installer wrote
 defaults. Edit that file; something you export yourself still wins for one run.
 
 Every command but bare `sf` runs only from inside the spider factory — anywhere under it, at
-any depth. Bare `sf` opens a session from wherever you are. On top of that the loop, the three
-planners, the watcher and `sf tower` run from inside a tower project (one with a beads DB), and
+any depth. Bare `sf` opens a session from wherever you are. On top of that the loop, the
+planner, the watcher and `sf tower` run from inside a tower project (one with a beads DB), and
 `sf commit` only needs a git repo.
 USAGE
 }
@@ -178,7 +172,7 @@ openFactorySession() {
 }
 
 unknownCommand() {
-    die "unknown command '$1' — there are eight: 'sf loop', 'sf plan:epic', 'sf plan:feature', 'sf plan:task', 'sf overseer', 'sf tower', 'sf commit', 'sf hook'. Try 'sf --help'."
+    die "unknown command '$1' — there are six: 'sf loop', 'sf plan:epic', 'sf overseer', 'sf tower', 'sf commit', 'sf hook'. Try 'sf --help'."
 }
 
 runRequestedCommand() {

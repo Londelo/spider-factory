@@ -18,6 +18,9 @@ epicPrBodyTemplate='The epic branch. Every feature branch under **%s** aims its 
 # a claim that came back wrong
 msgClaimReturnedNoIdTemplate='claim returned no id: %s'
 
+# a peg holding dependencies, closed by the loop itself
+msgBypassCloseFailedTemplate='the ticket %s carries the bypass label but would not close — nothing was dispatched and it stays claimed'
+
 # a ticket that reaches no gate, so it is work the loop will not do
 msgNoEpicGateMalformed='the id does not read <repo>-<kind>-<uuid>-<hierarchy>, so it names no ticket in any tower — nothing was dispatched and the ticket stays claimed until a human puts it in one'
 msgTaskNotBelowAGate='a task'\''s hierarchy is <gate number>.<m> and this one carries no gate number, so it hangs below no gate — nothing was dispatched and the ticket stays claimed until a human fixes the id'

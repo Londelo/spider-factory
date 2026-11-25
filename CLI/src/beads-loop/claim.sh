@@ -46,6 +46,24 @@ readClaimLabels() {
     mapfile -t ticketLabels < <(jq -r '.[0].labels // [] | .[]' <<< "$claimJson" 2>/dev/null)
 }
 
+claimIsBypassed() {
+    local ticketLabel
+    for ticketLabel in "${ticketLabels[@]}"; do
+        [[ "$ticketLabel" == "$bypassLabel" ]] && return 0
+    done
+    return 1
+}
+
+closeBypassedClaim() {
+    setLogField label "$bypassLabel"
+    if bd close "$ticketId" --reason "carries the $bypassLabel label: a peg holding dependencies, never worked" >/dev/null 2>&1; then
+        claimedThisRun=$((claimedThisRun + 1))
+        writeLog claims "reason=bypassed"
+        return
+    fi
+    writeLog errors "reason=bypass-close-failed msg=\"$(formatMessage "$msgBypassCloseFailedTemplate" "$ticketId")\""
+}
+
 claimCarriesExactlyOneDispatchLabel() {
     local ticketLabel
     matchedLabels=()

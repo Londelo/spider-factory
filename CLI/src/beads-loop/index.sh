@@ -29,6 +29,7 @@ declare -A AGENT=(
 )
 
 leadAgentName="lead"
+bypassLabel="bypass"
 
 declare -A numericSettingEnvName=(
     [maximumParallelWorkers]=SF_MAX_PARALLEL
@@ -74,6 +75,10 @@ claimAndDispatchOneTicket() {
     fi
     readTicketIdentityFromClaim || return
     readClaimLabels
+    if claimIsBypassed; then
+        closeBypassedClaim
+        return
+    fi
     claimCarriesExactlyOneDispatchLabel || return
     claimBelongsToATower || return
     ensureEpicGatePr "$resolvedEpicGate" || {

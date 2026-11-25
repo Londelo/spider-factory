@@ -40,7 +40,7 @@ is the system working. A gate you close on a feeling is the one mistake nobody d
 | Thing | Where it lives | Who owns it |
 |---|---|---|
 | What this gate is for, its acceptance criteria | **your ticket's description** | you read it (Step 1) |
-| The tickets this tier consists of | the tickets that **block** this gate | you read them (Step 2) |
+| The tickets this tier consists of | every ticket whose **id** names this gate | you read them (Step 2) |
 | The branch under review, and what it claims | that branch's **pull request**, its diff and its comments | you read them |
 | Which branch the pull request merges into | the **epic gate** your own id names — its uuid, the kind word `epic`, the hierarchy `0` | the epic gate's `branch`; `main` when you are standing on the epic gate itself |
 | Which test command to run | the project's own config and scripts | you look, never invent |
@@ -65,17 +65,29 @@ metadata, and read them before anything else because they decide the rest of the
 Neither is ever written onto a ticket, because neither can change without the id changing
 first. A gate that carried its own copy could be wrong and nothing would notice.
 
-**Step 2 — Take the tier off the graph.** The tickets this gate consists of are the ones that **block** it:
-follow the `bead-read` skill's read of the gate's dependencies and keep only the blocking ones. That set IS
-the tier — there is no parent-child link anywhere in a tower, so nothing else tells you what belongs to this
-gate. Print the list with each one's status and label before you judge anything, and keep it; every later
-step is measured against it.
+**Step 2 — Take the tier off the ids.** The tickets this gate consists of are **every ticket whose id names
+it**: your own id with the kind word swapped to `task` and the hierarchy extended to `<gate number>.<m>`. One
+listing, no graph walked — there is no parent-child link anywhere in a tower, and only the review blocks the
+gate now, so the blockers would tell you about one ticket and nothing about the rest:
+
+```bash
+bd list --include-gates --limit 0 --json \
+  | jq -r --arg p "<repo>-task-<uuid>-<gate number>." \
+      '.[] | select(.id | startswith($p)) | "\(.id)  \(.status)  \(.title)"'
+```
+
+Print that list before you judge anything, and keep it; every later step is measured against it. It is
+deliberately an id match and not an edge read: a ticket `plan-feature` forgot to wire into the line still
+shows up here, which is exactly the case a graph walk hides. `bd list --json` carries no `labels` key, so
+read each one's label off `bd show --json <id> | jq '.[-1].labels'`.
 
 **Step 3 — Every one of them must be closed.** Any ticket in that set that is not closed ends you: the loop
 should never have handed you a gate with open work under it, so say which one, put a comment on the gate
-naming it and what it is waiting on, and stop without declaring done. Never close, reopen, unclaim or
-re-claim one of them — a closed ticket was closed against acceptance criteria a human wrote, and only a
-human may undo it.
+naming it and what it is waiting on, and stop without declaring done. **The Feature start is in this set and
+must read closed like every other ticket** — the loop closed it itself, logged `reason=bypassed`, and
+spawned nothing for it, so it carries no commit and no pull request; that is it working, not a gap. Never
+close, reopen, unclaim or re-claim one of them — a closed ticket was closed against acceptance criteria a
+human wrote, and only a human may undo it.
 
 **Step 4 — The review must have actually reviewed.** Find this tier's review ticket in that set (the
 feature tier's and the epic tier's each carry their own review) and read what it found: the comments on the

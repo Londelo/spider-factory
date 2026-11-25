@@ -5,19 +5,23 @@ def parseId:
         ($m.hier | split(".")) as $p
     | . + {
         filed: true, repo: $m.repo, kind: $m.kind, uuid: $m.uuid,
-        head: ($p[0] | tonumber),
-        member: (if ($p | length) > 1 then ($p[1] | tonumber) else null end)
+        head: ($p[0] | tonumber)
       } end;
 
 def headRank: if .head == 0 then 1000000000 else .head end;
 
-def memberRank:
-    if .kind == "epic" or .kind == "feature" then 2000000
-    elif .member == 1 then 1000001
-    elif .member == 2 then 1000002
-    else .member end;
-
-def expectedKey: [headRank, memberRank];
+def topoRank($edges):
+    . as $ids
+    | (reduce $edges[] as $e ({};
+         .[$e.issue_id] = ((.[$e.issue_id] // []) + [$e.depends_on_id]))) as $blockers
+    | (reduce $ids[] as $i ({}; .[$i] = 0)) as $zero
+    | reduce range(0; ($ids | length)) as $_ ($zero;
+        . as $rank
+        | reduce $ids[] as $i ($rank;
+            ([ ($blockers[$i] // [])[] | $rank[.] // 0 ] | max // 0) as $depth
+            | if $depth + 1 > .[$i] then .[$i] = $depth + 1 else . end
+          )
+      );
 
 def glyph:
     if .status == "closed" then "✓"
@@ -73,11 +77,11 @@ def shapeOf:
             ready: false, title: "no row carries this uuid at hierarchy 0" }) as $epic
     | ($tower | map(select(.kind == "feature")) | sort_by(.head)) as $features
     | ($tower | map(select(.kind == "task"))) as $tasks
-    | ($tasks | map(select(.head == 0)) | sort_by(.member // 0)) as $epicTier
+    | ($tasks | map(select(.head == 0)) | sort_by(.rank)) as $epicTier
     | ($tasks | map(select(.head != 0 and (.head as $h | ($features | map(.head) | index($h)) == null)))) as $orphans
     | ( ($features
           | map(. as $f | { row: $f,
-                            children: ($tasks | map(select(.head == $f.head)) | sort_by(.memberRank)) }))
+                            children: ($tasks | map(select(.head == $f.head)) | sort_by([.rank, .created_at])) }))
         + ($epicTier | map({ row: ., children: [] }))
         + ($orphans  | map({ row: ., children: [] }))
       ) as $kids
@@ -101,10 +105,14 @@ def linesOf($shape):
 | { id, status, title, issue_type,
     labels: (.labels // []),
     closed_at,
+    created_at,
     ready: ((.id as $i | $ready | index($i)) != null) }
 | parseId
-| . + { expected: expectedKey, memberRank: memberRank, line: "" }
-] as $rows
+| . + { line: "" }
+] as $rawRows
+| ($rawRows | map(.id) | unique) as $allIds
+| ($allIds | topoRank($deps)) as $rank
+| ($rawRows | map(. as $r | $r + { rank: ($rank[$r.id] // 0), expected: [($r | headRank), ($rank[$r.id] // 0)] })) as $rows
 | ($rows | map(.id | length) | max // 0) as $idw
 | ($rows | map(select(.filed)) | group_by(.uuid)) as $towers
 | ($rows | map(select(.filed | not))) as $unfiled

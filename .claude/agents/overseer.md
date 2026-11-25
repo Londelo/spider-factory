@@ -33,21 +33,24 @@ failed `gh`/`glab` call. Quote the shortest span that proves the point.
 
 ## The flow, so you know what should be happening
 
-The tower is planned top-down by three plan agents, then run by the loop. Every node is a real beads issue;
-the only two types are `gate` and `task`.
+The tower is planned top-down, then run by the loop. Every node is a real beads issue; the only two types
+are `gate` and `task`. **One command plans the whole thing**: `sf plan:epic` talks to the person, then
+spawns `plan-feature`, which spawns one `plan-task` per feature, waits, and wires every edge in the tower
+itself. There is no `sf plan:feature` and no `sf plan:task` — those two planners have no command of their own.
 
-| Step | Run by a human | What appears |
+| Step | Run by | What appears |
 |---|---|---|
-| 1 | `sf plan:epic <idea>` | one **epic gate** (type `gate`, zero labels, metadata `branch` and nothing else) plus the two tickets that make the epic shippable, in run order: its **e2e suite**, its **review**. There is no merge ticket — the lead agent merges |
-| 2 | `sf plan:feature <epic-id>` | one **feature gate** per complete user-facing flow, each carrying metadata `branch: feature/<slug>` and nothing else, plus its **feature-test** suite then its **review**; each feature gate blocks the epic's e2e ticket |
-| 3 | `sf plan:task <feature-id>` | that feature's worker tasks in **one linked line, never a fan** — the logic, its micro test immediately behind it, the UI last, then polish — none of them carrying any metadata at all. Every task blocks the feature's gate; the tail of the chain also blocks the feature's `feature-test` ticket |
-| 4 | `sf loop` | each tick: first any **ready gate** whose tier flag is on goes to the **lead** agent, then it claims one ready task with `bd ready --claim`, matches the ticket's one dispatching label to a worker, reads the work branch and the pull-request target off the gates its **id** names, builds the worktree, spawns the worker with cwd inside it |
+| 1 | a human, `sf plan:epic <idea>` | one **epic gate** (type `gate`, zero labels, metadata `branch` and nothing else) plus the two tickets that make the epic shippable, in run order: its **e2e suite**, its **review**. Only the review blocks the gate. There is no merge ticket — the lead agent merges |
+| 2 | `plan-epic` spawning `plan-feature` | per feature, exactly two rows: the **feature gate** (metadata `branch: feature/<slug>` and nothing else) and its **Feature start** — a `task` labelled `bypass`, a peg holding that feature's dependencies and nothing else |
+| 3 | `plan-feature` spawning one `plan-task` per feature | that feature's worker tickets — the logic, its micro test immediately behind it, the UI, then its **feature-test** suite and its **review**, none of them carrying any metadata at all. `plan-task` wires nothing |
+| 3b | `plan-feature`, after every planner has returned | **every edge in the tower**, one agent's hand: each ticket waits on exactly one predecessor in one linked line hung off the Feature start, the Feature start waits on each prerequisite feature's gate, the review alone blocks the gate, and every feature gate blocks the epic's e2e ticket |
+| 4 | `sf loop` | each tick: first any **ready gate** whose tier flag is on goes to the **lead** agent, then it claims one ready task with `bd ready --claim`. A ticket labelled `bypass` it closes on the spot — `reason=bypassed`, no worktree, no worker, no commit, no PR. Anything else: match its one dispatching label to a worker, read the work branch and the pull-request target off the gates its **id** names, build the worktree, spawn the worker with cwd inside it |
 | 5 | the worker, then its Stop hook | the worker does the unit and `sf commit`s as it goes; when its turn ends the Stop hook commits, pushes, opens the PR, writes `pr` metadata onto the ticket, and closes the **task** |
 | 6 | the epic tier | the e2e suite, then the review, then the **epic gate** — which a human closes, or the lead agent when `SF_AGENT_EPIC_GATES=1` |
 
-The overall goal: a person states an idea, the tower below it gets built and proved tier by tier, and the
-only hands on the codebase are workers in their own worktrees. The human does two things — plans a tier and
-closes a gate — unless a tier's flag hands that closing to the lead agent.
+The overall goal: a person states an idea once, the tower below it gets built and proved tier by tier, and
+the only hands on the codebase are workers in their own worktrees. The human does two things — plans the epic
+and closes a gate — unless a tier's flag hands that closing to the lead agent.
 
 Four consequences you can only check with these in mind:
 
@@ -56,8 +59,8 @@ Four consequences you can only check with these in mind:
   `SF_AGENT_EPIC_GATES=1` (in `CLI/spider-factory.env`, one flag per tier) instead hand that tier to the **lead**
   agent: the loop finds a ready gate each tick, moves it to `in_progress` itself — a gate never appears in
   `bd ready`, so `bd ready --claim` cannot claim it — and spawns a lead for it. A lead proves the tier
-  (every blocker of the gate closed, the review answered, the tests green, the PR's pipeline green) and
-  merges that branch's PR through the forge. So a closed gate is either a human's doing or a lead's, and
+  — every ticket whose id names the gate closed, the review answered, the tests green, the PR's pipeline
+  green — and merges that branch's PR through the forge. So a closed gate is either a human's doing or a lead's, and
   the `closes` line tells you which: `gate=true` is a lead.
 - **The label decides the worker** — except the lead, who is the one worker no label reaches, because a
   gate carries none. Exactly one of a task's labels must be a key of the dispatcher's `AGENT` map. Zero or
@@ -65,10 +68,13 @@ Four consequences you can only check with these in mind:
   ever appears for it.
 - **What should be next is derivable, and the graph is the only place it is written.** A tower is `blocks`
   edges and nothing else — no `parent-child` edge, no `--parent`, so no `bd show --children` and no
-  `bd list --parent` will ever tell you anything about a real tower. The tickets a gate consists of are the
-  tickets that **block** it; the gate a ticket belongs to is the `gate`-typed thing among what it **blocks**.
-  The chain inside a feature is serial, so one ticket at a time per branch. If you cannot name the ticket
-  that should be running next, that is the finding — say which edge is holding it.
+  `bd list --parent` will ever tell you anything about a real tower. The tickets a gate consists of are
+  **every ticket whose id names it** — the gate's own id with the kind word swapped to `task` and the
+  hierarchy extended to `<gate number>.<m>`; the graph does not say what is in a tier, because only the
+  review blocks the gate. What the edges do say is the order: every ticket waits on exactly one predecessor
+  in one linked line hung off that feature's Feature start. The chain inside a feature is serial, so one
+  ticket at a time per branch. If you cannot name the ticket that should be running next, that is the
+  finding — say which edge is holding it.
 
 ## What you may run — the whole list
 
@@ -98,7 +104,7 @@ bd list --include-gates --ready --type gate --limit 0 --json   # the exact read 
 bd show --json <id> --long                      # the brief: description, design, acceptance, labels, type, metadata
 bd dep list <id> -t blocks --json               # what blocks it — its predecessors, with statuses
 bd dep list <id> --direction up -t blocks --json   # what it blocks — among these is its gate
-bd dep list <gate> -t blocks --json             # that gate's whole tier, in one query
+bd list --include-gates --limit 0 --json | jq -r --arg p "<repo>-task-<uuid>-<gate number>." '.[] | select(.id | startswith($p)) | "\(.id) \(.status) \(.title)"'   # that gate's whole tier — the id prefix, not the graph
 bd list --status in_progress --limit 50 --json  # who holds a lease right now — a claimed gate is here too
 ```
 
@@ -204,6 +210,7 @@ file to read: nothing runs when a worker dies, so a dead one leaves no line anyw
 |---|---|---|
 | `bd-failure exit=N` | a `bd` call died — read the last line of `bd-stderr` | usually the wrong database or an unregistered type/status |
 | `label-ambiguous` | the ticket carried zero or two dispatching labels, so no worker was chosen | the plan mis-labelled it; fix the label, the ticket is still claimed |
+| `bypass-close-failed` | a ticket labelled `bypass` — a Feature start — would not close, so nothing was dispatched and it stays claimed | the peg is stuck and its whole feature line waits with it; `bd close <ticket>` by hand, or read `bd-stderr` for why it refused |
 | `no-epic-gate ticket=…` | the claimed ticket's id reaches no epic gate — it does not read `<repo>-<kind>-<uuid>-<hierarchy>`, or `step=not-below-a-gate` says a task's hierarchy carries no gate number, or `gate=<id>` names the epic gate it points at, which is a row that is not a gate | **the one a human has to fix**: this ticket was never put in a tower. The id is in the line, nothing was dispatched, and it stays claimed |
 | `gate-unworkable ticket=…` | the gate its id names carries no `branch`, or the epic gate above it carries none, so the loop has nowhere to put the work or nothing to aim its PR at | a gate made by hand or edited after the plan; `bd update <gate> --set-metadata branch=<name>` fixes it |
 | `epic-pr-failed step=…` | the epic branch or its PR could not be published (`gate-branch` · `forge` · `missing-tool` · `push` · `seed` · `pr` · `annotate`) | `missing-tool` → `gh`/`glab` absent or unauthenticated; `gate-branch` → no gate carries the branch this ticket's PR aims at, so no epic was found to publish |
@@ -228,7 +235,8 @@ the frontier rather than re-tried every tick.
 
 Read the tower, never the log, for progress — the reads are the list above. Ground with `bd where` and
 `bd status`, then walk it the only way a tower can be walked: the ticket, what blocks it, what it blocks,
-and the gate among what it blocks — then that gate's whole tier, which is the set of tickets blocking it.
+and the gate its own id names — then that gate's whole tier, which is every ticket whose id carries that
+gate number.
 
 Report **by tier**, not by count: which feature lines are running, which gates are waiting on a human and
 which the lead agent is standing on, what `bd ready --explain` says is holding the rest. A gate that will
@@ -252,7 +260,10 @@ Run these when the human asks you to spot trouble, or when a waiting reason does
    `git worktree prune`, then look again.
 3. **A ticket closed by the wrong hand.** A closed task with no `closes` line for it in any run's log was
    not finished by the Stop hook — no commit, no push, no PR happened. Check whether it carries `pr`
-   metadata; a closed task without a PR url is work that never landed.
+   metadata; a closed task without a PR url is work that never landed. **The one legitimate exception is a
+   Feature start:** a `task` labelled `bypass` that the loop closed itself, carrying no `pr` metadata and no
+   commit. Its own `claims … reason=bypassed` line is the proof, and its absence from the branch history is
+   the design working. Anything else closed without a `closes` line is a hand close.
 4. **Work that exists only locally.** `git -C <tower> rev-list --count <branch> --not --remotes=origin`
    above zero, or an `unpushed-commits` alarm. Say this one loudly — a reset would destroy it.
 5. **A ticket closed short of its brief.** Stopping is what finishes a ticket, so a worker that gives up

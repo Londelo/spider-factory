@@ -82,22 +82,22 @@ createTower() {
     FT=$(bd create "Feature tests: the import flow wired — upload → preview → confirm → shelf" -t task -l feature-test --silent \
       -d "One feature's pieces proved WIRED on the feature branch, where every task of this feature has landed as a commit: real CSV fixture through the real endpoint into the real store, then the page against it. Successes and failures of THIS feature surface here: happy path, duplicate-flagged file, all-rejected file, and the shelf's state after confirm (tags landed, duplicates not doubled)." \
       --acceptance "Flow proven end to end for one success and one failure per surface; nothing re-asserts a unit-tier case; runs against the real stack, no mocked parser." \
-      --id "$("$newTaskId" "$repo" "$FEAT" suite)")
+      --id "$("$newTaskId" "$repo" "$FEAT")")
 
     FREV=$(bd create "Review: import feature — trace the change, run the suites, certify" -t task -l feature-review --silent \
       -d "Trace every change this feature's commits made on its branch, instrument if needed, run the unit and feature suites, and certify the feature or name exactly what is broken. Certifying means the feature does what its gate's acceptance criteria demand — not that files merely exist." \
       --acceptance "Suites run and counted (not just exit codes); any test that had to change to pass is named as a defect, not fixed silently; certification or defect list lands on the ticket." \
-      --id "$("$newTaskId" "$repo" "$FEAT" review)")
+      --id "$("$newTaskId" "$repo" "$FEAT")")
 
     E2E=$(bd create "E2E tests: reading-log journeys across import, manual add, and search" -t task -l epic-e2e-test --silent \
       -d "Journeys that CROSS features on the real stack: import a CSV then search within what landed; add by hand then import over the top (duplicates flag against hand-added rows); search a tag that only exists in the CSV's bookshelves column. One success and one failure path per feature, plus cross-feature state." \
       --acceptance "Journeys run on the real stack against the merged features; cross-feature state proven both directions; one success + one failure per feature at minimum." \
-      --id "$("$newTaskId" "$repo" "$EPIC" suite)")
+      --id "$("$newTaskId" "$repo" "$EPIC")")
 
     EREV=$(bd create "Review: the whole epic — certify the epic branch" -t task -l epic-review --silent \
       -d "Trace the epic branch — every feature branch already merged into it by that feature's own lead agent — top to bottom, run the e2e journeys, and certify the epic or name what is broken. A feature certified alone is NOT proof the features fit together — that is what this ticket exists to find." \
       --acceptance "E2E suite run with counts; any cross-feature break named with the two tickets at the seam; certification or defect list lands on the ticket." \
-      --id "$("$newTaskId" "$repo" "$EPIC" review)")
+      --id "$("$newTaskId" "$repo" "$EPIC")")
 }
 
 wireDependencies() {

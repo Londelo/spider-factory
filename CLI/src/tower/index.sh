@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # index.sh — print the whole database as one tree: every ticket of every status, each task inside its feature
 #   and each feature inside its epic, top to bottom in the order the dispatcher works them.
-#   The order comes off the blocks graph, one 'bd dep list' over every id; creation order breaks a tie.
+#   The order comes off the blocks graph, every id fed through 'bd dep list'; creation order breaks a tie.
 #   index.sh   (or: sf tower)
 set -uo pipefail
 
@@ -29,8 +29,9 @@ thing blocking it.
 An id that does not read <repo>-<kind>-<uuid>-<hierarchy> belongs to no tower and is
 listed last, under 'unfiled'.
 
-Reads only: 'bd ready', 'bd export', and one 'bd dep list' over every id. Nothing is
-claimed or closed.
+Reads only: 'bd ready', 'bd export', and 'bd dep list' over every id. Nothing is
+claimed or closed. If the edges will not read, the picture refuses to draw rather
+than print creation order and call it the plan.
 USAGE
 }
 
@@ -39,15 +40,16 @@ readyTicketIds() {
 }
 
 blocksEdges() {
-    jq -s -r '[ .[].id ] | .[]' | xargs -r bd dep list --json 2>/dev/null \
-        | jq -c '[ .[] | select(.type == "blocks") ]'
+    jq -s -r '[ .[].id ] | .[]' | xargs -r bd dep list --json \
+        | jq -sc '[ .[][] | select(.type == "blocks") ]'
 }
 
 drawTheTower() {
     local ready exported deps
     ready="$(readyTicketIds)"
     exported="$(bd export --json)"
-    deps="$(blocksEdges <<< "$exported")"
+    deps="$(blocksEdges <<< "$exported")" \
+        || die "the blocks edges would not read out of bd dep list — the picture would draw in creation order and look right"
     jq -s -r --argjson ready "$ready" --argjson deps "${deps:-[]}" -f "$here/tower.jq" <<< "$exported"
 }
 

@@ -47,8 +47,8 @@ waits — the whole tower comes out of this one command:
 
 `sf overseer` runs the reader in the foreground, over the tower in this directory. It
 reads the beads database, the run logs under SF_LOG_ROOT and git, and reports: alive or
-not, how far along the tower is, what is wrong. It has no Write, Edit or Agent tools and
-`sf` is denied to it — it never runs the loop or a plan — so where the fix is a mutation
+not, how far along the tower is, what is wrong. It has no Write, Edit or Agent tools, and
+it never runs the loop or a plan, so where the fix is a mutation
 it hands you the command to run yourself:
 
   sf overseer

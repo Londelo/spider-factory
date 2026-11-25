@@ -108,6 +108,7 @@ runRequestedTask() {
     repo="${1:-}"
     local gateId="${2:-}"
     [[ -n "$gateId" ]] || die "no gate named — every ticket belongs to a gate; pass its id as the second argument"
+    [[ $# -eq 2 ]] || die "$3 is a third argument and there are two: a repo and a gate. The number this prints names no role — the blocks graph says what runs when"
     requireBeadsProject
     requireRepo "$repo"
     newTaskId "$gateId"

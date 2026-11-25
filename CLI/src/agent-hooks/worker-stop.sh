@@ -14,6 +14,18 @@
 # $SF_LOG_ROOT/worker-context/, keyed by the worktree's folder name (`/` as `+`), is read only as a
 # fallback for what a thin claims line omits. A session with no dispatched claims line is a human's: it
 # leaves at once, silently, and writes nothing anywhere.
+# The Stop event says a turn ended, not that the work ended: a worker whose last message asks a question
+# has finished responding, so Stop fires for it too, and closing that ticket buries unfinished work. The
+# verdict comes from the session's own job record, $CLAUDE_CONFIG_DIR/jobs/<first 8 of the session id>/
+# state.json, which the supervisor writes before Stop fires. 'claude agents --json' is read by nothing
+# here and cannot be: the session is busy running this hook, so it reports state=working for every
+# worker, finished or not, for as long as this script lives. Only state=done closes; blocked means the
+# session is parked on a person — a question, a permission it was denied, an API error only a human can
+# clear — and the ticket stays claimed, uncommitted, until someone answers it and it stops again clean.
+# That record is Claude Code's own and undocumented, so SF_SESSION_VERDICT_COMMAND is its seam: set to a
+# command, it takes the session id as its one argument and answers the same question — first line of
+# stdout the verdict word, whatever follows is what the session is waiting on. Unset, the read below runs.
+# Either way, a verdict the hook cannot read is never a verdict it guesses at: it closes nothing.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -141,6 +153,53 @@ readHookInput() {
     export SF_WORKTREE="$worktreeDir" SF_SESSION="$sessionId"
 }
 
+sessionVerdict=""
+sessionNeeds=""
+
+readVerdictFromJobRecord() {
+    local jobFile
+    jobFile="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/jobs/${sessionId:0:8}/state.json"
+    [[ -r "$jobFile" ]] || {
+        sessionVerdict="no-record"
+        return 0
+    }
+    sessionVerdict="$(jq -r '.state // empty' "$jobFile" 2>/dev/null)"
+    sessionNeeds="$(jq -r '.needsAsk.text // empty' "$jobFile" 2>/dev/null)"
+    [[ -n "$sessionVerdict" ]] || sessionVerdict="unreadable"
+}
+
+readVerdictFromCommand() {
+    local out
+    out="$($SF_SESSION_VERDICT_COMMAND "$sessionId" 2>/dev/null)"
+    sessionVerdict="$(head -n 1 <<<"$out" | tr -d '[:space:]')"
+    sessionNeeds="$(tail -n +2 <<<"$out" | oneLine)"
+    [[ -n "$sessionVerdict" ]] || sessionVerdict="unreadable"
+}
+
+readSessionVerdict() {
+    if [[ -n "${SF_SESSION_VERDICT_COMMAND:-}" ]]; then
+        readVerdictFromCommand
+    else
+        readVerdictFromJobRecord
+    fi
+}
+
+requireSessionFinished() {
+    readSessionVerdict
+    case "$sessionVerdict" in
+        done) return 0 ;;
+        blocked)
+            alarmAndExit "reason=worker-needs-input needs=\"$(oneLine <<<"$sessionNeeds")\" msg=\"the worker stopped to ask for something only a person can give it, so its work is not finished; the ticket stays claimed and nothing landed until someone answers the session and it stops again with nothing pending\""
+            ;;
+        failed | stopped)
+            alarmAndExit "reason=worker-$sessionVerdict msg=\"the worker's session ended in state=$sessionVerdict, which is not a finished turn; the ticket stays claimed\""
+            ;;
+        *)
+            alarmAndExit "reason=session-verdict-unknown verdict=$sessionVerdict msg=\"the hook could not read a verdict for session $sessionId, and will not close a ticket on one it cannot read; the ticket stays claimed\""
+            ;;
+    esac
+}
+
 ticketState() {
     bd -C "$towerDir" show --json "$ticket" 2>/dev/null \
         | jq -r 'if type == "array" then .[0] else . end | .status // empty' 2>/dev/null
@@ -257,6 +316,7 @@ closeTicketAsItsClaimant() {
 
 requireTools
 readHookInput
+requireSessionFinished
 requireTicketStillInWork
 requireDispatchRecord
 requireWorkOnItsOwnBranch

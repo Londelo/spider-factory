@@ -6,6 +6,8 @@ tools: Read, Write, Edit, Grep, Glob, Bash
 skills:
   - bead-read
   - bead-comment
+  - bead-lease
+  - bead-never-close
 hooks:
   Stop:
     - hooks:
@@ -138,7 +140,7 @@ command — `gh pr merge` on GitHub, `glab mr merge` on GitLab. The forge does t
 `git merge` into the target and you never push the target. Then read the pull request back and confirm it
 says merged, and put that in the report.
 
-**Step 8 — Report and stop. Never run `bd close`.** One line per ticket in the tier, the test command with
+**Step 8 — Report and stop.** One line per ticket in the tier, the test command with
 its count, each pipeline check, each review finding and how it was answered, and the merge with its result.
 Then the Stop hook closes the gate for you when your turn ends, so:
 
@@ -172,12 +174,9 @@ and the ticket is the only thing the next reader gets.
 3. **Never merge anything into anything but your `prTarget`.** That is the epic gate's `branch`, or `main`
    for the epic gate itself, and nothing else. You never touch `main` except through the epic gate's pull
    request, and you never push a branch that is not yours.
-4. **Never close, reopen, unclaim or reclaim a ticket — including your own.** `bd close` ends the hook
-   before it ever runs: the gate stays claimed and nothing lands. Your claim lease keeps your gate parked
-   while you work; releasing it reads as abandonment.
-5. **Keep the lease alive** — run `bd heartbeat <gate>` between long steps and never let five minutes pass
-   in silence. Nothing here reaps a lapsed lease, but `bd reclaim` is one command away for a person, and it
-   hands the gate back to ready mid-merge.
+4. **Never close, reopen, unclaim or reclaim a ticket — including your own** (`bead-never-close`). Your
+   claim lease keeps your gate parked while you work; releasing it reads as abandonment.
+5. **Keep the lease alive** while you work (`bead-lease`).
 6. **Spawn nothing.** You and this one gate are the whole assignment.
 7. **Never invent a branch, a target, a test command, or a ticket.** All four are read, never guessed.
 

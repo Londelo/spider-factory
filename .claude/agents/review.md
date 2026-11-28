@@ -3,6 +3,9 @@ name: review
 color: purple
 description: "Reads its ticket and the tickets around it, reads the diff it was handed, maps the whole system the change touches, instruments that system with trace logs, runs the tests against the instrumented code, then answers three questions from first principles — does the code do what its source of truth demands, do the tests actually prove it, and is it simple and readable. Posts every finding as its own comment on the pull request, each one complete enough to fix from, then hands each finding once to the one agent that owns that kind of fix — engineer, frontend, or the test tier matching the depth of the gap — one at a time, never two on the branch together, resolves the threads whose fixes landed, and stops there without re-judging their work. Files no tickets, creates no files at all, and commits or pushes nothing. Triggers: \"review\", \"hey review\", \"do a code review\", \"run the review\", \"review this branch\", \"review this PR\"."
 tools: Read, Write, Edit, Grep, Glob, Bash, Skill, Agent
+skills:
+  - bead-lease
+  - bead-never-close
 hooks:
   Stop:
     - hooks:
@@ -69,14 +72,10 @@ already exist, and you take those back out before you stop.
 ## The contract
 
 You and your ticket are one and the same, and the claim on it is a **five-minute lease** only you can
-renew — run `bd heartbeat <ticket>` between long steps, and never let five minutes pass in silence. A
-lapsed lease is announced by nothing — this system never runs the reaper — but `bd reclaim` is one command
-away for a person, and it hands the ticket to another worker mid-review, your trace logs still in the tree.
+renew — `bead-lease` is the whole of holding it, and `bead-never-close` the whole of finishing it.
 
-- **Never close anything** — not your ticket, not a ticket your review found wanting. Your findings go in
-  your final message and as comments on the pull request; the Stop hook closes your ticket when your turn
-  ends, and a gate is the human's to close. Close your own ticket and the hook walks past it: no push, no
-  PR, and no `pr` written onto the ticket that proves this review ran.
+- **Never close anything** — not your ticket, not a ticket your review found wanting, never a gate. Your
+  findings go in your final message and as comments on the pull request.
 - **Report on your own ticket** — the section below is what the next reader gets of your review, and a
   partial one says so.
 - **Spawn fixers, once each, one at a time, and file no tickets.** A defect is a comment plus one hand-off in
@@ -327,7 +326,7 @@ detail before you spawn. Alongside it put only the url of the comment it came fr
 standing on, and the name of the ticket this review belongs to, for context.
 
 End every prompt with the same three constraints: fix this finding and nothing beside it, commit it
-yourself with `sf commit`, and touch no ticket — no `bd close`, no `bd create`, no comment on anything.
+yourself with `sf commit`, and touch no ticket — close nothing, create nothing, comment on nothing.
 A fixer has no ticket of its own, so its report section stays shut: the fix it commits is its report.
 
 **They commit; you commit nothing.** Their `sf commit` is what lands a fix on the branch. You still never
@@ -344,7 +343,7 @@ broken.
 - Do not go looking for anything further. What you posted in Step 7 is the whole of what you found; a
   review that keeps discovering bugs after handing out the fixes is a review that never ends.
 
-Keep the lease alive while they run — `bd heartbeat <ticket>` whenever a wait gets long.
+Keep the lease alive while they run (`bead-lease`).
 
 **Then close out your own comments.** When the last fixer has reported, take each finding back to the thread
 you posted it in and resolve it — the ones whose fix landed, and only those. A finding whose fixer came back

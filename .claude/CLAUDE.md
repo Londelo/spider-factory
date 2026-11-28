@@ -116,7 +116,7 @@ worktree or a tower.
 | `CLI/src/create-beads/` | `create-gate.sh` and `create-task.sh`, the only two things that mint an id. They live in the factory checkout and are run by a plan agent whose cwd is the tower — the cwd is what decides which beads database `bd` reads |
 | `.claude/agents/` | 7 worker agents + 3 plan agents + the overseer. The seven workers' frontmatter is what registers the one worker hook; the other four carry none |
 | `.claude/shared/plan-tasks/` | the three briefs `plan-task` copies a ticket's shape from — `engineer.md`, `frontend.md`, `tester-unit.md`, one per category, each named for the agent that fills it |
-| `.claude/skills/` | every beads query: `bead-initialize`, `bead-create`, `bead-read`, `bead-comment`, `pr-comments`, the `standards-*`, the `framework-*`, and `sf-documentation` — the whole doc-pass procedure |
+| `.claude/skills/` | every beads query, and the only place beads syntax is ever written: `bead-initialize`, `bead-create`, `bead-read`, `bead-comment`, `bead-lease`, `bead-never-close`, `pr-comments`, the `standards-*`, the `framework-*`, and `sf-documentation` — the whole doc-pass procedure. An agent reaches any of them by naming it in its `skills:` frontmatter |
 | `webs/` + `scripts/clone-webs.sh` | the webs the factory builds. One repo url a line in `webs/webs.yml` (gitignored; `webs.example.yml` is the tracked template), cloned into `webs/`. The directory ships by `.gitkeep` alone |
 | `scripts/tower-walk.sh` | the experiment harness: builds a throwaway tower and walks the frontier by hand |
 
@@ -174,6 +174,10 @@ One line each. These are memories, so the next agent does not rediscover them.
   work, and `blocked` leaves the ticket claimed with the worker parked on a person.
 - `bd` accepts an unknown type or status **silently** and then refuses it, so a broken gate and a working one
   look identical.
+- The beads syntax lives in exactly one place per concern — `bead-read` the reads, `bead-create` the rows and
+  edges, `bead-comment` the writing on a ticket, `bead-lease` the lease, `bead-never-close` the finish. An
+  agent file that repeats a command out of one of them is the copy that goes stale: `bead-read` was sending
+  agents to read a tier off the gate's blockers long after only the review blocked a gate.
 - `gate` and `failed-agent` are per-database custom settings; `bead-initialize` registers both, and an older
   tower needs the two `bd config set` lines run in it.
 - The worker's tower is a **literal in its prompt**, and `bd where` is what proves it; when `bd` answers a
@@ -217,3 +221,8 @@ One line each. These are memories, so the next agent does not rediscover them.
 - **The `AGENT` map is the only label→agent binding**, and `lead` is the one worker no label reaches: a gate
   carries no labels at all.
 - **No `parent-child` edge and no `--parent`, anywhere.** The tower is `blocks` edges only.
+- **An agent file carries the instructions; a skill carries the beads commands.** No `bd` invocation, flag
+  or JSON key may appear in `.claude/agents/` — an agent says what it must do and reaches beads only through
+  a skill named in its own `skills:` frontmatter. The one exception is a remedy the overseer prints for a
+  human to run, which is its output and not its toolset. An agent typing a `bd` flag from memory is an agent
+  running the wrong one.

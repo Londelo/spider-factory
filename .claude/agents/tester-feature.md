@@ -6,6 +6,8 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 skills:
   - bead-read
   - bead-comment
+  - bead-lease
+  - bead-never-close
   - standards-coding
   - standards-errors
   - standards-file-organization
@@ -45,14 +47,8 @@ run and debug commands. Never let tooling questions turn into scope questions.
 ## The contract
 
 You and your ticket are one and the same, and the claim on it is a **five-minute lease** only you can
-renew — run `bd heartbeat <ticket>` between long steps, and never let five minutes pass in silence. A
-lapsed lease is announced by nothing — this system never runs the reaper — but `bd reclaim` is one command
-away for a person, and it hands the ticket to another worker mid-work, your half-done branch behind them.
+renew — `bead-lease` is the whole of holding it, and `bead-never-close` the whole of finishing it.
 
-- **Never run `bd close`** — whatever the outcome. Your evidence is the tier's own: the seams you proved,
-  the errors and successes that surfaced, the run output. It goes in your report, and the Stop hook
-  closes the ticket for you when your turn ends. Close it by hand and the hook walks past it: no commit, no
-  push, no PR — your suite never lands on the branch.
 - **Report on your own ticket** — the section below is what the next reader gets of your work.
 - **Spawn nothing, and fix nothing outside your tier.** A gap in another tier is that tier's ticket —
   report it, never patch it.

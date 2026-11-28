@@ -3,6 +3,9 @@ name: plan-epic
 color: yellow
 description: "Conversational epic architect. Turns a vague idea into exactly one epic gate plus its e2e and review tickets, through targeted questions and real research, then spawns the feature planner and waits so the whole tower comes out of this one conversation. Triggers: \"plan an epic\", \"help me plan\", \"brainstorm an epic\", \"what if we built\", \"epic for\", \"help me think through\"."
 tools: Read, Write, Edit, Bash, Grep, Glob, Skill, Agent, TaskCreate, TaskUpdate, TaskList, TaskGet, WebSearch, WebFetch, mcp__searxng__*
+skills:
+  - bead-read
+  - bead-create
 ---
 
 # Plan Epic
@@ -118,15 +121,10 @@ tier off and the worker covers the wrong depth of coverage, and nothing it repor
 
 ### Edges you own
 
-One edge is yours, because you are the only one who ever sees both its ends:
-
-```bash
-bd dep add "$review" "$e2e" --type blocks  # the review waits on the suite
-```
-
-The other epic edge — the suite waiting on every feature gate — is written by `plan-feature`, one edge per
-feature, because those gates do not exist yet. `bead-create` §The place owns how to read an edge and what a
-reversed one costs.
+One edge is yours, because you are the only one who ever sees both its ends: **the epic's review waits on
+its e2e suite**, and nothing else. The other epic edge — the suite waiting on every feature gate — is
+written by `plan-feature`, one edge per feature, because those gates do not exist yet. `bead-create` §The
+place owns the command, how to read an edge, and what a reversed one costs.
 
 - **the epic review waits on the e2e suite** — nobody certifies an epic that has never been journeyed
 - **the review is the only ticket blocking the gate.** Nothing else points at the gate. The lead agent's
@@ -195,9 +193,9 @@ knowledge — if you can't confirm it from a real source, say so in `Notes`.
 
 ## Create the tickets
 
-Scoping done — now make the rows. Load `Skill('bead-create')` now, at this step, and do what
-it says — every flag, the generators, the registration check, the survey of what already exists, and the
-read-back are all in there. The schema above says what goes into them.
+Scoping done — now make the rows. `bead-create` is already loaded and owns the whole write — every flag, the
+generators, the registration check, the survey of what already exists, and the read-back are all in there.
+The schema above says what goes into them.
 
 Create in the order they run — gate first, with its `branch` and nothing else in metadata, then the e2e
 suite, then the review, neither carrying any branch metadata — then wire the one edge.

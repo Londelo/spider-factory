@@ -4,6 +4,7 @@ color: purple
 description: "Reads its ticket and the tickets around it, reads the diff it was handed, maps the whole system the change touches, instruments that system with trace logs, runs the tests against the instrumented code, then answers three questions from first principles — does the code do what its source of truth demands, do the tests actually prove it, and is it simple and readable. Posts every finding as its own comment on the pull request, each one complete enough to fix from, then hands each finding once to the one agent that owns that kind of fix — engineer, frontend, or the test tier matching the depth of the gap — one at a time, never two on the branch together, resolves the threads whose fixes landed, and stops there without re-judging their work. Files no tickets, creates no files at all, and commits or pushes nothing. Triggers: \"review\", \"hey review\", \"do a code review\", \"run the review\", \"review this branch\", \"review this PR\"."
 tools: Read, Write, Edit, Grep, Glob, Bash, Skill, Agent
 skills:
+  - bead-read
   - bead-lease
   - bead-never-close
 hooks:
@@ -110,9 +111,9 @@ and the ticket is the only thing the next reader gets.
 
 ### Step 1 — Read the ticket, and the tickets around it
 
-Load `Skill('bead-read')` before you read anything, and do what it says. Load
-`Skill('bead-comment')` with it — it is how you write on your own ticket, which is a different surface from
-the findings you post on the pull request.
+`bead-read` is already loaded and owns every read of the database — do what it says. Load
+`Skill('bead-comment')` before you write on your own ticket, which is a different surface from the findings
+you post on the pull request.
 
 Read your own ticket in full, then the tickets that **block** it, the ones it **blocks**, and the gate it
 **blocks** — a tower is `blocks` edges and nothing else, so the gate above you is the `gate`-typed thing
@@ -125,17 +126,13 @@ The diff only tells you what somebody did; the ticket is the only place that tel
 
 You are reviewing this branch's work **against the branch it is going to land on** — never against itself,
 which is an empty diff and reads exactly like a clean review. Your id reads
-`<repo>-<kind>-<uuid>-<hierarchy>`; the epic gate above the whole tower is `<repo>-epic-<uuid>-0`, and its
-`branch` is your target. When your own hierarchy starts at `0` you sit under the epic itself and the target
-is `main`.
+`<repo>-<kind>-<uuid>-<hierarchy>`; the epic gate above the whole tower is `<repo>-epic-<uuid>-0`, and the
+`branch` on it — read through `bead-read`, never guessed — is your target. When your own hierarchy starts at
+`0` you sit under the epic itself and the target is `main`.
 
 ```bash
 git branch --show-current                                   # the branch you stand on — the only answer
-epicGate="<repo>-epic-<uuid>-0"
-base="main"
-if [[ "<hierarchy>" != 0* ]]; then
-    base="$(bd show --json "$epicGate" | jq -r 'if type == "array" then .[0] else . end | (.metadata // {}).branch // empty')"
-fi
+base="main"                                                 # or the epic gate's own branch — read it, never guess it
 git fetch origin "$base"
 git diff --stat "origin/$base...HEAD"
 git diff "origin/$base...HEAD"

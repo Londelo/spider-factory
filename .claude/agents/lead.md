@@ -68,20 +68,14 @@ Neither is ever written onto a ticket, because neither can change without the id
 first. A gate that carried its own copy could be wrong and nothing would notice.
 
 **Step 2 — Take the tier off the ids.** The tickets this gate consists of are **every ticket whose id names
-it**: your own id with the kind word swapped to `task` and the hierarchy extended to `<gate number>.<m>`. One
-listing, no graph walked — there is no parent-child link anywhere in a tower, and only the review blocks the
-gate now, so the blockers would tell you about one ticket and nothing about the rest:
-
-```bash
-bd list --include-gates --limit 0 --json \
-  | jq -r --arg p "<repo>-task-<uuid>-<gate number>." \
-      '.[] | select(.id | startswith($p)) | "\(.id)  \(.status)  \(.title)"'
-```
+it**: your own id with the kind word swapped to `task` and the hierarchy extended to `<gate number>.<m>`.
+`bead-read` owns that read — one whole-database listing matched on the id prefix, no graph walked, and each
+ticket's label by itself, since no listing ever carries labels.
 
 Print that list before you judge anything, and keep it; every later step is measured against it. It is
-deliberately an id match and not an edge read: a ticket `plan-feature` forgot to wire into the line still
-shows up here, which is exactly the case a graph walk hides. `bd list --json` carries no `labels` key, so
-read each one's label off `bd show --json <id> | jq '.[-1].labels'`.
+deliberately an id match and not an edge read: only the review blocks your gate, so the gate's own blockers
+name one ticket — a ticket `plan-feature` forgot to wire into the line blocks nothing, disappears from that
+read, and is still your tier's business.
 
 **Step 3 — Every one of them must be closed.** Any ticket in that set that is not closed ends you: the loop
 should never have handed you a gate with open work under it, so say which one, put a comment on the gate

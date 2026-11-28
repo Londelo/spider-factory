@@ -23,6 +23,20 @@ def topoRank($edges):
           )
       );
 
+def transitiveBlockers($edges):
+    . as $ids
+    | (reduce $edges[] as $e ({};
+         .[$e.issue_id] = ((.[$e.issue_id] // []) + [$e.depends_on_id]))) as $direct
+    | (reduce $ids[] as $i ({}; .[$i] = ($direct[$i] // []))) as $seed
+    | reduce range(0; ($ids | length)) as $_ ($seed;
+        . as $seen
+        | reduce $ids[] as $i ($seen;
+            .[$i] = ( ( ($direct[$i] // [])
+                        + [ (($direct[$i] // [])[]) as $b | ($seen[$b] // [])[] ] )
+                    | unique )
+          )
+      );
+
 def glyph:
     if .status == "closed" then "✓"
     elif .status == "in_progress" then "▶"
@@ -45,8 +59,8 @@ def pad($w): . + (" " * ($w - ([ (.|length), $w ] | min)));
 
 def gutter: (.ord | if . == null then "-" else (. | tostring) end) | ("   " + .) | .[-4:] + " ";
 
-def conn($i; $n): if $i == $n - 1 then "└─ " else "├─ " end;
-def indent($i; $n): if $i == $n - 1 then "   " else "│  " end;
+def conn($isLast): if $isLast then "└─ " else "├─ " end;
+def guide($isLast): if $isLast then "   " else "│  " end;
 
 def columns($idw):
     [ gutter, .line, (.id | pad($idw)), " " + glyph + " ", (tag | pad(14)), " " + shortDate + "  ", (.title // "") ] | join("");
@@ -75,30 +89,53 @@ def shapeOf:
     | ($tower | map(select(.kind == "epic")) | .[0]
        // { id: "(no epic gate)", status: "missing", kind: "epic", labels: [], closed_at: null,
             ready: false, title: "no row carries this uuid at hierarchy 0" }) as $epic
-    | ($tower | map(select(.kind == "feature")) | sort_by(.head)) as $features
+    | ($tower | map(select(.kind == "feature")) | sort_by(.expected)) as $features
     | ($tower | map(select(.kind == "task"))) as $tasks
-    | ($tasks | map(select(.head == 0)) | sort_by(.rank)) as $epicTier
+    | ($tasks | map(select(.head == 0)) | sort_by(.expected)) as $epicTier
     | ($tasks | map(select(.head != 0 and (.head as $h | ($features | map(.head) | index($h)) == null)))) as $orphans
-    | ( ($features
-          | map(. as $f | { row: $f,
-                            children: ($tasks | map(select(.head == $f.head)) | sort_by([.rank, .created_at])) }))
-        + ($epicTier | map({ row: ., children: [] }))
-        + ($orphans  | map({ row: ., children: [] }))
-      ) as $kids
-    | { root: $epic, kids: $kids };
+    | ( [ $features[] | . as $f
+          | { row: $f,
+              tasks: ($tasks | map(select(.head == $f.head)) | sort_by(.expected)),
+              parent: null } ]
+        + [ $epicTier[] | { row: ., tasks: [], parent: null } ]
+        + [ $orphans[]  | { row: ., tasks: [], parent: null } ]
+      ) as $nodes
+    | ($nodes | map(.row.id)) as $nodeIds
+    | ($tower | map(.id) | unique | transitiveBlockers($deps)) as $reach
+    | (reduce $nodes[] as $n ({}; .[$n.row.id] = 1)) as $one
+    | reduce range(0; ($nodes | length)) as $_ ($one;
+        . as $depth
+        | reduce $nodes[] as $n ($depth;
+            ( [ ($reach[$n.row.id] // [])[] | select(. as $b | $nodeIds | index($b)) ] ) as $prec
+            | (([ $prec[] | $depth[.] // 1 ] | max // 1) + 1) as $d
+            | if $d > .[$n.row.id] then .[$n.row.id] = $d else . end
+          )
+      ) as $depth
+    | $nodes
+    | map(
+        . as $n
+        | ( [ ($reach[$n.row.id] // [])[] | select(. as $b | $nodeIds | index($b)) ] ) as $prec
+        | ( $prec | sort_by([ ($depth[.] // 1), ($nodeIds | index(.)) ]) | (last // null) ) as $parent
+        | $n + { parent: $parent }
+      )
+    | { root: $epic, nodes: . };
+
+def render($node; $byParent; $prefix; $isLast):
+    ( ( ($node.tasks // []) | map({ row: ., tasks: [], parent: null }) )
+      + ( $byParent[($node.row.id | tostring)] // [] ) ) as $kids
+    | [ ($node.row + { line: ($prefix + conn($isLast)) }) ]
+      + ( [ $kids | to_entries[]
+            | render(.value; $byParent; $prefix + guide($isLast); (.key + 1) == ($kids | length))
+          ] | flatten );
 
 def linesOf($shape):
-    [ ($shape.root + { line: "" }) ]
-    + [ $shape.kids | to_entries[]
-        | . as $ke
-        | ( [ ($ke.value.row + { line: conn($ke.key; ($shape.kids | length)) }) ]
-            + [ $ke.value.children | to_entries[]
-                  | . as $te
-                  | ($te.value + { line: (indent($ke.key; ($shape.kids | length)) + conn($te.key; ($ke.value.children | length))) })
-              ]
-          )
-      ]
-    | flatten;
+    (reduce $shape.nodes[] as $n ({};
+        .[($n.parent | tostring)] = ((.[$n.parent | tostring] // []) + [$n]))) as $byParent
+    | ( [ $shape.nodes[] | select(.parent == null) ] ) as $tops
+    | [ ($shape.root + { line: "" }) ]
+      + ( [ $tops | to_entries[]
+            | render(.value; $byParent; ""; (.key + 1) == ($tops | length))
+          ] | flatten );
 
 [ .[]
 | select(.id != null)
